@@ -1,0 +1,206 @@
+package com.studybuddy.test.integration;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.studybuddy.dto.AuthDto;
+import com.studybuddy.model.Role;
+import com.studybuddy.model.User;
+import com.studybuddy.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+/**
+ * Integration tests for Authentication endpoints
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Transactional
+class AuthIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    private User testUser;
+
+    @BeforeEach
+    void setUp() {
+        userRepository.deleteAll();
+
+        testUser = new User();
+        testUser.setUsername("testuser");
+        testUser.setEmail("test@example.com");
+        testUser.setPassword(passwordEncoder.encode("password123"));
+        testUser.setFullName("Test User");
+        testUser.setRole(Role.USER);
+        testUser.setIsActive(true);
+        userRepository.save(testUser);
+    }
+
+    @Test
+    void testRegisterUser_Success() throws Exception {
+        // Arrange
+        AuthDto.RegisterRequest request = new AuthDto.RegisterRequest();
+        request.setUsername("newuser");
+        request.setEmail("newuser@example.com");
+        request.setPassword("password123");
+        request.setFullName("New User");
+
+        // Act & Assert
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").exists());
+
+        // Verify user was created
+        assertTrue(userRepository.existsByUsername("newuser"));
+        assertTrue(userRepository.existsByEmail("newuser@example.com"));
+    }
+
+    @Test
+    void testRegisterUser_DuplicateUsername() throws Exception {
+        // Arrange
+        AuthDto.RegisterRequest request = new AuthDto.RegisterRequest();
+        request.setUsername("testuser"); // Already exists
+        request.setEmail("different@example.com");
+        request.setPassword("password123");
+        request.setFullName("New User");
+
+        // Act & Assert
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("already taken")));
+    }
+
+    @Test
+    void testRegisterUser_DuplicateEmail() throws Exception {
+        // Arrange
+        AuthDto.RegisterRequest request = new AuthDto.RegisterRequest();
+        request.setUsername("differentuser");
+        request.setEmail("test@example.com"); // Already exists
+        request.setPassword("password123");
+        request.setFullName("New User");
+
+        // Act & Assert
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("already registered")));
+    }
+
+    @Test
+    void testRegisterUser_ValidationErrors() throws Exception {
+        // Arrange - Missing required fields
+        AuthDto.RegisterRequest request = new AuthDto.RegisterRequest();
+        request.setUsername(""); // Empty username
+        request.setEmail("invalid-email"); // Invalid email
+        request.setPassword("123"); // Too short password
+
+        // Act & Assert
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void testLogin_Success() throws Exception {
+        // Arrange
+        AuthDto.LoginRequest request = new AuthDto.LoginRequest();
+        request.setUsername("testuser");
+        request.setPassword("password123");
+
+        // Act & Assert
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").exists())
+                .andExpect(jsonPath("$.username").value("testuser"))
+                .andExpect(jsonPath("$.email").value("test@example.com"))
+                .andExpect(jsonPath("$.role").value("USER"));
+    }
+
+    @Test
+    void testLogin_InvalidCredentials() throws Exception {
+        // Arrange
+        AuthDto.LoginRequest request = new AuthDto.LoginRequest();
+        request.setUsername("testuser");
+        request.setPassword("wrongpassword");
+
+        // Act & Assert
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Invalid username or password")));
+    }
+
+    @Test
+    void testLogin_UserNotFound() throws Exception {
+        // Arrange
+        AuthDto.LoginRequest request = new AuthDto.LoginRequest();
+        request.setUsername("nonexistent");
+        request.setPassword("password123");
+
+        // Act & Assert
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void testRegisterUser_WithRole() throws Exception {
+        // Arrange
+        AuthDto.RegisterRequest request = new AuthDto.RegisterRequest();
+        request.setUsername("expertuser");
+        request.setEmail("expert@example.com");
+        request.setPassword("password123");
+        request.setFullName("Expert User");
+        request.setRole("EXPERT");
+
+        // Act & Assert
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // Verify user was created with EXPERT role
+        User savedUser = userRepository.findByUsername("expertuser").orElse(null);
+        assertNotNull(savedUser);
+        assertEquals(Role.EXPERT, savedUser.getRole());
+    }
+}
+
