@@ -42,6 +42,7 @@ const GroupDetail: React.FC = () => {
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null);
   
   const [group, setGroup] = useState<StudyGroup | null>(null);
@@ -105,14 +106,24 @@ const GroupDetail: React.FC = () => {
   };
 
   const scrollToMessage = (messageId: number) => {
+    // Clear any existing timeout first, regardless of whether element exists
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    
     const messageElement = messageRefs.current.get(messageId);
     if (messageElement) {
       messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       // Highlight the message briefly
       setHighlightedMessageId(messageId);
-      setTimeout(() => {
+      highlightTimeoutRef.current = setTimeout(() => {
         setHighlightedMessageId(null);
+        highlightTimeoutRef.current = null;
       }, 2000);
+    } else {
+      // Element doesn't exist - clear any existing highlight state
+      setHighlightedMessageId(null);
     }
   };
 
@@ -297,6 +308,15 @@ const GroupDetail: React.FC = () => {
       fetchPinnedMessages();
     }
   }, [id]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
