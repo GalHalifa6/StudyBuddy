@@ -39,6 +39,7 @@ Thumbs.db
 # Application
 /data/
 /uploads/
+/test-uploads/
 *.log
 *.log.*
 
