@@ -41,6 +41,8 @@ const GroupDetail: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null);
   
   const [group, setGroup] = useState<StudyGroup | null>(null);
   const [memberStatus, setMemberStatus] = useState<GroupMemberStatus | null>(null);
@@ -100,6 +102,18 @@ const GroupDetail: React.FC = () => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const scrollToMessage = (messageId: number) => {
+    const messageElement = messageRefs.current.get(messageId);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Highlight the message briefly
+      setHighlightedMessageId(messageId);
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 2000);
+    }
   };
 
   const fetchGroupData = async () => {
@@ -654,7 +668,16 @@ const GroupDetail: React.FC = () => {
                         </div>
                       )}
                       <div
-                        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group`}
+                        ref={(el) => {
+                          if (el) {
+                            messageRefs.current.set(message.id, el);
+                          } else {
+                            messageRefs.current.delete(message.id);
+                          }
+                        }}
+                        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group transition-all duration-500 p-2 ${
+                          highlightedMessageId === message.id ? 'bg-purple-100 rounded-lg ring-2 ring-purple-300' : ''
+                        }`}
                       >
                         <div
                           className={`flex items-end gap-2 max-w-[70%] ${
@@ -675,7 +698,7 @@ const GroupDetail: React.FC = () => {
                             )}
                             {/* Pin indicator */}
                             {message.isPinned && (
-                              <div className="absolute -top-2 -right-2 bg-yellow-400 rounded-full p-1">
+                              <div className="absolute -top-2 -right-2 bg-purple-400 rounded-full p-1">
                                 <Pin className="w-3 h-3 text-white" />
                               </div>
                             )}
@@ -718,7 +741,7 @@ const GroupDetail: React.FC = () => {
                                     handleTogglePin(message.id);
                                   }}
                                   className={`p-1 rounded hover:bg-gray-200 transition-colors ${
-                                    message.isPinned ? 'text-yellow-500' : 'text-gray-400'
+                                    message.isPinned ? 'text-purple-500' : 'text-gray-400'
                                   }`}
                                   title={message.isPinned ? 'Unpin message' : 'Pin message'}
                                 >
@@ -750,19 +773,27 @@ const GroupDetail: React.FC = () => {
             {/* Pinned Messages Banner */}
             {pinnedMessages.length > 0 && (
               <div 
-                className="px-4 py-2 bg-yellow-50 border-b border-yellow-100 cursor-pointer hover:bg-yellow-100 transition-colors"
+                className="px-4 py-2 bg-purple-50 border-b border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors"
                 onClick={() => setShowPinnedMessages(!showPinnedMessages)}
               >
                 <div className="flex items-center gap-2">
-                  <Pin className="w-4 h-4 text-yellow-600" />
-                  <span className="text-sm text-yellow-800 font-medium">
+                  <Pin className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm text-purple-800 font-medium">
                     {pinnedMessages.length} pinned message{pinnedMessages.length > 1 ? 's' : ''}
                   </span>
                 </div>
                 {showPinnedMessages && (
                   <div className="mt-2 space-y-2">
                     {pinnedMessages.map((pm) => (
-                      <div key={pm.id} className="text-sm text-yellow-700 bg-yellow-100 p-2 rounded">
+                      <div 
+                        key={pm.id} 
+                        className="text-sm text-purple-700 bg-purple-100 p-2 rounded cursor-pointer hover:bg-purple-200 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollToMessage(pm.id);
+                          setShowPinnedMessages(false);
+                        }}
+                      >
                         <span className="font-medium">{pm.sender.fullName || pm.sender.username}:</span>{' '}
                         {pm.content.length > 100 ? pm.content.substring(0, 100) + '...' : pm.content}
                       </div>
