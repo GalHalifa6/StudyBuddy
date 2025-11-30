@@ -23,4 +23,14 @@ export const courseService = {
     });
     return response.data;
   },
+
+  enrollInCourse: async (courseId: number): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(`/courses/${courseId}/enroll`);
+    return response.data;
+  },
+
+  getMyCourses: async (): Promise<Course[]> => {
+    const response = await api.get<Course[]>('/courses/my-courses');
+    return response.data;
+  },
 };

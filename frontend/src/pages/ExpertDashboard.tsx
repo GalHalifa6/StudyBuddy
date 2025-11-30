@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { courseService } from '../api';
+import { Course } from '../types';
 import {
   expertService,
   ExpertProfile,
@@ -10,6 +13,7 @@ import {
   ExpertProfileRequest,
   CreateSessionRequest,
 } from '../api/experts';
+import { userSearchService, UserSearchResult } from '../api/sessions';
 import {
   User,
   Star,
@@ -27,16 +31,20 @@ import {
   BookOpen,
   Video,
   HelpCircle,
+  Search,
   Repeat,
 } from 'lucide-react';
 
 const ExpertDashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<ExpertProfile | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [sessions, setSessions] = useState<ExpertSession[]>([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<ExpertSession[]>([]);
   const [questions, setQuestions] = useState<ExpertQuestion[]>([]);
   const [reviews, setReviews] = useState<ExpertReview[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'questions' | 'reviews' | 'profile'>('overview');
   
@@ -76,11 +84,36 @@ const ExpertDashboard: React.FC = () => {
     meetingPlatform: 'Zoom',
     isRecurring: false,
     recurrencePattern: '',
+    courseId: undefined,
+    studentId: undefined,
   });
+
+  // Student search for one-on-one sessions
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [studentSearchResults, setStudentSearchResults] = useState<UserSearchResult[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<UserSearchResult | null>(null);
+  const [isSearchingStudents, setIsSearchingStudents] = useState(false);
 
   useEffect(() => {
     loadData();
+    loadCourses();
+    
+    // Auto-refresh data every 30 seconds to catch new reviews/questions
+    const refreshInterval = setInterval(() => {
+      loadData();
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
+
+  const loadCourses = async () => {
+    try {
+      const coursesData = await courseService.getAllCourses();
+      setCourses(coursesData);
+    } catch (error) {
+      console.error('Failed to load courses:', error);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -115,9 +148,13 @@ const ExpertDashboard: React.FC = () => {
         const dashboardData = await expertService.getDashboard();
         if (dashboardData.profile) setProfile(dashboardData.profile);
         if (dashboardData.stats) setStats(dashboardData.stats);
-        if (dashboardData.upcomingSessions) setSessions(dashboardData.upcomingSessions);
+        if (dashboardData.upcomingSessions) setUpcomingSessions(dashboardData.upcomingSessions);
         if (dashboardData.pendingQuestions) setQuestions(dashboardData.pendingQuestions);
         if (dashboardData.recentReviews) setReviews(dashboardData.recentReviews);
+        
+        // Also load ALL sessions for the Sessions tab
+        const allSessions = await expertService.getMySessions();
+        setSessions(allSessions);
       } catch (err) {
         console.log('Dashboard not available, loading individual data');
         // Try loading individual endpoints
@@ -128,6 +165,7 @@ const ExpertDashboard: React.FC = () => {
             expertService.getMyReviews(),
           ]);
           setSessions(sessionsData);
+          setUpcomingSessions(sessionsData.filter(s => new Date(s.scheduledStartTime) > new Date()));
           setQuestions(questionsData);
           setReviews(reviewsData);
         } catch (e) {
@@ -153,13 +191,36 @@ const ExpertDashboard: React.FC = () => {
   };
 
   const handleCreateSession = async () => {
+    // Validate required fields
+    if (!sessionForm.title.trim()) {
+      alert('Please enter a session title');
+      return;
+    }
+    if (!sessionForm.scheduledStartTime) {
+      alert('Please select a start time');
+      return;
+    }
+    if (!sessionForm.scheduledEndTime) {
+      alert('Please select an end time');
+      return;
+    }
+    // Validate student selection for one-on-one
+    if (sessionForm.sessionType === 'ONE_ON_ONE' && !selectedStudent) {
+      alert('Please select a student for the one-on-one session');
+      return;
+    }
+
     try {
       // Convert datetime-local to ISO string
       const sessionData: CreateSessionRequest = {
         ...sessionForm,
-        scheduledStartTime: sessionForm.scheduledStartTime ? new Date(sessionForm.scheduledStartTime).toISOString() : '',
-        scheduledEndTime: sessionForm.scheduledEndTime ? new Date(sessionForm.scheduledEndTime).toISOString() : '',
+        title: sessionForm.title.trim(),
+        scheduledStartTime: new Date(sessionForm.scheduledStartTime).toISOString(),
+        scheduledEndTime: new Date(sessionForm.scheduledEndTime).toISOString(),
+        studentId: selectedStudent?.id,
       };
+      
+      console.log('Creating session with data:', sessionData);
       await expertService.createSession(sessionData);
       setShowSessionModal(false);
       setSessionForm({
@@ -173,10 +234,34 @@ const ExpertDashboard: React.FC = () => {
         meetingPlatform: 'Zoom',
         isRecurring: false,
         recurrencePattern: '',
+        courseId: undefined,
+        studentId: undefined,
       });
+      setSelectedStudent(null);
+      setStudentSearchQuery('');
+      setStudentSearchResults([]);
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create session:', error);
+      alert(error.response?.data?.message || 'Failed to create session. Please try again.');
+    }
+  };
+
+  // Search students for one-on-one sessions
+  const handleStudentSearch = async (query: string) => {
+    setStudentSearchQuery(query);
+    if (query.length < 2) {
+      setStudentSearchResults([]);
+      return;
+    }
+    setIsSearchingStudents(true);
+    try {
+      const results = await userSearchService.searchUsers(query);
+      setStudentSearchResults(results);
+    } catch (error) {
+      console.error('Failed to search students:', error);
+    } finally {
+      setIsSearchingStudents(false);
     }
   };
 
@@ -197,6 +282,9 @@ const ExpertDashboard: React.FC = () => {
     try {
       if (action === 'start') {
         await expertService.startSession(sessionId);
+        // Navigate directly to the session room after starting
+        navigate(`/session/${sessionId}`);
+        return;
       } else if (action === 'complete') {
         await expertService.completeSession(sessionId);
       } else if (action === 'cancel') {
@@ -457,7 +545,7 @@ const ExpertDashboard: React.FC = () => {
               </button>
             </div>
             <div className="divide-y divide-gray-100">
-              {sessions.filter(s => s.status === 'SCHEDULED').slice(0, 3).map((session) => (
+              {upcomingSessions.filter(s => s.status === 'Scheduled').slice(0, 3).map((session) => (
                 <div key={session.id} className="p-4 hover:bg-gray-50">
                   <div className="flex items-start justify-between">
                     <div>
@@ -473,7 +561,7 @@ const ExpertDashboard: React.FC = () => {
                   </div>
                 </div>
               ))}
-              {sessions.filter(s => s.status === 'SCHEDULED').length === 0 && (
+              {upcomingSessions.filter(s => s.status === 'Scheduled').length === 0 && (
                 <div className="p-8 text-center text-gray-500">
                   <Calendar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                   <p>No upcoming sessions</p>
@@ -494,7 +582,7 @@ const ExpertDashboard: React.FC = () => {
               </button>
             </div>
             <div className="divide-y divide-gray-100">
-              {questions.filter(q => q.status === 'PENDING').slice(0, 3).map((question) => (
+              {questions.filter(q => q.status !== 'Answered' && q.status !== 'Resolved' && q.status !== 'Closed').slice(0, 3).map((question) => (
                 <div key={question.id} className="p-4 hover:bg-gray-50">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -518,7 +606,7 @@ const ExpertDashboard: React.FC = () => {
                   </button>
                 </div>
               ))}
-              {questions.filter(q => q.status === 'PENDING').length === 0 && (
+              {questions.filter(q => q.status !== 'Answered' && q.status !== 'Resolved' && q.status !== 'Closed').length === 0 && (
                 <div className="p-8 text-center text-gray-500">
                   <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                   <p>No pending questions</p>
@@ -566,7 +654,7 @@ const ExpertDashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {session.status === 'SCHEDULED' && (
+                    {session.status === 'Scheduled' && (
                       <>
                         <button
                           onClick={() => handleUpdateSessionStatus(session.id, 'start')}
@@ -582,13 +670,22 @@ const ExpertDashboard: React.FC = () => {
                         </button>
                       </>
                     )}
-                    {session.status === 'IN_PROGRESS' && (
-                      <button
-                        onClick={() => handleUpdateSessionStatus(session.id, 'complete')}
-                        className="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm rounded-lg hover:bg-blue-200"
-                      >
-                        Complete
-                      </button>
+                    {session.status === 'In Progress' && (
+                      <>
+                        <button
+                          onClick={() => navigate(`/session/${session.id}`)}
+                          className="px-3 py-1.5 bg-green-100 text-green-700 text-sm rounded-lg hover:bg-green-200 flex items-center gap-1"
+                        >
+                          <Video className="w-4 h-4" />
+                          Join Room
+                        </button>
+                        <button
+                          onClick={() => handleUpdateSessionStatus(session.id, 'complete')}
+                          className="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm rounded-lg hover:bg-blue-200"
+                        >
+                          Complete
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -618,8 +715,8 @@ const ExpertDashboard: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-900">{question.title}</span>
                       <span className={`px-2 py-0.5 rounded-full text-xs ${
-                        question.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
-                        question.status === 'ANSWERED' ? 'bg-green-100 text-green-700' :
+                        (question.status === 'Open' || question.status === 'Assigned to Expert') ? 'bg-yellow-100 text-yellow-700' :
+                        (question.status === 'Answered' || question.status === 'Resolved') ? 'bg-green-100 text-green-700' :
                         'bg-gray-100 text-gray-700'
                       }`}>
                         {question.status}
@@ -641,7 +738,7 @@ const ExpertDashboard: React.FC = () => {
                       {question.course && <span>Course: {question.course.name}</span>}
                     </div>
                   </div>
-                  {question.status === 'PENDING' && (
+                  {(question.status !== 'Answered' && question.status !== 'Resolved' && question.status !== 'Closed') && (
                     <button
                       onClick={() => {
                         setSelectedQuestion(question);
@@ -954,7 +1051,24 @@ const ExpertDashboard: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Session Type</label>
                 <select
                   value={sessionForm.sessionType}
-                  onChange={(e) => setSessionForm({ ...sessionForm, sessionType: e.target.value as CreateSessionRequest['sessionType'] })}
+                  onChange={(e) => {
+                    const newType = e.target.value as CreateSessionRequest['sessionType'];
+                    const updates: Partial<CreateSessionRequest> = { sessionType: newType };
+                    
+                    // Auto-set maxParticipants to 1 for ONE_ON_ONE sessions
+                    if (newType === 'ONE_ON_ONE') {
+                      updates.maxParticipants = 1;
+                    } else {
+                      // Reset to default if switching away from ONE_ON_ONE
+                      updates.maxParticipants = 10;
+                      // Clear student selection
+                      setSelectedStudent(null);
+                      setStudentSearchQuery('');
+                      setStudentSearchResults([]);
+                    }
+                    
+                    setSessionForm({ ...sessionForm, ...updates });
+                  }}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="OFFICE_HOURS">Office Hours (Drop-in)</option>
@@ -962,6 +1076,103 @@ const ExpertDashboard: React.FC = () => {
                   <option value="GROUP">Group Session</option>
                   <option value="WORKSHOP">Workshop</option>
                   <option value="Q_AND_A">Q&A Session</option>
+                </select>
+              </div>
+
+              {/* Student Selection for One-on-One */}
+              {sessionForm.sessionType === 'ONE_ON_ONE' && (
+                <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                  <label className="block text-sm font-medium text-purple-800 mb-2">
+                    <User className="w-4 h-4 inline mr-1" />
+                    Select Student (Required for One-on-One)
+                  </label>
+                  
+                  {selectedStudent ? (
+                    <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-purple-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold">
+                          {selectedStudent.fullName.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{selectedStudent.fullName}</p>
+                          <p className="text-sm text-gray-500">{selectedStudent.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedStudent(null);
+                          setStudentSearchQuery('');
+                        }}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        <input
+                          type="text"
+                          value={studentSearchQuery}
+                          onChange={(e) => handleStudentSearch(e.target.value)}
+                          placeholder="Search by name or email..."
+                          className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                        {isSearchingStudents && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-purple-500"></div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Search Results */}
+                      {studentSearchResults.length > 0 && (
+                        <div className="absolute z-10 mt-1 w-full bg-white rounded-lg border border-gray-200 shadow-lg max-h-48 overflow-y-auto">
+                          {studentSearchResults.map((user) => (
+                            <button
+                              key={user.id}
+                              onClick={() => {
+                                setSelectedStudent(user);
+                                setStudentSearchResults([]);
+                                setStudentSearchQuery('');
+                              }}
+                              className="w-full flex items-center gap-3 p-3 hover:bg-purple-50 transition-colors text-left"
+                            >
+                              <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                {user.fullName.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{user.fullName}</p>
+                                <p className="text-xs text-gray-500">{user.email}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-purple-600 mt-2">
+                    The selected student will be automatically enrolled and notified.
+                  </p>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Related Course (optional)
+                  <span className="text-xs text-gray-500 ml-2">Session will appear on course page</span>
+                </label>
+                <select
+                  value={sessionForm.courseId || ''}
+                  onChange={(e) => setSessionForm({ ...sessionForm, courseId: e.target.value ? parseInt(e.target.value) : undefined })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">None - General Session</option>
+                  {courses.map(course => (
+                    <option key={course.id} value={course.id}>
+                      {course.code} - {course.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -992,8 +1203,14 @@ const ExpertDashboard: React.FC = () => {
                     value={sessionForm.maxParticipants || 10}
                     onChange={(e) => setSessionForm({ ...sessionForm, maxParticipants: parseInt(e.target.value) || 10 })}
                     min="1"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled={sessionForm.sessionType === 'ONE_ON_ONE'}
+                    className={`w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                      sessionForm.sessionType === 'ONE_ON_ONE' ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
                   />
+                  {sessionForm.sessionType === 'ONE_ON_ONE' && (
+                    <p className="text-xs text-gray-500 mt-1">Fixed to 1 for one-on-one sessions</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>

@@ -61,10 +61,12 @@ public class ExpertSession {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
+    @Builder.Default
     private SessionType sessionType = SessionType.ONE_ON_ONE;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
+    @Builder.Default
     private SessionStatus status = SessionStatus.SCHEDULED;
 
     @Column(nullable = false)
@@ -80,9 +82,11 @@ public class ExpertSession {
     private LocalDateTime actualEndTime;
 
     @Column(nullable = false)
+    @Builder.Default
     private Integer maxParticipants = 1; // 1 for one-on-one, more for group
 
     @Column(nullable = false)
+    @Builder.Default
     private Integer currentParticipants = 0;
 
     // Meeting link (for video calls)
@@ -120,6 +124,7 @@ public class ExpertSession {
 
     // Cancellation
     @Column
+    @Builder.Default
     private Boolean isCancelled = false;
 
     @Column(columnDefinition = "TEXT")
@@ -133,6 +138,7 @@ public class ExpertSession {
 
     // Recurring sessions
     @Column(nullable = false)
+    @Builder.Default
     private Boolean isRecurring = false;
 
     @Column(length = 20)
@@ -143,6 +149,7 @@ public class ExpertSession {
 
     // Reminder sent
     @Column(nullable = false)
+    @Builder.Default
     private Boolean reminderSent = false;
 
     @Column
@@ -199,11 +206,19 @@ public class ExpertSession {
     }
 
     public boolean canJoin() {
+        // Can join/register if session is scheduled and not full
+        return (status == SessionStatus.SCHEDULED || status == SessionStatus.IN_PROGRESS) && 
+               currentParticipants < maxParticipants &&
+               !Boolean.TRUE.equals(isCancelled);
+    }
+    
+    public boolean canEnterRoom() {
+        // Can enter the live room if session is in progress or about to start (5 min window)
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime joinWindow = scheduledStartTime.minusMinutes(5);
-        return status == SessionStatus.SCHEDULED && 
-               now.isAfter(joinWindow) && 
-               now.isBefore(scheduledEndTime);
+        return (status == SessionStatus.IN_PROGRESS || 
+               (status == SessionStatus.SCHEDULED && now.isAfter(joinWindow))) && 
+               now.isBefore(scheduledEndTime.plusMinutes(30));
     }
 
     public void start() {

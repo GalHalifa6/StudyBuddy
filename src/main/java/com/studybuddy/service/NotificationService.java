@@ -35,6 +35,22 @@ public class NotificationService {
     }
 
     /**
+     * Create a notification with a link
+     */
+    public Notification createNotification(User user, String type, String title, String message, String link) {
+        Notification notification = Notification.builder()
+                .user(user)
+                .type(type)
+                .title(title)
+                .message(message)
+                .link(link)
+                .isRead(false)
+                .isActionable(false)
+                .build();
+        return notificationRepository.save(notification);
+    }
+
+    /**
      * Create an actionable notification (requires accept/reject)
      */
     public Notification createActionableNotification(User user, String type, String title, String message,

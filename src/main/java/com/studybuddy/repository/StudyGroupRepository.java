@@ -23,6 +23,9 @@ public interface StudyGroupRepository extends JpaRepository<StudyGroup, Long> {
     @Query("SELECT g FROM StudyGroup g JOIN g.members m WHERE m.id = :userId")
     List<StudyGroup> findGroupsByMemberId(@Param("userId") Long userId);
     
+    @Query("SELECT COUNT(g) > 0 FROM StudyGroup g JOIN g.members m WHERE g.id = :groupId AND m.id = :userId")
+    boolean isUserMemberOfGroup(@Param("groupId") Long groupId, @Param("userId") Long userId);
+    
     @Query("SELECT g FROM StudyGroup g WHERE g.course.id = :courseId AND g.visibility = 'open' AND g.isActive = true")
     List<StudyGroup> findOpenGroupsByCourse(@Param("courseId") Long courseId);
 }

@@ -53,6 +53,8 @@ const ExpertsBrowse: React.FC = () => {
     rating: 5,
     review: '',
   });
+  const [canReviewInfo, setCanReviewInfo] = useState<{ canReview: boolean; hasInteracted: boolean; alreadyReviewed: boolean } | null>(null);
+  const [checkingCanReview, setCheckingCanReview] = useState(false);
 
   // Get all unique specializations
   const allSpecializations = [...new Set(experts.flatMap(e => e.specializations || []))];
@@ -116,24 +118,56 @@ const ExpertsBrowse: React.FC = () => {
       });
       setShowAskModal(false);
       setQuestionForm({ title: '', content: '', isPublic: true, isUrgent: false });
+      alert('Question submitted successfully! The expert will be notified.');
     } catch (error) {
       console.error('Failed to ask question:', error);
+      alert('Failed to submit question. Please try again.');
+    }
+  };
+
+  const handleOpenReviewModal = async () => {
+    if (!selectedExpert) return;
+    setCheckingCanReview(true);
+    try {
+      const canReviewResult = await studentExpertService.canReviewExpert(selectedExpert.userId);
+      setCanReviewInfo(canReviewResult);
+      setReviewForm({ rating: 5, review: '' });
+      setShowReviewModal(true);
+    } catch (error) {
+      console.error('Failed to check review eligibility:', error);
+      setCanReviewInfo({ canReview: false, hasInteracted: false, alreadyReviewed: false });
+      setShowReviewModal(true);
+    } finally {
+      setCheckingCanReview(false);
     }
   };
 
   const handleSubmitReview = async () => {
-    if (!selectedExpert || !reviewForm.review?.trim()) return;
+    if (!selectedExpert || !reviewForm.review?.trim() || !canReviewInfo?.canReview) return;
     try {
       await studentExpertService.submitReview(selectedExpert.userId, {
         ...reviewForm as CreateReviewRequest,
       });
       setShowReviewModal(false);
       setReviewForm({ rating: 5, review: '' });
-      // Refresh expert profile
-      const profile = await studentExpertService.getExpertProfile(selectedExpert.userId);
+      setCanReviewInfo(null);
+      
+      // Refresh all data after successful review
+      // 1. Refresh the expert profile (for the modal)
+      const [profile, reviews] = await Promise.all([
+        studentExpertService.getExpertProfile(selectedExpert.userId),
+        studentExpertService.getExpertReviews(selectedExpert.userId),
+      ]);
       setSelectedExpert(profile);
-    } catch (error) {
+      setExpertReviews(reviews);
+      
+      // 2. Refresh the experts list (to update ratings shown on cards)
+      loadData();
+      
+      alert('Review submitted successfully! Thank you for your feedback.');
+    } catch (error: any) {
       console.error('Failed to submit review:', error);
+      alert(error.response?.data?.message || 'Failed to submit review. Please try again.');
     }
   };
 
@@ -432,13 +466,15 @@ const ExpertsBrowse: React.FC = () => {
                       Ask a Question
                     </button>
                     <button
-                      onClick={() => {
-                        setReviewForm({ rating: 5, review: '' });
-                        setShowReviewModal(true);
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors"
+                      onClick={handleOpenReviewModal}
+                      disabled={checkingCanReview}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
                     >
-                      <Star className="w-5 h-5" />
+                      {checkingCanReview ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-500"></div>
+                      ) : (
+                        <Star className="w-5 h-5" />
+                      )}
                       Write a Review
                     </button>
                   </div>
@@ -507,10 +543,7 @@ const ExpertsBrowse: React.FC = () => {
                       {expertReviews.length} review{expertReviews.length !== 1 ? 's' : ''} from students
                     </p>
                     <button
-                      onClick={() => {
-                        setReviewForm({ rating: 5, review: '' });
-                        setShowReviewModal(true);
-                      }}
+                      onClick={handleOpenReviewModal}
                       className="text-sm text-purple-600 hover:text-purple-700 font-medium"
                     >
                       + Write a Review
@@ -649,68 +682,96 @@ const ExpertsBrowse: React.FC = () => {
           <div className="bg-white rounded-2xl w-full max-w-lg">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">Review {selectedExpert.fullName}</h2>
-              <button onClick={() => setShowReviewModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setShowReviewModal(false); setCanReviewInfo(null); }} className="text-gray-400 hover:text-gray-600">
                 <X className="w-6 h-6" />
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
-                <div className="flex items-center gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setReviewForm({ ...reviewForm, rating: star })}
-                      className="p-1"
-                    >
-                      <Star
-                        className={`w-8 h-8 ${
-                          star <= (reviewForm.rating || 5)
-                            ? 'text-yellow-400 fill-yellow-400'
-                            : 'text-gray-300'
-                        }`}
-                      />
-                    </button>
-                  ))}
-                  <span className="ml-2 text-lg font-medium text-gray-700">{reviewForm.rating || 5}/5</span>
+              {/* Eligibility Check */}
+              {canReviewInfo && !canReviewInfo.canReview ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <Star className="w-5 h-5 text-yellow-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-yellow-800">Cannot Write a Review</h3>
+                      {canReviewInfo.alreadyReviewed ? (
+                        <p className="text-sm text-yellow-700 mt-1">
+                          You have already submitted a review for this expert.
+                        </p>
+                      ) : (
+                        <p className="text-sm text-yellow-700 mt-1">
+                          You can only review experts you have had a completed session with or who have answered your questions.
+                          Please book a session or ask a question first.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Your Review</label>
-                <textarea
-                  value={reviewForm.review || ''}
-                  onChange={(e) => setReviewForm({ ...reviewForm, review: e.target.value })}
-                  placeholder="Share your experience with this expert..."
-                  rows={4}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Highlights (optional)</label>
-                <input
-                  type="text"
-                  value={reviewForm.highlights || ''}
-                  onChange={(e) => setReviewForm({ ...reviewForm, highlights: e.target.value })}
-                  placeholder="What was the best part?"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                          className="p-1"
+                        >
+                          <Star
+                            className={`w-8 h-8 ${
+                              star <= (reviewForm.rating || 5)
+                                ? 'text-yellow-400 fill-yellow-400'
+                                : 'text-gray-300'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                      <span className="ml-2 text-lg font-medium text-gray-700">{reviewForm.rating || 5}/5</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Your Review</label>
+                    <textarea
+                      value={reviewForm.review || ''}
+                      onChange={(e) => setReviewForm({ ...reviewForm, review: e.target.value })}
+                      placeholder="Share your experience with this expert..."
+                      rows={4}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Highlights (optional)</label>
+                    <input
+                      type="text"
+                      value={reviewForm.highlights || ''}
+                      onChange={(e) => setReviewForm({ ...reviewForm, highlights: e.target.value })}
+                      placeholder="What was the best part?"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </>
+              )}
             </div>
             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
               <button
-                onClick={() => setShowReviewModal(false)}
+                onClick={() => { setShowReviewModal(false); setCanReviewInfo(null); }}
                 className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
               >
-                Cancel
+                {canReviewInfo?.canReview ? 'Cancel' : 'Close'}
               </button>
-              <button
-                onClick={handleSubmitReview}
-                disabled={!reviewForm.review?.trim()}
-                className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-50"
-              >
-                <Star className="w-4 h-4" />
-                Submit Review
-              </button>
+              {canReviewInfo?.canReview && (
+                <button
+                  onClick={handleSubmitReview}
+                  disabled={!reviewForm.review?.trim()}
+                  className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-50"
+                >
+                  <Star className="w-4 h-4" />
+                  Submit Review
+                </button>
+              )}
             </div>
           </div>
         </div>

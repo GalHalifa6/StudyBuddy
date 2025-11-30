@@ -33,6 +33,12 @@ public interface ExpertSessionRepository extends JpaRepository<ExpertSession, Lo
     // Find sessions by course
     List<ExpertSession> findByCourseIdOrderByScheduledStartTimeDesc(Long courseId);
 
+    // Find sessions by course with end time after a given time (active/upcoming)
+    List<ExpertSession> findByCourseIdAndScheduledEndTimeAfterOrderByScheduledStartTimeAsc(Long courseId, LocalDateTime endTimeAfter);
+    
+    // Find all sessions with end time after a given time (for browsing)
+    List<ExpertSession> findByScheduledEndTimeAfterOrderByScheduledStartTimeAsc(LocalDateTime endTimeAfter);
+
     // Find sessions by status
     List<ExpertSession> findByStatus(ExpertSession.SessionStatus status);
 

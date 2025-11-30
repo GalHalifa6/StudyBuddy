@@ -5,4 +5,5 @@ export { messageService } from './messages';
 export { fileService } from './files';
 export { expertService, studentExpertService } from './experts';
 export { notificationService } from './notifications';
+export { sessionService, userSearchService } from './sessions';
 export { default as api } from './axios';

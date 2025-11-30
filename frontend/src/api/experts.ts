@@ -387,4 +387,27 @@ export const studentExpertService = {
     const response = await api.post(`/experts/${expertUserId}/reviews`, data);
     return response.data;
   },
+
+  // Check if user can review an expert
+  canReviewExpert: async (expertUserId: number): Promise<{ canReview: boolean; hasInteracted: boolean; alreadyReviewed: boolean }> => {
+    const response = await api.get(`/experts/${expertUserId}/can-review`);
+    return response.data;
+  },
+
+  // Get user's questions
+  getMyQuestions: async (): Promise<ExpertQuestion[]> => {
+    const response = await api.get('/questions/my-questions');
+    return response.data;
+  },
+
+  // Get a specific question
+  getQuestion: async (questionId: number): Promise<ExpertQuestion> => {
+    const response = await api.get(`/questions/${questionId}`);
+    return response.data;
+  },
+
+  // Mark answer as helpful
+  markAnswerHelpful: async (questionId: number, helpful: boolean = true, feedback?: string): Promise<void> => {
+    await api.post(`/questions/${questionId}/helpful`, { helpful, feedback });
+  },
 };

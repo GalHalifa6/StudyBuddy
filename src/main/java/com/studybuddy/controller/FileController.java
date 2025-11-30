@@ -25,9 +25,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/files")
@@ -120,7 +119,7 @@ public class FileController {
             fileUpload.setGroup(group);
 
             FileUpload saved = fileUploadRepository.save(fileUpload);
-            return ResponseEntity.ok(saved);
+            return ResponseEntity.ok(toFileMap(saved));
 
         } catch (IOException e) {
             return ResponseEntity.internalServerError().body("Failed to upload file: " + e.getMessage());
@@ -128,9 +127,12 @@ public class FileController {
     }
 
     @GetMapping("/group/{groupId}")
-    public ResponseEntity<List<FileUpload>> getGroupFiles(@PathVariable Long groupId) {
+    public ResponseEntity<List<Map<String, Object>>> getGroupFiles(@PathVariable Long groupId) {
         List<FileUpload> files = fileUploadRepository.findByGroupIdOrderByUploadedAtDesc(groupId);
-        return ResponseEntity.ok(files);
+        List<Map<String, Object>> result = files.stream()
+            .map(this::toFileMap)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/download/{fileId}")
@@ -224,7 +226,7 @@ public class FileController {
     public ResponseEntity<?> getFileInfo(@PathVariable Long fileId) {
         FileUpload fileUpload = fileUploadRepository.findById(fileId)
                 .orElseThrow(() -> new RuntimeException("File not found"));
-        return ResponseEntity.ok(fileUpload);
+        return ResponseEntity.ok(toFileMap(fileUpload));
     }
 
     private String getFileExtension(String filename) {
@@ -233,5 +235,38 @@ public class FileController {
             return filename.substring(dotIndex + 1);
         }
         return "";
+    }
+    
+    /**
+     * Convert FileUpload entity to a safe Map without circular references
+     */
+    private Map<String, Object> toFileMap(FileUpload file) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", file.getId());
+        map.put("filename", file.getFilename());
+        map.put("originalFilename", file.getOriginalFilename());
+        map.put("fileName", file.getOriginalFilename()); // Alias for frontend compatibility
+        map.put("fileType", file.getFileType());
+        map.put("fileSize", file.getFileSize());
+        map.put("uploadedAt", file.getUploadedAt());
+        
+        // Safe uploader info
+        if (file.getUploader() != null) {
+            Map<String, Object> uploader = new HashMap<>();
+            uploader.put("id", file.getUploader().getId());
+            uploader.put("username", file.getUploader().getUsername());
+            uploader.put("fullName", file.getUploader().getFullName());
+            map.put("uploader", uploader);
+        }
+        
+        // Safe group info (minimal)
+        if (file.getGroup() != null) {
+            Map<String, Object> group = new HashMap<>();
+            group.put("id", file.getGroup().getId());
+            group.put("name", file.getGroup().getName());
+            map.put("group", group);
+        }
+        
+        return map;
     }
 }

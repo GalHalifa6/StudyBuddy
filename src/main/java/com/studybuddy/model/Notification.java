@@ -40,6 +40,10 @@ public class Notification {
     @Column(columnDefinition = "TEXT")
     private String message;
 
+    // Direct link to navigate to (e.g., /session/123)
+    @Column(length = 500)
+    private String link;
+
     // Reference IDs for linking to related entities
     private Long referenceId; // e.g., groupId, sessionId, etc.
     private String referenceType; // e.g., "GROUP", "SESSION", "MESSAGE"

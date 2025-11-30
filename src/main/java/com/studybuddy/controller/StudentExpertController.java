@@ -264,6 +264,8 @@ public class StudentExpertController {
                 ExpertProfile profile = expertProfileRepository.findByUser(question.getAnsweredBy()).orElse(null);
                 if (profile != null) {
                     profile.incrementHelpfulAnswers();
+                    // Also increment students helped counter when marking answer as helpful
+                    profile.incrementStudentsHelped();
                     expertProfileRepository.save(profile);
                 }
             }

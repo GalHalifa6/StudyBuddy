@@ -143,6 +143,7 @@ export interface Notification {
   type: string;
   title: string;
   message: string;
+  link?: string;
   referenceId?: number;
   referenceType?: string;
   actorId?: number;

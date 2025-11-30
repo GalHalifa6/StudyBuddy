@@ -45,6 +45,12 @@ public class ExpertController {
     @Autowired
     private StudyGroupRepository groupRepository;
 
+    @Autowired
+    private SessionParticipantRepository sessionParticipantRepository;
+
+    @Autowired
+    private com.studybuddy.service.NotificationService notificationService;
+
     // ==================== Expert Profile Endpoints ====================
 
     /**
@@ -332,6 +338,10 @@ public class ExpertController {
                     .meetingPlatform(request.getMeetingPlatform())
                     .isRecurring(request.getIsRecurring() != null ? request.getIsRecurring() : false)
                     .recurrencePattern(request.getRecurrencePattern())
+                    .maxParticipants(request.getMaxParticipants() != null ? request.getMaxParticipants() : 1)
+                    .currentParticipants(0)
+                    .isCancelled(false)
+                    .reminderSent(false)
                     .build();
             
             // Set student for one-on-one sessions
@@ -340,6 +350,7 @@ public class ExpertController {
                         .orElseThrow(() -> new RuntimeException("Student not found"));
                 session.setStudent(student);
                 session.setMaxParticipants(1);
+                session.setCurrentParticipants(1);
             }
             
             // Set group for group consultations
@@ -347,7 +358,9 @@ public class ExpertController {
                 StudyGroup group = groupRepository.findById(request.getGroupId())
                         .orElseThrow(() -> new RuntimeException("Group not found"));
                 session.setStudyGroup(group);
-                session.setMaxParticipants(request.getMaxParticipants() != null ? request.getMaxParticipants() : group.getMaxSize());
+                if (request.getMaxParticipants() == null) {
+                    session.setMaxParticipants(group.getMaxSize());
+                }
             }
             
             // Set course
@@ -358,6 +371,27 @@ public class ExpertController {
             }
             
             ExpertSession savedSession = sessionRepository.save(session);
+            
+            // Send notification to student for one-on-one sessions
+            if (savedSession.getStudent() != null) {
+                String notificationTitle = "New One-on-One Session";
+                String notificationMessage = String.format(
+                    "%s has scheduled a one-on-one session with you: \"%s\" on %s",
+                    expert.getFullName() != null ? expert.getFullName() : expert.getUsername(),
+                    savedSession.getTitle(),
+                    savedSession.getScheduledStartTime().toLocalDate().toString()
+                );
+                notificationService.createActionableNotification(
+                    savedSession.getStudent(),
+                    "SESSION_INVITATION",
+                    notificationTitle,
+                    notificationMessage,
+                    savedSession.getId(),
+                    "SESSION",
+                    expert.getId()
+                );
+            }
+            
             return ResponseEntity.ok(toSessionResponse(savedSession));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
@@ -373,6 +407,34 @@ public class ExpertController {
         User expert = getCurrentUser();
         List<ExpertSession> sessions = sessionRepository.findByExpertIdOrderByScheduledStartTimeDesc(expert.getId());
         return ResponseEntity.ok(sessions.stream().map(this::toSessionResponse).collect(Collectors.toList()));
+    }
+
+    /**
+     * Search users for one-on-one session assignment
+     */
+    @GetMapping("/users/search")
+    @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<?> searchUsers(@RequestParam String query) {
+        if (query == null || query.trim().length() < 2) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+        
+        List<User> users = userRepository.findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(query.trim(), query.trim());
+        
+        // Return safe user data (no sensitive info)
+        List<Map<String, Object>> results = users.stream()
+            .limit(20) // Limit results
+            .map(user -> {
+                Map<String, Object> userData = new HashMap<>();
+                userData.put("id", user.getId());
+                userData.put("fullName", user.getFullName() != null ? user.getFullName() : user.getUsername());
+                userData.put("email", user.getEmail());
+                userData.put("role", user.getRole() != null ? user.getRole().name() : "STUDENT");
+                return userData;
+            })
+            .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(results);
     }
 
     /**
@@ -407,6 +469,18 @@ public class ExpertController {
             
             session.start();
             sessionRepository.save(session);
+            
+            // Notify all registered participants that the session has started
+            List<SessionParticipant> participants = sessionParticipantRepository.findBySessionId(sessionId);
+            for (SessionParticipant participant : participants) {
+                notificationService.createNotification(
+                    participant.getUser(),
+                    "SESSION_STARTED",
+                    "Session Started: " + session.getTitle(),
+                    expert.getFullName() + " has started the session. Join now!",
+                    "/session/" + sessionId
+                );
+            }
             
             return ResponseEntity.ok(toSessionResponse(session));
         } catch (Exception e) {
@@ -520,6 +594,21 @@ public class ExpertController {
             if (profile != null) {
                 profile.incrementQuestionsAnswered();
                 expertProfileRepository.save(profile);
+            }
+            
+            // Notify the student that their question was answered
+            if (question.getStudent() != null) {
+                notificationService.createActionableNotification(
+                    question.getStudent(),
+                    "QUESTION_ANSWERED",
+                    "Your Question Was Answered",
+                    String.format("%s answered your question: \"%s\"", 
+                        expert.getFullName() != null ? expert.getFullName() : expert.getUsername(),
+                        question.getTitle()),
+                    question.getId(),
+                    "QUESTION",
+                    expert.getId()
+                );
             }
             
             return ResponseEntity.ok(toQuestionResponse(question));

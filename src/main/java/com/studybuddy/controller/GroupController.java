@@ -30,6 +30,9 @@ public class GroupController {
     private GroupMemberRequestRepository requestRepository;
 
     @Autowired
+    private MessageRepository messageRepository;
+
+    @Autowired
     private NotificationService notificationService;
 
     private User getCurrentUser() {
@@ -81,9 +84,55 @@ public class GroupController {
     }
 
     @GetMapping("/course/{courseId}")
-    public ResponseEntity<List<StudyGroup>> getGroupsByCourse(@PathVariable Long courseId) {
+    public ResponseEntity<List<Map<String, Object>>> getGroupsByCourse(@PathVariable Long courseId) {
         List<StudyGroup> groups = groupRepository.findByCourseIdAndIsActiveTrue(courseId);
-        return ResponseEntity.ok(groups);
+        
+        // Convert to safe response to avoid circular references
+        List<Map<String, Object>> result = groups.stream().map(group -> {
+            Map<String, Object> groupMap = new java.util.HashMap<>();
+            groupMap.put("id", group.getId());
+            groupMap.put("name", group.getName());
+            groupMap.put("description", group.getDescription());
+            groupMap.put("topic", group.getTopic());
+            groupMap.put("maxSize", group.getMaxSize());
+            groupMap.put("visibility", group.getVisibility());
+            groupMap.put("isActive", group.getIsActive());
+            groupMap.put("createdAt", group.getCreatedAt());
+            
+            // Safe course info
+            if (group.getCourse() != null) {
+                groupMap.put("course", Map.of(
+                    "id", group.getCourse().getId(),
+                    "code", group.getCourse().getCode(),
+                    "name", group.getCourse().getName()
+                ));
+            }
+            
+            // Safe creator info
+            if (group.getCreator() != null) {
+                groupMap.put("creator", Map.of(
+                    "id", group.getCreator().getId(),
+                    "username", group.getCreator().getUsername(),
+                    "fullName", group.getCreator().getFullName() != null ? group.getCreator().getFullName() : group.getCreator().getUsername()
+                ));
+            }
+            
+            // Member count
+            groupMap.put("memberCount", group.getMembers() != null ? group.getMembers().size() : 0);
+            
+            // Safe members list
+            if (group.getMembers() != null) {
+                groupMap.put("members", group.getMembers().stream().map(member -> Map.of(
+                    "id", member.getId(),
+                    "username", member.getUsername(),
+                    "fullName", member.getFullName() != null ? member.getFullName() : member.getUsername()
+                )).toList());
+            }
+            
+            return groupMap;
+        }).toList();
+        
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}")
@@ -110,7 +159,13 @@ public class GroupController {
             limitedInfo.put("visibility", group.getVisibility());
             limitedInfo.put("maxSize", group.getMaxSize());
             limitedInfo.put("memberCount", group.getMembers().size());
-            limitedInfo.put("course", group.getCourse());
+            if (group.getCourse() != null) {
+                limitedInfo.put("course", Map.of(
+                    "id", group.getCourse().getId(),
+                    "code", group.getCourse().getCode(),
+                    "name", group.getCourse().getName()
+                ));
+            }
             limitedInfo.put("creator", Map.of(
                 "id", group.getCreator().getId(),
                 "fullName", group.getCreator().getFullName() != null ? group.getCreator().getFullName() : group.getCreator().getUsername()
@@ -121,7 +176,51 @@ public class GroupController {
             return ResponseEntity.ok(limitedInfo);
         }
 
-        return ResponseEntity.ok(group);
+        // Return full group info as safe Map
+        Map<String, Object> groupInfo = new java.util.HashMap<>();
+        groupInfo.put("id", group.getId());
+        groupInfo.put("name", group.getName());
+        groupInfo.put("description", group.getDescription());
+        groupInfo.put("topic", group.getTopic());
+        groupInfo.put("maxSize", group.getMaxSize());
+        groupInfo.put("visibility", group.getVisibility());
+        groupInfo.put("isActive", group.getIsActive());
+        groupInfo.put("createdAt", group.getCreatedAt());
+        groupInfo.put("updatedAt", group.getUpdatedAt());
+        
+        // Safe course info
+        if (group.getCourse() != null) {
+            groupInfo.put("course", Map.of(
+                "id", group.getCourse().getId(),
+                "code", group.getCourse().getCode(),
+                "name", group.getCourse().getName()
+            ));
+        }
+        
+        // Safe creator info
+        if (group.getCreator() != null) {
+            groupInfo.put("creator", Map.of(
+                "id", group.getCreator().getId(),
+                "username", group.getCreator().getUsername(),
+                "fullName", group.getCreator().getFullName() != null ? group.getCreator().getFullName() : group.getCreator().getUsername()
+            ));
+        }
+        
+        // Member count and members list
+        groupInfo.put("memberCount", group.getMembers() != null ? group.getMembers().size() : 0);
+        if (group.getMembers() != null) {
+            groupInfo.put("members", group.getMembers().stream().map(member -> Map.of(
+                "id", member.getId(),
+                "username", member.getUsername(),
+                "fullName", member.getFullName() != null ? member.getFullName() : member.getUsername()
+            )).toList());
+        }
+        
+        // Additional info for members
+        groupInfo.put("isMember", isMember);
+        groupInfo.put("isCreator", isCreator);
+        
+        return ResponseEntity.ok(groupInfo);
     }
 
     /**
@@ -166,8 +265,11 @@ public class GroupController {
 
         // Only 'open' groups allow direct joining
         if ("open".equals(visibility)) {
+            // Update both sides of the relationship
             user.getGroups().add(group);
+            group.getMembers().add(user);
             userRepository.save(user);
+            groupRepository.save(group);
             return ResponseEntity.ok(Map.of("message", "Joined group successfully", "status", "JOINED"));
         }
 
@@ -354,8 +456,13 @@ public class GroupController {
             return ResponseEntity.badRequest().body(Map.of("message", "Group is full"));
         }
 
+        // Update both sides of the relationship
         userToAdd.getGroups().add(group);
+        group.getMembers().add(userToAdd);
+        
+        // Save both entities to ensure relationship is persisted
         userRepository.save(userToAdd);
+        groupRepository.save(group);
 
         // Update request status
         request.setStatus("ACCEPTED");
@@ -525,10 +632,57 @@ public class GroupController {
     }
 
     @GetMapping("/my-groups")
-    public ResponseEntity<List<StudyGroup>> getMyGroups() {
+    public ResponseEntity<List<Map<String, Object>>> getMyGroups() {
         User user = getCurrentUser();
         List<StudyGroup> groups = groupRepository.findGroupsByMemberId(user.getId());
-        return ResponseEntity.ok(groups);
+        
+        // Convert to safe DTO to avoid circular references
+        List<Map<String, Object>> result = groups.stream().map(group -> {
+            Map<String, Object> groupMap = new java.util.HashMap<>();
+            groupMap.put("id", group.getId());
+            groupMap.put("name", group.getName());
+            groupMap.put("description", group.getDescription());
+            groupMap.put("topic", group.getTopic());
+            groupMap.put("maxSize", group.getMaxSize());
+            groupMap.put("visibility", group.getVisibility());
+            groupMap.put("isActive", group.getIsActive());
+            groupMap.put("createdAt", group.getCreatedAt());
+            groupMap.put("updatedAt", group.getUpdatedAt());
+            
+            // Safe course info
+            if (group.getCourse() != null) {
+                groupMap.put("course", Map.of(
+                    "id", group.getCourse().getId(),
+                    "code", group.getCourse().getCode(),
+                    "name", group.getCourse().getName()
+                ));
+            }
+            
+            // Safe creator info
+            if (group.getCreator() != null) {
+                groupMap.put("creator", Map.of(
+                    "id", group.getCreator().getId(),
+                    "username", group.getCreator().getUsername(),
+                    "fullName", group.getCreator().getFullName() != null ? group.getCreator().getFullName() : group.getCreator().getUsername()
+                ));
+            }
+            
+            // Member count only (not full member list)
+            groupMap.put("memberCount", group.getMembers() != null ? group.getMembers().size() : 0);
+            
+            // Safe members list (minimal info)
+            if (group.getMembers() != null) {
+                groupMap.put("members", group.getMembers().stream().map(member -> Map.of(
+                    "id", member.getId(),
+                    "username", member.getUsername(),
+                    "fullName", member.getFullName() != null ? member.getFullName() : member.getUsername()
+                )).toList());
+            }
+            
+            return groupMap;
+        }).toList();
+        
+        return ResponseEntity.ok(result);
     }
 
     /**
@@ -563,5 +717,57 @@ public class GroupController {
         )).toList();
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Get chat preview for a group (last message and unread count)
+     */
+    @GetMapping("/{id}/chat-preview")
+    public ResponseEntity<?> getChatPreview(@PathVariable Long id) {
+        User currentUser = getCurrentUser();
+        StudyGroup group = groupRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Group not found"));
+
+        // Check if user is a member using direct SQL query (more reliable)
+        boolean isMember = groupRepository.isUserMemberOfGroup(id, currentUser.getId());
+
+        if (!isMember) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Not a member of this group"));
+        }
+
+        // Get the most recent message
+        List<Message> recentMessages = messageRepository.findRecentMessagesByGroup(id);
+        Message lastMessage = recentMessages.isEmpty() ? null : recentMessages.get(0);
+
+        // For unread count, we would need to track last read timestamp per user
+        // For now, we'll return 0 (this could be enhanced later with a LastRead entity)
+        int unreadCount = 0;
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        
+        if (lastMessage != null) {
+            Map<String, Object> messageInfo = new java.util.HashMap<>();
+            messageInfo.put("id", lastMessage.getId());
+            messageInfo.put("content", lastMessage.getContent());
+            messageInfo.put("createdAt", lastMessage.getCreatedAt());
+            messageInfo.put("messageType", lastMessage.getMessageType());
+            
+            if (lastMessage.getSender() != null) {
+                Map<String, Object> senderInfo = new java.util.HashMap<>();
+                senderInfo.put("id", lastMessage.getSender().getId());
+                senderInfo.put("username", lastMessage.getSender().getUsername());
+                senderInfo.put("fullName", lastMessage.getSender().getFullName());
+                messageInfo.put("sender", senderInfo);
+            }
+            
+            response.put("lastMessage", messageInfo);
+        } else {
+            response.put("lastMessage", null);
+        }
+        
+        response.put("unreadCount", unreadCount);
+        response.put("totalMessages", recentMessages.size());
+
+        return ResponseEntity.ok(response);
     }
 }
