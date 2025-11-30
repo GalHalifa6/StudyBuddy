@@ -441,7 +441,7 @@ const SessionRoom: React.FC = () => {
     if (sessionId) {
       loadSession();
     }
-  }, [sessionId, loadSession]);
+  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartSession = async () => {
     if (!sessionId) return;

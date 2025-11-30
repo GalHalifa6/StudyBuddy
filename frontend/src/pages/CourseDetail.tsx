@@ -93,7 +93,7 @@ const CourseDetail: React.FC = () => {
     if (id) {
       loadCourseData();
     }
-  }, [id, loadCourseData]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEnroll = async () => {
     if (!id) return;

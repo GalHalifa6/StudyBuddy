@@ -18,7 +18,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -38,7 +37,9 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children, initialAuthState }) => {
   const [user, setUser] = useState<User | null>(initialAuthState?.user ?? null);
-  const [isLoading, setIsLoading] = useState(initialAuthState?.isLoading ?? true);
+  const [isLoading, setIsLoading] = useState(
+    initialAuthState?.isLoading ?? (initialAuthState !== undefined ? false : true)
+  );
   const hasCheckedAuthRef = useRef(false);
   const lastAppliedUserIdRef = useRef<number | null>(initialAuthState?.user?.id ?? null);
   const lastAppliedIsLoadingRef = useRef<boolean | undefined>(initialAuthState?.isLoading);
@@ -57,6 +58,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, initialAut
       // Only update state if values actually changed to prevent infinite loops
       if (userChanged || isLoadingChanged) {
         setUser(initialAuthState.user ?? null);
+        // If initialAuthState is provided (for testing) and isLoading is not specified, default to false
+        // because the auth state is already known/determined
         setIsLoading(initialAuthState.isLoading ?? false);
         lastAppliedUserIdRef.current = currentUserId;
         lastAppliedIsLoadingRef.current = currentIsLoading;

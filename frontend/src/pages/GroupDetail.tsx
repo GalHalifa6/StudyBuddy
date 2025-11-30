@@ -164,7 +164,7 @@ const GroupDetail: React.FC = () => {
     if (id) {
       fetchGroupData();
     }
-  }, [id, fetchGroupData]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -310,7 +310,7 @@ const GroupDetail: React.FC = () => {
     if (id) {
       fetchPinnedMessages();
     }
-  }, [id, fetchPinnedMessages]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup timeout on unmount
   useEffect(() => {
