@@ -326,7 +326,7 @@ class GroupControllerTest {
         when(groupRepository.findGroupsByMemberId(1L)).thenReturn(List.of(testGroup));
 
         // Act
-        ResponseEntity<List<StudyGroup>> response = groupController.getMyGroups();
+        ResponseEntity<List<Map<String, Object>>> response = groupController.getMyGroups();
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());

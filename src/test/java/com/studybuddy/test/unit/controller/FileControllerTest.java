@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -184,7 +185,7 @@ class FileControllerTest {
         when(fileUploadRepository.findByGroupIdOrderByUploadedAtDesc(1L)).thenReturn(files);
 
         // Act
-        ResponseEntity<List<FileUpload>> response = fileController.getGroupFiles(1L);
+        ResponseEntity<List<Map<String, Object>>> response = fileController.getGroupFiles(1L);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());

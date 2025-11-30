@@ -72,4 +72,23 @@ public class JwtUtils {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
     }
+
+    /**
+     * Validate JWT token without UserDetails (for WebSocket)
+     */
+    public Boolean validateJwtToken(String token) {
+        try {
+            extractAllClaims(token);
+            return !isTokenExpired(token);
+        } catch (JwtException | IllegalArgumentException | NullPointerException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get username from JWT token (for WebSocket)
+     */
+    public String getUsernameFromJwtToken(String token) {
+        return extractUsername(token);
+    }
 }

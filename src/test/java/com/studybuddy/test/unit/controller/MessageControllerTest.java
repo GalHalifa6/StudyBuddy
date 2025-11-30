@@ -97,7 +97,7 @@ class MessageControllerTest {
         when(messageRepository.findByGroupIdOrderByCreatedAtAsc(1L)).thenReturn(messages);
 
         // Act
-        ResponseEntity<List<Message>> response = messageController.getGroupMessages(1L);
+        ResponseEntity<List<Map<String, Object>>> response = messageController.getGroupMessages(1L);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -128,7 +128,7 @@ class MessageControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         verify(messageRepository, times(1)).save(any(Message.class));
-        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/group/1"), any(Message.class));
+        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/group/1"), any(Map.class));
     }
 
     @Test
@@ -157,7 +157,7 @@ class MessageControllerTest {
         Message savedMessage = messageCaptor.getValue();
         assertEquals("file", savedMessage.getMessageType());
         assertNotNull(savedMessage.getAttachedFile());
-        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/group/1"), any(Message.class));
+        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/group/1"), any(Map.class));
     }
 
     @Test
@@ -214,7 +214,7 @@ class MessageControllerTest {
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
         verify(messageRepository).save(messageCaptor.capture());
         assertTrue(messageCaptor.getValue().getIsPinned());
-        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/group/1/pin"), any(Message.class));
+        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/group/1/pin"), any(Map.class));
     }
 
     @Test
@@ -313,13 +313,13 @@ class MessageControllerTest {
         when(messageRepository.findByGroupIdAndIsPinnedTrue(1L)).thenReturn(pinnedMessages);
 
         // Act
-        ResponseEntity<List<Message>> response = messageController.getPinnedMessages(1L);
+        ResponseEntity<List<Map<String, Object>>> response = messageController.getPinnedMessages(1L);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().size());
-        assertTrue(response.getBody().get(0).getIsPinned());
+        assertTrue((Boolean) response.getBody().get(0).get("isPinned"));
         verify(messageRepository, times(1)).findByGroupIdAndIsPinnedTrue(1L);
     }
 }
