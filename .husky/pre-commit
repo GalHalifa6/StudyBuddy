@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "Running pre-commit checks..."
+
+# Run frontend tests
+cd frontend
+if [ -f "package.json" ]; then
+  echo "Running frontend tests..."
+  npm run test:run || {
+    echo "Frontend tests failed. Please fix the issues before committing."
+    exit 1
+  }
+fi
+cd ..
+
+# Run backend tests
+if [ -f "pom.xml" ]; then
+  echo "Running backend tests..."
+  mvn test -q || {
+    echo "Backend tests failed. Please fix the issues before committing."
+    exit 1
+  }
+fi
+
+echo "All tests passed!"
+

@@ -10,9 +10,10 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage",
+    "test:coverage": "vitest run --coverage",
     "test:run": "vitest run",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "test:ci": "vitest run --coverage --reporter=verbose"
   },
   "dependencies": {
     "@stomp/stompjs": "^7.2.1",
@@ -32,6 +33,7 @@
     "@types/sockjs-client": "^1.5.4",
     "@vitejs/plugin-react": "^4.2.1",
     "@vitest/ui": "^1.1.0",
+    "@vitest/coverage-v8": "^1.1.0",
     "autoprefixer": "^10.4.16",
     "jsdom": "^23.0.1",
     "msw": "^2.0.11",
