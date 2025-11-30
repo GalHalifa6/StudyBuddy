@@ -53,7 +53,6 @@ export const mockGroup: Partial<StudyGroup> = {
     faculty: 'Engineering',
     semester: 'Fall 2024',
     createdAt: '2024-01-01T00:00:00Z',
-    students: [],
   },
   creator: mockUser,
   members: [mockUser],
@@ -69,7 +68,6 @@ export const mockCourse: Course = {
   faculty: 'Engineering',
   semester: 'Fall 2024',
   createdAt: '2024-01-01T00:00:00Z',
-  students: [],
 };
 
 export const mockNotification: Partial<Notification> = {

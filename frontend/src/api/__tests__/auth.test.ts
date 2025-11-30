@@ -186,14 +186,14 @@ describe('authService', () => {
       (api.put as any).mockResolvedValue(mockResponse);
 
       const result = await authService.updateProfile({
-        fullName: 'Updated Name',
-        email: 'updated@example.com',
+        topicsOfInterest: ['Math', 'Science'],
+        proficiencyLevel: 'Intermediate',
       });
 
       expect(api.put).toHaveBeenCalledTimes(1);
       expect(api.put).toHaveBeenCalledWith('/auth/profile', {
-        fullName: 'Updated Name',
-        email: 'updated@example.com',
+        topicsOfInterest: ['Math', 'Science'],
+        proficiencyLevel: 'Intermediate',
       });
       expect(result).toEqual(mockResponse.data);
     });
@@ -208,7 +208,7 @@ describe('authService', () => {
         removeItem: vi.fn(),
         clear: vi.fn(),
       };
-      global.localStorage = localStorageMock as any;
+      globalThis.localStorage = localStorageMock as any;
       localStorage.setItem('token', 'test-token');
 
       authService.logout();
