@@ -56,7 +56,6 @@ export const mockGroup: Partial<StudyGroup> = {
   },
   creator: mockUser,
   members: [mockUser],
-  files: [],
 };
 
 export const mockCourse: Course = {
