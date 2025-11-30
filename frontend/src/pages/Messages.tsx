@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { groupService } from '../api';
 import { StudyGroup } from '../types';
@@ -32,15 +32,10 @@ const Messages: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
 
-  useEffect(() => {
-    loadChats();
-  }, []);
-
-  useEffect(() => {
-    filterChats();
-  }, [searchQuery, activeTab, chats]);
-
-  const loadChats = async () => {
+  const loadChats = useCallback(async () => {
+    // Capture user?.id at the start to avoid stale closure issues
+    const currentUserId = user?.id;
+    
     setIsLoading(true);
     try {
       // Get all groups user is a member of
@@ -65,7 +60,7 @@ const Messages: React.FC = () => {
                   content: preview.lastMessage.content,
                   senderName: preview.lastMessage.sender?.fullName || preview.lastMessage.sender?.username || 'Unknown',
                   timestamp: preview.lastMessage.createdAt,
-                  isOwn: preview.lastMessage.sender?.id === user?.id
+                  isOwn: preview.lastMessage.sender?.id === currentUserId
                 } : undefined,
                 unreadCount: preview.unreadCount || 0
               };
@@ -88,15 +83,20 @@ const Messages: React.FC = () => {
       });
 
       setChats(chatPreviews);
-      setFilteredChats(chatPreviews);
     } catch (error) {
       console.error('Error loading chats:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.id]);
 
-  const filterChats = () => {
+  useEffect(() => {
+    loadChats();
+  }, [loadChats]);
+
+  // Filter chats when chats, searchQuery, or activeTab changes
+  // This effect will run when chats are loaded or when filters change
+  useEffect(() => {
     let filtered = [...chats];
     
     // Filter by search
@@ -113,7 +113,7 @@ const Messages: React.FC = () => {
     }
     
     setFilteredChats(filtered);
-  };
+  }, [chats, searchQuery, activeTab]);
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);

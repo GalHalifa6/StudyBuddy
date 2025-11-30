@@ -3,6 +3,7 @@ import { render, RenderOptions } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '../../context/AuthContext';
 import { ThemeProvider } from '../../context/ThemeContext';
+import { User } from '../../types';
 
 /**
  * Custom render function that includes all providers
@@ -11,7 +12,7 @@ import { ThemeProvider } from '../../context/ThemeContext';
 interface AllTheProvidersProps {
   children: React.ReactNode;
   initialAuthState?: {
-    user?: any;
+    user?: User | null;
     isAuthenticated?: boolean;
     isLoading?: boolean;
   };
@@ -24,7 +25,7 @@ const AllTheProviders: React.FC<AllTheProvidersProps> = ({
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <AuthProvider>
+        <AuthProvider initialAuthState={initialAuthState}>
           {children}
         </AuthProvider>
       </ThemeProvider>
@@ -34,7 +35,7 @@ const AllTheProviders: React.FC<AllTheProvidersProps> = ({
 
 interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   initialAuthState?: {
-    user?: any;
+    user?: User | null;
     isAuthenticated?: boolean;
     isLoading?: boolean;
   };

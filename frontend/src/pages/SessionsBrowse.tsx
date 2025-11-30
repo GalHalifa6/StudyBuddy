@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { sessionService, SessionInfo } from '../api/sessions';
 import { courseService } from '../api';
@@ -34,19 +34,7 @@ const SessionsBrowse: React.FC = () => {
     searchParams.get('courseId') ? parseInt(searchParams.get('courseId')!) : undefined
   );
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'browse') {
-      loadSessions();
-    } else {
-      loadMySessions();
-    }
-  }, [activeTab, selectedType, selectedCourseId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [sessionsData, coursesData, mySessionsData] = await Promise.all([
         sessionService.browseSessions(),
@@ -61,9 +49,9 @@ const SessionsBrowse: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     setLoading(true);
     try {
       const data = await sessionService.browseSessions({
@@ -77,9 +65,9 @@ const SessionsBrowse: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedType, selectedCourseId, searchQuery]);
 
-  const loadMySessions = async () => {
+  const loadMySessions = useCallback(async () => {
     setLoading(true);
     try {
       const data = await sessionService.getMyUpcomingSessions();
@@ -93,17 +81,34 @@ const SessionsBrowse: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (activeTab === 'browse') {
+      loadSessions();
+    } else {
+      loadMySessions();
+    }
+    // Include callbacks in dependencies to ensure we always use the latest versions
+    // This prevents stale closures when filters change
+  }, [activeTab, loadSessions, loadMySessions]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    loadSessions();
-    // Update URL params
+    // Update URL params - the useEffect will automatically call loadSessions
+    // when the filter state changes (which happens via the form inputs)
     const params = new URLSearchParams();
     if (searchQuery) params.set('search', searchQuery);
     if (selectedType) params.set('type', selectedType);
     if (selectedCourseId) params.set('courseId', selectedCourseId.toString());
     setSearchParams(params);
+    // Note: We don't call loadSessions() here to avoid double-fetching.
+    // The effect will run when filter values change (via form inputs),
+    // and loadSessions callback will be recreated with new filter values.
   };
 
   const handleJoinSession = async (sessionId: number) => {
@@ -112,6 +117,7 @@ const SessionsBrowse: React.FC = () => {
       // Reload sessions to update the joined status
       loadSessions();
       loadMySessions();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to join session');
     }
@@ -122,6 +128,7 @@ const SessionsBrowse: React.FC = () => {
       await sessionService.leaveSession(sessionId);
       loadSessions();
       loadMySessions();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to leave session');
     }

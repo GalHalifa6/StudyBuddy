@@ -93,11 +93,6 @@ const GroupDetail: React.FC = () => {
     onMessage: handleNewMessage,
   });
 
-  useEffect(() => {
-    if (id) {
-      fetchGroupData();
-    }
-  }, [id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -129,7 +124,7 @@ const GroupDetail: React.FC = () => {
     }
   };
 
-  const fetchGroupData = async () => {
+  const fetchGroupData = useCallback(async () => {
     try {
       // First get group info and membership status
       const [groupData, status] = await Promise.all([
@@ -163,7 +158,13 @@ const GroupDetail: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchGroupData();
+    }
+  }, [id, fetchGroupData]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -260,14 +261,14 @@ const GroupDetail: React.FC = () => {
   };
 
   // Fetch pinned messages
-  const fetchPinnedMessages = async () => {
+  const fetchPinnedMessages = useCallback(async () => {
     try {
       const pinned = await messageService.getPinnedMessages(parseInt(id!));
       setPinnedMessages(pinned);
     } catch (error) {
       console.error('Error fetching pinned messages:', error);
     }
-  };
+  }, [id]);
 
   // Upload file and send as chat message
   const handleChatFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -304,12 +305,12 @@ const GroupDetail: React.FC = () => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Fetch pinned messages on load
+  // Fetch pinned messages on load and when id changes
   useEffect(() => {
     if (id) {
       fetchPinnedMessages();
     }
-  }, [id]);
+  }, [id, fetchPinnedMessages]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -967,6 +968,7 @@ const GroupDetail: React.FC = () => {
                       if (e.key === 'Enter' && !e.shiftKey && activeTab === 'chat') {
                         e.preventDefault();
                         if (newMessage.trim() && !isSending) {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
                           handleSendMessage(e as any);
                         }
                       }

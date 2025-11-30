@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { courseService, groupService } from '../api';
 import { ExpertSession } from '../api/experts';
@@ -26,7 +26,7 @@ interface CourseSession extends ExpertSession {
 const CourseDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user: _user } = useAuth();
+  useAuth(); // Keep auth context active
   
   const [course, setCourse] = useState<Course | null>(null);
   const [groups, setGroups] = useState<StudyGroup[]>([]);
@@ -44,13 +44,7 @@ const CourseDetail: React.FC = () => {
   });
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      loadCourseData();
-    }
-  }, [id]);
-
-  const loadCourseData = async () => {
+  const loadCourseData = useCallback(async () => {
     if (!id) return;
     setIsLoading(true);
     try {
@@ -93,7 +87,13 @@ const CourseDetail: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      loadCourseData();
+    }
+  }, [id, loadCourseData]);
 
   const handleEnroll = async () => {
     if (!id) return;

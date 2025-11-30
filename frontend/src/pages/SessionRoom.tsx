@@ -154,6 +154,7 @@ const SessionRoom: React.FC = () => {
       senderId: message.senderId,
       content: message.content,
       timestamp: new Date(message.timestamp),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       type: message.type as any,
       fileUrl: message.fileUrl,
       fileName: message.fileName,
@@ -206,6 +207,7 @@ const SessionRoom: React.FC = () => {
   }, []);
 
   // Participant handlers
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleParticipantJoin = useCallback((participant: any) => {
     console.log('Participant joined:', participant);
     setParticipants(prev => {
@@ -282,10 +284,6 @@ const SessionRoom: React.FC = () => {
     onParticipantLeave: handleParticipantLeave,
     onSessionStatusChange: handleSessionStatusChange,
   });
-
-  useEffect(() => {
-    loadSession();
-  }, [sessionId]);
 
   // Track if we've joined to prevent duplicate join notifications
   const hasJoined = useRef(false);
@@ -369,7 +367,7 @@ const SessionRoom: React.FC = () => {
     }
   }, [activePanel]);
 
-  const loadSession = async () => {
+  const loadSession = useCallback(async () => {
     if (!sessionId) return;
     setLoading(true);
     try {
@@ -402,6 +400,7 @@ const SessionRoom: React.FC = () => {
       try {
         const participantsData = await sessionService.getSessionParticipants(parseInt(sessionId));
         console.log('Loaded participants:', participantsData);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const registeredParticipants: Participant[] = participantsData.map((p: any) => ({
           id: p.userId,
           name: p.fullName || p.username,
@@ -435,7 +434,14 @@ const SessionRoom: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId]);
+
+  // Load session when sessionId changes
+  useEffect(() => {
+    if (sessionId) {
+      loadSession();
+    }
+  }, [sessionId, loadSession]);
 
   const handleStartSession = async () => {
     if (!sessionId) return;
@@ -1110,6 +1116,7 @@ const SessionRoom: React.FC = () => {
             ].map((tab) => (
               <button
                 key={tab.id}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onClick={() => setActivePanel(tab.id as any)}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium transition-all ${
                   activePanel === tab.id ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/10' : 'text-gray-400 hover:text-gray-300'

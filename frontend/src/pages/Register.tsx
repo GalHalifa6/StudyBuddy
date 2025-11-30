@@ -77,6 +77,7 @@ const Register: React.FC = () => {
       });
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       // Handle detailed error messages from backend
       const responseData = err.response?.data;

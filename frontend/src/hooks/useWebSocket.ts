@@ -1,10 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Client, IMessage } from '@stomp/stompjs';
-// @ts-ignore
+// @ts-expect-error - SockJS types are not available
 import SockJS from 'sockjs-client/dist/sockjs';
 
 interface UseWebSocketOptions {
   groupId: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMessage: (message: any) => void;
 }
 
@@ -73,6 +74,7 @@ export const useWebSocket = ({ groupId, onMessage }: UseWebSocketOptions) => {
   }, []);
 
   const sendMessage = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (destination: string, body: any) => {
       if (clientRef.current?.active) {
         clientRef.current.publish({

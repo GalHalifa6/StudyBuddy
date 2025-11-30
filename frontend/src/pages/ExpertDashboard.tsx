@@ -136,6 +136,7 @@ const ExpertDashboard: React.FC = () => {
           maxSessionsPerWeek: profileData.maxSessionsPerWeek || 10,
           sessionDurationMinutes: profileData.sessionDurationMinutes || 60,
         });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         // Profile doesn't exist yet - show create profile modal
         if (err.response?.status === 404) {
@@ -241,6 +242,7 @@ const ExpertDashboard: React.FC = () => {
       setStudentSearchQuery('');
       setStudentSearchResults([]);
       loadData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Failed to create session:', error);
       alert(error.response?.data?.message || 'Failed to create session. Please try again.');
@@ -517,6 +519,7 @@ const ExpertDashboard: React.FC = () => {
           ].map((tab) => (
             <button
               key={tab.id}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onClick={() => setActiveTab(tab.id as any)}
               className={`pb-4 px-1 border-b-2 font-medium transition-colors ${
                 activeTab === tab.id

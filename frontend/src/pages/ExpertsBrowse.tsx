@@ -165,6 +165,7 @@ const ExpertsBrowse: React.FC = () => {
       loadData();
       
       alert('Review submitted successfully! Thank you for your feedback.');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Failed to submit review:', error);
       alert(error.response?.data?.message || 'Failed to submit review. Please try again.');

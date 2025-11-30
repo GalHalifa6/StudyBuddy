@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { User, LoginRequest, RegisterRequest, UserRole } from '../types';
 import { authService } from '../api';
 
@@ -18,6 +18,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -28,29 +29,63 @@ export const useAuth = () => {
 
 interface AuthProviderProps {
   children: ReactNode;
+  initialAuthState?: {
+    user?: User | null;
+    isAuthenticated?: boolean;
+    isLoading?: boolean;
+  };
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const checkAuth = async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const userData = await authService.getCurrentUser();
-        setUser(userData);
-      } catch (error) {
-        localStorage.removeItem('token');
-        setUser(null);
-      }
-    }
-    setIsLoading(false);
-  };
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children, initialAuthState }) => {
+  const [user, setUser] = useState<User | null>(initialAuthState?.user ?? null);
+  const [isLoading, setIsLoading] = useState(initialAuthState?.isLoading ?? true);
+  const hasCheckedAuthRef = useRef(false);
+  const lastAppliedUserIdRef = useRef<number | null>(initialAuthState?.user?.id ?? null);
+  const lastAppliedIsLoadingRef = useRef<boolean | undefined>(initialAuthState?.isLoading);
 
   useEffect(() => {
+    // If initial state was provided (for testing), use it and don't check auth
+    // Only update state if the actual values changed (not just object reference)
+    // This prevents infinite loops when initialAuthState is a new object on each render
+    if (initialAuthState !== undefined) {
+      const currentUserId = initialAuthState?.user?.id ?? null;
+      const currentIsLoading = initialAuthState?.isLoading;
+      
+      const userChanged = lastAppliedUserIdRef.current !== currentUserId;
+      const isLoadingChanged = lastAppliedIsLoadingRef.current !== currentIsLoading;
+      
+      // Only update state if values actually changed to prevent infinite loops
+      if (userChanged || isLoadingChanged) {
+        setUser(initialAuthState.user ?? null);
+        setIsLoading(initialAuthState.isLoading ?? false);
+        lastAppliedUserIdRef.current = currentUserId;
+        lastAppliedIsLoadingRef.current = currentIsLoading;
+      }
+      return;
+    }
+    
+    // Only check auth once if initialAuthState is not provided
+    if (hasCheckedAuthRef.current) {
+      return;
+    }
+    
+    const checkAuth = async () => {
+      hasCheckedAuthRef.current = true;
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const userData = await authService.getCurrentUser();
+          setUser(userData);
+        } catch (error) {
+          localStorage.removeItem('token');
+          setUser(null);
+        }
+      }
+      setIsLoading(false);
+    };
+    
     checkAuth();
-  }, []);
+  }, [initialAuthState]);
 
   const login = async (data: LoginRequest) => {
     const response = await authService.login(data);

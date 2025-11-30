@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Client, IMessage } from '@stomp/stompjs';
-// @ts-ignore
+// @ts-expect-error - SockJS types are not available
 import SockJS from 'sockjs-client/dist/sockjs';
 
 export interface SessionMessage {
@@ -32,6 +32,7 @@ interface UseSessionWebSocketOptions {
   userName?: string;
   onMessage: (message: SessionMessage) => void;
   onWhiteboardUpdate?: (data: WhiteboardDrawData) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onParticipantJoin?: (participant: any) => void;
   onParticipantLeave?: (participantId: number) => void;
   onSessionStatusChange?: (status: string) => void;

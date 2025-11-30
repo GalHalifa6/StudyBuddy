@@ -33,6 +33,7 @@ const Login: React.FC = () => {
     try {
       await login({ username, password });
       navigate('/dashboard');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       // Handle detailed error messages from backend
       const responseData = err.response?.data;

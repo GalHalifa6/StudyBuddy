@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { groupService, courseService } from '../api';
 import { StudyGroup, Course, GroupMemberRequest } from '../types';
@@ -45,11 +45,7 @@ const Groups: React.FC = () => {
   });
   const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [selectedCourse]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [coursesData, myGroupsData, pendingRequests, invites] = await Promise.all([
@@ -84,7 +80,11 @@ const Groups: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedCourse]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +136,7 @@ const Groups: React.FC = () => {
         // Successfully joined
         await fetchData();
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error joining group:', error);
       alert(error?.response?.data?.message || 'Error joining group');
