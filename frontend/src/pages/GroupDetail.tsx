@@ -60,6 +60,8 @@ const GroupDetail: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<FileUpload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
+  const newMessageRef = useRef<string>('');
   
   // Message context menu state
   const [contextMenu, setContextMenu] = useState<{ messageId: number; x: number; y: number } | null>(null);
@@ -318,6 +320,76 @@ const GroupDetail: React.FC = () => {
     };
   }, []);
 
+  // Keep ref in sync with newMessage state to avoid stale closures
+  useEffect(() => {
+    newMessageRef.current = newMessage;
+  }, [newMessage]);
+
+  // Auto-focus message input when chat tab is active
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      // Use requestAnimationFrame for better timing
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          messageInputRef.current?.focus();
+        }, 50);
+      });
+    }
+  }, [activeTab]);
+
+  // Global keyboard listener for Enter key in chat section
+  useEffect(() => {
+    if (activeTab !== 'chat') return;
+
+    const handleKeyPress = async (e: KeyboardEvent) => {
+      // Only handle Enter key (not Shift+Enter)
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const target = e.target as HTMLElement;
+        const isInputOrTextarea = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+        
+        // If user is typing in the message input, let the input's onKeyDown handle it
+        if (isInputOrTextarea && target === messageInputRef.current) {
+          return; // Let the input's handler take care of it
+        }
+        
+        // If user is in another input/textarea (like search), don't interfere
+        if (isInputOrTextarea && target !== messageInputRef.current) {
+          return;
+        }
+        
+        // If Enter is pressed elsewhere in chat section, focus input and send if there's content
+        if (!isInputOrTextarea) {
+          e.preventDefault();
+          messageInputRef.current?.focus();
+          // Use ref to get current value, avoiding stale closures
+          const currentMessage = newMessageRef.current;
+          if (currentMessage.trim() && !isSending && id) {
+            setIsSending(true);
+            try {
+              await messageService.sendMessage(parseInt(id!), {
+                content: currentMessage,
+              });
+              setNewMessage('');
+              // Refocus input after sending
+              setTimeout(() => {
+                messageInputRef.current?.focus();
+              }, 0);
+            } catch (error) {
+              console.error('Error sending message:', error);
+            } finally {
+              setIsSending(false);
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [activeTab, isSending, id]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || isSending) return;
@@ -330,6 +402,10 @@ const GroupDetail: React.FC = () => {
       });
       // Don't add message here - it will come through WebSocket
       setNewMessage('');
+      // Refocus input after sending message
+      setTimeout(() => {
+        messageInputRef.current?.focus();
+      }, 0);
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
@@ -606,7 +682,13 @@ const GroupDetail: React.FC = () => {
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
         <button
-          onClick={() => setActiveTab('chat')}
+          onClick={() => {
+            setActiveTab('chat');
+            // Focus input immediately when switching to chat tab
+            setTimeout(() => {
+              messageInputRef.current?.focus();
+            }, 50);
+          }}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             activeTab === 'chat'
               ? 'bg-primary-100 text-primary-700'
@@ -659,7 +741,34 @@ const GroupDetail: React.FC = () => {
         {activeTab === 'chat' && (
           <>
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div 
+              className="flex-1 overflow-y-auto p-4 space-y-4"
+              onClick={(e) => {
+                // Only focus input if clicking on empty space (not on interactive elements)
+                const target = e.target as HTMLElement;
+                const selection = window.getSelection();
+                const hasTextSelected = selection && selection.toString().length > 0;
+                
+                // Don't focus if text is being selected
+                if (hasTextSelected) {
+                  return;
+                }
+                
+                // Check if clicking on interactive elements or message content
+                const isInteractive = 
+                  target.tagName === 'BUTTON' ||
+                  target.tagName === 'A' ||
+                  target.closest('button') !== null ||
+                  target.closest('a') !== null ||
+                  target.closest('.cursor-pointer') !== null || // Elements with cursor-pointer class (like file downloads)
+                  target.closest('.message-bubble') !== null; // Don't focus when clicking on message content
+                
+                // Focus input if clicking on empty space (not on interactive elements or message content)
+                if (!isInteractive) {
+                  messageInputRef.current?.focus();
+                }
+              }}
+            >
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -849,9 +958,19 @@ const GroupDetail: React.FC = () => {
                     )}
                   </button>
                   <input
+                    ref={messageInputRef}
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Send message on Enter key press (only when chat tab is active)
+                      if (e.key === 'Enter' && !e.shiftKey && activeTab === 'chat') {
+                        e.preventDefault();
+                        if (newMessage.trim() && !isSending) {
+                          handleSendMessage(e as any);
+                        }
+                      }
+                    }}
                     placeholder="Type your message..."
                     className="input flex-1"
                     disabled={isSending}
