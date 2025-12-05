@@ -362,8 +362,10 @@ public class SessionController {
         map.put("id", session.getId());
         map.put("title", session.getTitle());
         map.put("description", session.getDescription());
-        map.put("sessionType", session.getSessionType() != null ? session.getSessionType().getDisplayName() : null);
+        map.put("sessionType", session.getSessionType() != null ? session.getSessionType().name() : null);
+        map.put("sessionTypeLabel", session.getSessionType() != null ? session.getSessionType().getDisplayName() : null);
         map.put("status", session.getStatus() != null ? session.getStatus().getDisplayName() : null);
+        map.put("statusKey", session.getStatus() != null ? session.getStatus().name() : null);
         map.put("scheduledStartTime", session.getScheduledStartTime());
         map.put("scheduledEndTime", session.getScheduledEndTime());
         map.put("maxParticipants", session.getMaxParticipants());

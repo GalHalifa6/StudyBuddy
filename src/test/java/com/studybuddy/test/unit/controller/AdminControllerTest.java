@@ -2,6 +2,7 @@ package com.studybuddy.test.unit.controller;
 
 import com.studybuddy.controller.AdminController;
 import com.studybuddy.dto.AuthDto;
+import com.studybuddy.dto.UserAdminDto;
 import com.studybuddy.model.Role;
 import com.studybuddy.model.User;
 import com.studybuddy.repository.UserRepository;
@@ -43,6 +44,7 @@ class AdminControllerTest {
         testUser.setId(1L);
         testUser.setUsername("testuser");
         testUser.setEmail("test@example.com");
+        testUser.setFullName("Test User");
         testUser.setRole(Role.USER);
         testUser.setIsActive(true);
 
@@ -50,6 +52,7 @@ class AdminControllerTest {
         adminUser.setId(2L);
         adminUser.setUsername("admin");
         adminUser.setEmail("admin@example.com");
+        adminUser.setFullName("Admin User");
         adminUser.setRole(Role.ADMIN);
         adminUser.setIsActive(true);
     }
@@ -61,12 +64,14 @@ class AdminControllerTest {
         when(userRepository.findAll()).thenReturn(users);
 
         // Act
-        ResponseEntity<List<User>> response = adminController.getAllUsers();
+        ResponseEntity<List<UserAdminDto>> response = adminController.getAllUsers();
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(2, response.getBody().size());
+        assertEquals("testuser", response.getBody().get(0).getUsername());
+        assertEquals(Role.USER, response.getBody().get(0).getRole());
         verify(userRepository, times(1)).findAll();
     }
 
@@ -76,12 +81,14 @@ class AdminControllerTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
 
         // Act
-        ResponseEntity<User> response = adminController.getUserById(1L);
+        ResponseEntity<UserAdminDto> response = adminController.getUserById(1L);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1L, response.getBody().getId());
+        assertEquals("testuser", response.getBody().getUsername());
+        assertEquals(Role.USER, response.getBody().getRole());
         verify(userRepository, times(1)).findById(1L);
     }
 
@@ -91,7 +98,7 @@ class AdminControllerTest {
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
         // Act
-        ResponseEntity<User> response = adminController.getUserById(1L);
+        ResponseEntity<UserAdminDto> response = adminController.getUserById(1L);
 
         // Assert
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
