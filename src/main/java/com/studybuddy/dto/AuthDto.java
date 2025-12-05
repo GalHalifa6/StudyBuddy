@@ -104,4 +104,41 @@ public class AuthDto {
         private String availability;
         private String collaborationStyle;
     }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UserResponse {
+        private Long id;
+        private String username;
+        private String email;
+        private String fullName;
+        private String role;
+        private Boolean isActive;
+        private List<String> topicsOfInterest;
+        private String proficiencyLevel;
+        private List<String> preferredLanguages;
+        private String availability;
+        private String collaborationStyle;
+        private java.time.LocalDateTime createdAt;
+        private java.time.LocalDateTime updatedAt;
+
+        public static UserResponse fromUser(com.studybuddy.model.User user) {
+            return new UserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getFullName(),
+                user.getRole() != null ? user.getRole().name() : null,
+                user.getIsActive(),
+                user.getTopicsOfInterest(),
+                user.getProficiencyLevel(),
+                user.getPreferredLanguages(),
+                user.getAvailability(),
+                user.getCollaborationStyle(),
+                user.getCreatedAt(),
+                user.getUpdatedAt()
+            );
+        }
+    }
 }

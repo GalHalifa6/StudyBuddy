@@ -1,6 +1,7 @@
 package com.studybuddy.controller;
 
 import com.studybuddy.dto.AuthDto;
+import com.studybuddy.dto.UserAdminDto;
 import com.studybuddy.model.Role;
 import com.studybuddy.model.User;
 import com.studybuddy.repository.UserRepository;
@@ -10,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Admin Controller
@@ -24,14 +26,17 @@ public class AdminController {
     private UserRepository userRepository;
 
     @GetMapping("/users")
-    public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userRepository.findAll();
+    public ResponseEntity<List<UserAdminDto>> getAllUsers() {
+        List<UserAdminDto> users = userRepository.findAll().stream()
+                .map(UserAdminDto::fromUser)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(users);
     }
 
     @GetMapping("/users/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+    public ResponseEntity<UserAdminDto> getUserById(@PathVariable Long id) {
         return userRepository.findById(id)
+                .map(UserAdminDto::fromUser)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

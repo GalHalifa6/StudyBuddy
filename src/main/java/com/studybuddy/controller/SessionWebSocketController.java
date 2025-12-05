@@ -41,8 +41,8 @@ public class SessionWebSocketController {
             String authHeader = headerAccessor.getFirstNativeHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
-                if (jwtUtils.validateJwtToken(token)) {
-                    String username = jwtUtils.getUsernameFromJwtToken(token);
+                String username = jwtUtils.extractUsername(token);
+                if (username != null) {
                     return userRepository.findByUsername(username).orElse(null);
                 }
             }

@@ -371,6 +371,22 @@ public class ExpertController {
             }
             
             ExpertSession savedSession = sessionRepository.save(session);
+
+            // Auto-register targeted student so one-on-one sessions remain accessible
+            if (savedSession.getStudent() != null) {
+                boolean alreadyRegistered = sessionParticipantRepository
+                        .existsBySessionIdAndUserId(savedSession.getId(), savedSession.getStudent().getId());
+                if (!alreadyRegistered) {
+                    SessionParticipant participant = SessionParticipant.builder()
+                            .session(savedSession)
+                            .user(savedSession.getStudent())
+                            .status(SessionParticipant.ParticipantStatus.CONFIRMED)
+                            .registeredAt(LocalDateTime.now())
+                            .attended(false)
+                            .build();
+                    sessionParticipantRepository.save(participant);
+                }
+            }
             
             // Send notification to student for one-on-one sessions
             if (savedSession.getStudent() != null) {
