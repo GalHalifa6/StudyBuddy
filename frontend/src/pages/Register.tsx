@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS } from '../types';
-import { BookOpen, Mail, Lock, User, Loader2, ArrowRight, CheckCircle, Shield, GraduationCap, Award, AlertCircle } from 'lucide-react';
+import { BookOpen, Mail, Lock, User, Loader2, ArrowRight, CheckCircle, GraduationCap, Award, AlertCircle } from 'lucide-react';
 
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -93,11 +93,10 @@ const Register: React.FC = () => {
     }
   };
 
-  const roleIcons = {
-    USER: <GraduationCap className="w-6 h-6" />,
-    EXPERT: <Award className="w-6 h-6" />,
-    ADMIN: <Shield className="w-6 h-6" />,
-  };
+  const roleOptions: Array<{ value: UserRole; icon: React.ReactElement }> = [
+    { value: 'USER', icon: <GraduationCap className="w-6 h-6" /> },
+    { value: 'EXPERT', icon: <Award className="w-6 h-6" /> },
+  ];
 
   if (success) {
     return (
@@ -192,22 +191,22 @@ const Register: React.FC = () => {
             {/* Role Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Account Type</label>
-              <div className="grid grid-cols-3 gap-3">
-                {(['USER', 'EXPERT', 'ADMIN'] as UserRole[]).map((role) => (
+              <div className="grid grid-cols-2 gap-3">
+                {roleOptions.map(({ value, icon }) => (
                   <button
-                    key={role}
+                    key={value}
                     type="button"
-                    onClick={() => handleRoleChange(role)}
+                    onClick={() => handleRoleChange(value)}
                     className={`p-4 rounded-xl border-2 transition-all duration-200 text-center ${
-                      formData.role === role
+                      formData.role === value
                         ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
                         : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 hover:border-gray-300 dark:hover:border-gray-600 text-gray-600 dark:text-gray-400'
                     }`}
                   >
-                    <div className={`mx-auto mb-2 ${formData.role === role ? 'text-primary-500' : 'text-gray-400'}`}>
-                      {roleIcons[role]}
+                    <div className={`mx-auto mb-2 ${formData.role === value ? 'text-primary-500' : 'text-gray-400'}`}>
+                      {icon}
                     </div>
-                    <span className="text-sm font-medium block">{ROLE_LABELS[role]}</span>
+                    <span className="text-sm font-medium block">{ROLE_LABELS[value]}</span>
                   </button>
                 ))}
               </div>

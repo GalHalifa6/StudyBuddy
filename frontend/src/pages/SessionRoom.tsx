@@ -121,6 +121,7 @@ const SessionRoom: React.FC = () => {
   
   // Participants
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const attemptedAutoJoin = useRef(false);
   
   // Confetti state
   const [showConfetti, setShowConfetti] = useState(false);
@@ -442,6 +443,44 @@ const SessionRoom: React.FC = () => {
       loadSession();
     }
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!session || !user || attemptedAutoJoin.current) {
+      return;
+    }
+
+    const isAssignedStudent = session.student?.id === user.id;
+    if (isSessionExpert || !isAssignedStudent) {
+      return;
+    }
+
+    attemptedAutoJoin.current = true;
+
+    (async () => {
+      try {
+        await sessionService.joinSession(session.id);
+        setParticipants(prev => {
+          const alreadyPresent = prev.some(p => p.id === user.id);
+          if (alreadyPresent) {
+            return prev.map(p => p.id === user.id ? { ...p, isOnline: true } : p);
+          }
+          return [...prev, {
+            id: user.id!,
+            name: user.fullName || user.username || 'You',
+            role: 'student',
+            isOnline: true,
+          }];
+        });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (error: any) {
+        if (error?.response?.status === 409) {
+          console.debug('Already registered for session');
+        } else {
+          console.error('Failed to auto-join session:', error);
+        }
+      }
+    })();
+  }, [session, user, isSessionExpert]);
 
   const handleStartSession = async () => {
     if (!sessionId) return;

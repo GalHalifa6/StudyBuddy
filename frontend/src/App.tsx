@@ -20,7 +20,9 @@ import ExpertsBrowse from './pages/ExpertsBrowse';
 import SessionsBrowse from './pages/SessionsBrowse';
 import SessionRoom from './pages/SessionRoom';
 import MyQuestions from './pages/MyQuestions';
+import Questions from './pages/Questions';
 import PublicQA from './pages/PublicQA';
+import Onboarding from './pages/Onboarding';
 
 function App() {
   return (
@@ -52,9 +54,19 @@ function App() {
               <Route path="/admin" element={<Admin />} />
               <Route path="/expert-dashboard" element={<ExpertDashboard />} />
               <Route path="/experts" element={<ExpertsBrowse />} />
+              <Route path="/questions" element={<Questions />} />
               <Route path="/my-questions" element={<MyQuestions />} />
               <Route path="/qa" element={<PublicQA />} />
             </Route>
+
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <Onboarding />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -16,7 +16,9 @@ import {
   Loader2,
   ChevronRight,
   Sparkles,
-  X
+  X,
+  MinusCircle,
+  Lock
 } from 'lucide-react';
 
 interface CourseSession extends ExpertSession {
@@ -26,7 +28,7 @@ interface CourseSession extends ExpertSession {
 const CourseDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  useAuth(); // Keep auth context active
+  const { isUser } = useAuth();
   
   const [course, setCourse] = useState<Course | null>(null);
   const [groups, setGroups] = useState<StudyGroup[]>([]);
@@ -34,6 +36,7 @@ const CourseDetail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+  const [unenrolling, setUnenrolling] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroup, setNewGroup] = useState({
     name: '',
@@ -43,47 +46,56 @@ const CourseDetail: React.FC = () => {
     visibility: 'open',
   });
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [accessMessage, setAccessMessage] = useState('');
 
   const loadCourseData = useCallback(async () => {
     if (!id) return;
     setIsLoading(true);
+    setAccessDenied(false);
+    setAccessMessage('');
     try {
-      // Load course details
-      const courses = await courseService.getAllCourses();
-      const courseData = courses.find(c => c.id === parseInt(id));
-      if (courseData) {
-        setCourse(courseData);
-      }
+      const courseId = parseInt(id, 10);
+      const courseData = await courseService.getCourseById(courseId);
+      const [groupsData, myCoursesData] = await Promise.all([
+        groupService.getGroupsByCourse(courseId),
+        courseService.getMyCourses(),
+      ]);
 
-      // Load groups for this course
-      const groupsData = await groupService.getGroupsByCourse(parseInt(id));
+      setCourse(courseData);
       setGroups(groupsData);
 
-      // Load sessions for this course (active & upcoming only)
+      const enrolled = myCoursesData.some((item) => item.id === courseId);
+      setIsEnrolled(courseData?.enrolled ?? enrolled);
+
       try {
         const response = await fetch(`/api/sessions/course/${id}/active`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
         });
         if (response.ok) {
           const sessionsData = await response.json();
           setSessions(sessionsData);
         }
-      } catch (err) {
+      } catch (sessionError) {
         console.log('Sessions not available');
       }
-
-      // Check enrollment status
-      try {
-        const myGroups = await groupService.getMyGroups();
-        const enrolled = myGroups.some(g => g.course?.id === parseInt(id));
-        setIsEnrolled(enrolled);
-      } catch (err) {
-        console.log('Could not check enrollment');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) {
+        setAccessDenied(true);
+        setAccessMessage(error?.response?.data?.message || 'Enroll in this course to unlock its materials.');
+      } else if (status === 404) {
+        setCourse(null);
+      } else {
+        console.error('Error loading course:', error);
       }
-    } catch (error) {
-      console.error('Error loading course:', error);
+      setCourse(null);
+      setGroups([]);
+      setSessions([]);
+      setIsEnrolled(false);
     } finally {
       setIsLoading(false);
     }
@@ -93,19 +105,34 @@ const CourseDetail: React.FC = () => {
     if (id) {
       loadCourseData();
     }
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, loadCourseData]);
 
   const handleEnroll = async () => {
     if (!id) return;
     setEnrolling(true);
     try {
-      await courseService.enrollInCourse(parseInt(id));
+      await courseService.enrollInCourse(parseInt(id, 10));
       setIsEnrolled(true);
+      setAccessDenied(false);
       loadCourseData();
     } catch (error) {
       console.error('Error enrolling:', error);
     } finally {
       setEnrolling(false);
+    }
+  };
+
+  const handleUnenroll = async () => {
+    if (!id) return;
+    setUnenrolling(true);
+    try {
+      await courseService.unenrollFromCourse(parseInt(id, 10));
+      setIsEnrolled(false);
+      loadCourseData();
+    } catch (error) {
+      console.error('Error unenrolling:', error);
+    } finally {
+      setUnenrolling(false);
     }
   };
 
@@ -116,7 +143,7 @@ const CourseDetail: React.FC = () => {
     try {
       await groupService.createGroup({
         ...newGroup,
-        course: { id: parseInt(id) },
+        course: { id: parseInt(id, 10) },
       });
       setShowCreateGroupModal(false);
       setNewGroup({ name: '', description: '', topic: '', maxSize: 10, visibility: 'open' });
@@ -171,6 +198,40 @@ const CourseDetail: React.FC = () => {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">Loading course...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="card p-12 text-center">
+        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Lock className="w-8 h-8 text-gray-400" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Enroll to access this course</h3>
+        <p className="text-gray-600 dark:text-gray-400 max-w-xl mx-auto">{accessMessage || 'Join the course to explore study groups, sessions, and exclusive resources.'}</p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          {isUser && (
+            <button
+              onClick={handleEnroll}
+              disabled={enrolling}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              {enrolling ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <UserCheck className="w-5 h-5" />
+                  Enroll Now
+                </>
+              )}
+            </button>
+          )}
+          <Link to="/courses" className="btn-secondary inline-flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Courses
+          </Link>
         </div>
       </div>
     );
@@ -231,8 +292,23 @@ const CourseDetail: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex gap-2">
-            {!isEnrolled && (
+          <div className="flex flex-wrap gap-2">
+            {isEnrolled ? (
+              <button
+                onClick={handleUnenroll}
+                disabled={unenrolling}
+                className="btn-secondary flex items-center gap-2"
+              >
+                {unenrolling ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <MinusCircle className="w-5 h-5" />
+                    Leave Course
+                  </>
+                )}
+              </button>
+            ) : (
               <button
                 onClick={handleEnroll}
                 disabled={enrolling}
@@ -251,6 +327,7 @@ const CourseDetail: React.FC = () => {
             <button
               onClick={() => setShowCreateGroupModal(true)}
               className="btn-secondary flex items-center gap-2"
+              disabled={!isEnrolled}
             >
               <Plus className="w-5 h-5" />
               Create Group

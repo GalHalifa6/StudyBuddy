@@ -20,14 +20,15 @@ import { useAuth } from '../context/AuthContext';
 
 const Groups: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
-  const { user } = useAuth();
+  const { user, isAdmin, isExpert } = useAuth();
+  const initialRouteCourseId = courseId ? Number.parseInt(courseId, 10) : Number.NaN;
   const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
   const [myPendingRequests, setMyPendingRequests] = useState<GroupMemberRequest[]>([]);
   const [myInvites, setMyInvites] = useState<GroupMemberRequest[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<number | null>(
-    courseId ? parseInt(courseId) : null
+    Number.isNaN(initialRouteCourseId) ? null : initialRouteCourseId
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -44,43 +45,110 @@ const Groups: React.FC = () => {
     courseId: selectedCourse || 0,
   });
   const [isCreating, setIsCreating] = useState(false);
+  const [groupsError, setGroupsError] = useState<string | null>(null);
+
+  const openCreateModal = () => {
+    if (courses.length === 0) {
+      return;
+    }
+
+    const defaultCourseId = selectedCourse ?? courses[0].id;
+    setNewGroup({
+      name: '',
+      description: '',
+      topic: '',
+      maxSize: 10,
+      visibility: 'open',
+      courseId: defaultCourseId,
+    });
+    setShowCreateModal(true);
+  };
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
+    setGroupsError(null);
     try {
+      const coursesPromise = (isAdmin || isExpert)
+        ? courseService.getAllCourses()
+        : courseService.getMyCourses();
+
       const [coursesData, myGroupsData, pendingRequests, invites] = await Promise.all([
-        courseService.getAllCourses(),
+        coursesPromise,
         groupService.getMyGroups(),
         groupService.getMyRequests(),
         groupService.getMyInvites(),
       ]);
+
       setCourses(coursesData);
       setMyGroups(myGroupsData);
       setMyPendingRequests(pendingRequests);
       setMyInvites(invites);
 
-      if (selectedCourse) {
-        const groupsData = await groupService.getGroupsByCourse(selectedCourse);
-        setGroups(groupsData);
-      } else {
-        // Fetch all groups from all courses
+      let effectiveCourseId = selectedCourse;
+      if (courseId) {
+        const parsedRouteId = Number.parseInt(courseId, 10);
+        if (!Number.isNaN(parsedRouteId)) {
+          effectiveCourseId = parsedRouteId;
+        }
+      }
+      const availableCourseIds = new Set(coursesData.map((course) => course.id));
+
+      if (effectiveCourseId && !availableCourseIds.has(effectiveCourseId)) {
+        effectiveCourseId = coursesData.length > 0 ? coursesData[0].id : null;
+      }
+
+      if (effectiveCourseId !== selectedCourse) {
+        setSelectedCourse(effectiveCourseId);
+      }
+
+      const fallbackCourseId = effectiveCourseId ?? (coursesData[0]?.id ?? null);
+      const normalizedCourseId = fallbackCourseId ?? 0;
+
+      setNewGroup((prev) =>
+        prev.courseId === normalizedCourseId
+          ? prev
+          : {
+              ...prev,
+              courseId: normalizedCourseId,
+            }
+      );
+
+      if (effectiveCourseId) {
+        try {
+          const courseGroups = await groupService.getGroupsByCourse(effectiveCourseId);
+          setGroups(courseGroups);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (error: any) {
+          if (error?.response?.status === 403) {
+            setGroups([]);
+            setGroupsError('Enroll in this course to view its study groups.');
+          } else {
+            console.error('Error fetching groups:', error);
+          }
+        }
+      } else if (coursesData.length > 0) {
         const allGroups: StudyGroup[] = [];
         for (const course of coursesData) {
           try {
             const courseGroups = await groupService.getGroupsByCourse(course.id);
             allGroups.push(...courseGroups);
-          } catch (e) {
-            // Continue even if one fails
+          } catch (error) {
+            // Skip courses we cannot access
           }
         }
         setGroups(allGroups);
+      } else {
+        setGroups([]);
+        setGroupsError('Enroll in a course to browse study groups.');
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+      setGroups([]);
+      setGroupsError('We could not load study groups right now. Please try again later.');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedCourse]);
+  }, [courseId, isAdmin, isExpert, selectedCourse]);
 
   useEffect(() => {
     fetchData();
@@ -100,15 +168,15 @@ const Groups: React.FC = () => {
         visibility: newGroup.visibility,
         course: { id: newGroup.courseId },
       });
-      await fetchData();
       setShowCreateModal(false);
+      await fetchData();
       setNewGroup({
         name: '',
         description: '',
         topic: '',
         maxSize: 10,
         visibility: 'open',
-        courseId: selectedCourse || 0,
+        courseId: selectedCourse ?? (courses[0]?.id ?? 0),
       });
     } catch (error) {
       console.error('Error creating group:', error);
@@ -298,8 +366,10 @@ const Groups: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 mt-1">Find and join study groups or create your own</p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="btn-primary flex items-center gap-2"
+          onClick={openCreateModal}
+          className="btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={courses.length === 0}
+          title={courses.length === 0 ? 'Enroll in a course to create a study group.' : undefined}
         >
           <Plus className="w-5 h-5" />
           Create Group
@@ -356,7 +426,7 @@ const Groups: React.FC = () => {
 
         <select
           value={selectedCourse || ''}
-          onChange={(e) => setSelectedCourse(e.target.value ? parseInt(e.target.value) : null)}
+          onChange={(e) => setSelectedCourse(e.target.value ? parseInt(e.target.value, 10) : null)}
           className="input w-auto"
         >
           <option value="">All Courses</option>
@@ -367,6 +437,12 @@ const Groups: React.FC = () => {
           ))}
         </select>
       </div>
+
+      {groupsError && activeTab === 'all' && (
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200">
+          {groupsError}
+        </div>
+      )}
 
       {/* Groups Grid / Invites */}
       {activeTab === 'invites' ? (
@@ -429,15 +505,19 @@ const Groups: React.FC = () => {
               ? 'Try a different search term'
               : activeTab === 'my'
               ? 'Join a study group to start collaborating!'
+              : courses.length === 0
+              ? 'Enroll in a course to unlock study groups tailored to you.'
               : 'Be the first to create a study group!'}
           </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="btn-primary inline-flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Create Group
-          </button>
+          {courses.length > 0 && (
+            <button
+              onClick={openCreateModal}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Create Group
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -499,7 +579,10 @@ const Groups: React.FC = () => {
                 </label>
                 <select
                   value={newGroup.courseId || ''}
-                  onChange={(e) => setNewGroup({ ...newGroup, courseId: parseInt(e.target.value) })}
+                  onChange={(e) => setNewGroup({
+                    ...newGroup,
+                    courseId: e.target.value ? parseInt(e.target.value, 10) : 0,
+                  })}
                   className="input"
                   required
                 >

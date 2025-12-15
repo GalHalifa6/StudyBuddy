@@ -5,7 +5,8 @@ import {
   AuthResponse, 
   MessageResponse,
   User,
-  UpdateProfileRequest
+  UpdateProfileRequest,
+  OnboardingSubmission
 } from '../types';
 
 export const authService = {
@@ -26,6 +27,11 @@ export const authService = {
 
   updateProfile: async (data: UpdateProfileRequest): Promise<MessageResponse> => {
     const response = await api.put<MessageResponse>('/auth/profile', data);
+    return response.data;
+  },
+
+  submitOnboarding: async (data: OnboardingSubmission): Promise<MessageResponse> => {
+    const response = await api.post<MessageResponse>('/auth/onboarding', data);
     return response.data;
   },
 

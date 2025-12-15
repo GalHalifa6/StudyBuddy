@@ -57,7 +57,8 @@ export const sessionService = {
     if (filters?.courseId) params.append('courseId', filters.courseId.toString());
     if (filters?.search) params.append('search', filters.search);
     
-    const response = await api.get(`/sessions/browse?${params.toString()}`);
+    const query = params.toString();
+    const response = await api.get(`/sessions/browse${query ? `?${query}` : ''}`);
     return response.data;
   },
 

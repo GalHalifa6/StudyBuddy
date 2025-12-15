@@ -1,5 +1,5 @@
 import api from './axios';
-import { Course, CreateCourseRequest } from '../types';
+import { Course, CreateCourseRequest, CourseExtras } from '../types';
 
 export const courseService = {
   getAllCourses: async (): Promise<Course[]> => {
@@ -29,8 +29,18 @@ export const courseService = {
     return response.data;
   },
 
+  unenrollFromCourse: async (courseId: number): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/courses/${courseId}/enroll`);
+    return response.data;
+  },
+
   getMyCourses: async (): Promise<Course[]> => {
     const response = await api.get<Course[]>('/courses/my-courses');
+    return response.data;
+  },
+
+  getCourseExtras: async (courseId: number): Promise<CourseExtras> => {
+    const response = await api.get<CourseExtras>(`/courses/${courseId}/extras`);
     return response.data;
   },
 };

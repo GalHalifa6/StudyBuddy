@@ -28,6 +28,9 @@ export interface User {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
+  questionnaireResponses?: Record<string, string>;
+  onboardingCompleted?: boolean;
+  onboardingCompletedAt?: string;
 }
 
 // Auth types
@@ -70,6 +73,7 @@ export interface Course {
   semester?: string;
   createdAt: string;
   groupCount?: number;
+  enrolled?: boolean;
 }
 
 export interface CreateCourseRequest {
@@ -180,6 +184,22 @@ export interface UpdateProfileRequest {
   preferredLanguages?: string[];
   availability?: string;
   collaborationStyle?: string;
+  questionnaireResponses?: Record<string, string>;
+}
+
+export interface QuestionnaireAnswer {
+  questionKey: string;
+  answer: string;
+}
+
+export interface OnboardingSubmission {
+  skip?: boolean;
+  responses: QuestionnaireAnswer[];
+  topicsOfInterest?: string[];
+  proficiencyLevel?: string;
+  preferredLanguages?: string[];
+  availability?: string;
+  collaborationStyle?: string;
 }
 
 // File Upload types
@@ -193,6 +213,132 @@ export interface FileUpload {
   uploadedAt: string;
   uploader: User;
   group: StudyGroup;
+}
+
+export interface MessageUnreadGroupSummary {
+  groupId: number;
+  groupName: string;
+  unreadCount: number;
+  course?: {
+    id: number;
+    code: string;
+    name: string;
+  };
+  lastMessageAt?: string;
+  lastMessagePreview?: string;
+}
+
+export interface MessageUnreadSummary {
+  total: number;
+  groups: MessageUnreadGroupSummary[];
+}
+
+export interface SessionSummary {
+  id: number;
+  title: string;
+  sessionType: string;
+  status: string;
+  scheduledStartTime: string;
+  scheduledEndTime: string;
+  currentParticipants: number;
+  maxParticipants: number;
+  course?: {
+    id: number;
+    code: string;
+    name: string;
+  };
+  group?: {
+    id: number;
+    name: string;
+  };
+  expert?: {
+    id: number;
+    fullName?: string;
+    role?: string;
+  };
+}
+
+export interface QuestionSummary {
+  id: number;
+  title: string;
+  status: string;
+  createdAt: string;
+  answered: boolean;
+}
+
+export interface CourseHighlight {
+  courseId: number;
+  code: string;
+  name: string;
+  groupCount: number;
+  openGroupCount: number;
+  expertCount: number;
+  questionCount: number;
+  enrolled: boolean;
+  upcomingSession?: SessionSummary;
+  recentQuestion?: QuestionSummary;
+}
+
+export interface DashboardMetrics {
+  enrolledCourses: number;
+  myGroups: number;
+  focusMinutesThisWeek: number;
+  studyPalsCount: number;
+  unreadMessages: number;
+  upcomingSessions: number;
+  notifications: number;
+}
+
+export interface DashboardOverview {
+  metrics: DashboardMetrics;
+  courseHighlights: CourseHighlight[];
+  nextSession: SessionSummary | null;
+  unreadMessages: MessageUnreadSummary;
+}
+
+export interface CourseExtras {
+  stats: {
+    groupCount: number;
+    upcomingSessionCount: number;
+    expertCount: number;
+    questionCount: number;
+  };
+  recommendedGroups: Array<{
+    id: number;
+    name: string;
+    topic?: string;
+    memberCount: number;
+    visibility: string;
+    isMember: boolean;
+  }>;
+  upcomingSessions: SessionSummary[];
+  featuredExperts: Array<{
+    userId: number;
+    fullName?: string;
+    title?: string;
+    institution?: string;
+    averageRating: number;
+    totalQuestionsAnswered: number;
+    specializations?: string[];
+  }>;
+  questionHighlights: Array<{
+    id: number;
+    title: string;
+    status: string;
+    createdAt: string;
+    answered: boolean;
+    answeredBy?: {
+      id: number;
+      fullName: string;
+    };
+  }>;
+}
+
+export interface QuestionVoteResponse {
+  upvotes: number;
+  netVotes: number;
+  hasVoted?: boolean;
+  voteType?: 'UPVOTE' | 'DOWNVOTE';
 }
 
 // API Error

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../types';
 import { notificationService } from '../api/notifications';
+import { messageService } from '../api/messages';
 import NotificationPanel from './NotificationPanel';
+import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
   BookOpen,
@@ -20,7 +22,7 @@ import {
   Calendar,
   Bell,
   HelpCircle,
-  MessageCircle,
+  ClipboardList,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,23 +30,42 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+type NavItem = {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+};
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
   const { user, logout, isAdmin, isExpert } = useAuth();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [messageUnread, setMessageUnread] = useState(0);
 
   useEffect(() => {
-    loadUnreadCount();
+    loadUnreadIndicators();
     // Poll for new notifications every 30 seconds
-    const interval = setInterval(loadUnreadCount, 30000);
+    const interval = setInterval(loadUnreadIndicators, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const loadUnreadCount = async () => {
+  const loadUnreadIndicators = async () => {
     try {
-      const count = await notificationService.getUnreadCount();
-      setUnreadCount(count);
+      const [notificationTotal, messageSummary] = await Promise.all([
+        notificationService.getUnreadCount(),
+        messageService.getUnreadSummary().catch(() => ({ total: 0 })),
+      ]);
+
+      setUnreadCount(notificationTotal);
+      if (typeof messageSummary?.total === 'number') {
+        setMessageUnread(messageSummary.total);
+      }
     } catch (error) {
       // Silent fail
     }
@@ -55,27 +76,47 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
     navigate('/login');
   };
 
-  const navItems = [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/courses', icon: BookOpen, label: 'Courses' },
-    { to: '/groups', icon: Users, label: 'Study Groups' },
-    { to: '/sessions', icon: Calendar, label: 'Browse Sessions' },
-    { to: '/experts', icon: UserCheck, label: 'Browse Experts' },
-    { to: '/qa', icon: MessageCircle, label: 'Public Q&A' },
-    { to: '/my-questions', icon: HelpCircle, label: 'My Questions' },
-    { to: '/messages', icon: MessageSquare, label: 'Messages' },
-    { to: '/settings', icon: Settings, label: 'Settings' },
-  ];
+  const navSections = useMemo<NavSection[]>(() => {
+    const sections: NavSection[] = [
+      {
+        title: 'My Learning',
+        items: [
+          { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+          { to: '/courses', icon: BookOpen, label: 'Courses' },
+        ],
+      },
+      {
+        title: 'Collaborate',
+        items: [
+          { to: '/groups', icon: Users, label: 'Study Groups' },
+          { to: '/sessions', icon: Calendar, label: 'Browse Sessions' },
+          { to: '/messages', icon: MessageSquare, label: 'Messages' },
+        ],
+      },
+      {
+        title: 'Explore & Manage',
+        items: [
+          { to: '/experts', icon: UserCheck, label: 'Browse Experts' },
+          { to: '/qa', icon: HelpCircle, label: 'Public Q&A' },
+          { to: '/my-questions', icon: ClipboardList, label: 'My Questions' },
+          { to: '/settings', icon: Settings, label: 'Settings' },
+        ],
+      },
+    ];
 
-  // Add expert dashboard for experts
-  if (isExpert) {
-    navItems.splice(4, 0, { to: '/expert-dashboard', icon: Award, label: 'Expert Dashboard' });
-  }
+    if (isExpert) {
+      sections[0].items.splice(2, 0, { to: '/expert-dashboard', icon: Award, label: 'Expert Hub' });
+    }
 
-  // Add admin panel for admins
-  if (isAdmin) {
-    navItems.push({ to: '/admin', icon: Shield, label: 'Admin Panel' });
-  }
+    if (isAdmin) {
+      sections.push({
+        title: 'Administration',
+        items: [{ to: '/admin', icon: Shield, label: 'Admin Panel' }],
+      });
+    }
+
+    return sections;
+  }, [isAdmin, isExpert]);
 
   const getRoleBadgeColor = () => {
     if (isAdmin) return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
@@ -144,23 +185,48 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
       )}
 
       {/* Navigation */}
-      <nav className="p-4 space-y-2">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                isActive
-                  ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-              } ${isCollapsed ? 'justify-center' : ''}`
-            }
-            title={isCollapsed ? item.label : undefined}
-          >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
-            {!isCollapsed && <span>{item.label}</span>}
-          </NavLink>
+      <nav className="p-4 space-y-6">
+        {navSections.map((section) => (
+          <div key={section.title} className="space-y-2">
+            {!isCollapsed && (
+              <p className="px-4 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                {section.title}
+              </p>
+            )}
+            <div className="space-y-2">
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                      isActive
+                        ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                    } ${isCollapsed ? 'justify-center' : ''}`
+                  }
+                  title={isCollapsed ? item.label : undefined}
+                >
+                  <span className="relative">
+                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    {item.label === 'Messages' && messageUnread > 0 && (
+                      <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-green-500" />
+                    )}
+                  </span>
+                  {!isCollapsed && (
+                    <span className="flex-1 flex items-center justify-between">
+                      <span>{item.label}</span>
+                      {item.label === 'Messages' && messageUnread > 0 && (
+                        <span className="ml-3 inline-flex min-w-[1.75rem] items-center justify-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
+                          {messageUnread > 99 ? '99+' : messageUnread}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
