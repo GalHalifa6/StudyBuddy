@@ -16,6 +16,7 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Optional;
 
 /**
  * Custom OIDC User Service for Google Sign-In (OpenID Connect).
@@ -95,11 +96,37 @@ public class OidcUserServiceImpl extends OidcUserService {
             );
         }
 
-        // Create / update user
-        User user = userRepository.findByGoogleSub(googleSub)
-                .orElse(userRepository.findByEmail(email).orElse(null));
+        // Find user by Google sub (only secure match)
+        Optional<User> userOptional = userRepository.findByGoogleSub(googleSub);
 
-        if (user == null) {
+        User user;
+        if (userOptional.isPresent()) {
+            // Existing user with matching googleSub - update and verify
+            user = userOptional.get();
+            user.setEmailVerified(true);
+            if (user.getFullName() == null || user.getFullName().isEmpty()) {
+                user.setFullName(name != null ? name : givenName);
+            }
+            
+            // Since Google verified the email, delete any email verification tokens (no longer needed)
+            emailVerificationTokenRepository.deleteByUserId(user.getId());
+            
+            userRepository.save(user);
+            logger.info("Updated existing OIDC user: {}", email);
+        } else {
+            // Check if email already exists (security check)
+            Optional<User> existingUserByEmail = userRepository.findByEmail(email);
+            if (existingUserByEmail.isPresent()) {
+                // Email exists but googleSub doesn't match - security issue
+                // Do not link accounts automatically - reject with clear error
+                throw new OAuth2AuthenticationException(
+                        new OAuth2Error("email_already_registered",
+                                "An account with this email already exists. Please log in with your password, or contact support if you need to link your Google account.",
+                                null)
+                );
+            }
+            
+            // Create new user
             user = new User();
             user.setEmail(email);
             user.setGoogleSub(googleSub);
@@ -114,20 +141,6 @@ public class OidcUserServiceImpl extends OidcUserService {
 
             userRepository.save(user);
             logger.info("Created new OIDC user: {}", email);
-        } else {
-            if (user.getGoogleSub() == null) {
-                user.setGoogleSub(googleSub);
-            }
-            user.setEmailVerified(true);
-            if (user.getFullName() == null || user.getFullName().isEmpty()) {
-                user.setFullName(name != null ? name : givenName);
-            }
-            
-            // Since Google verified the email, delete any email verification tokens (no longer needed)
-            emailVerificationTokenRepository.deleteByUserId(user.getId());
-            
-            userRepository.save(user);
-            logger.info("Updated existing OIDC user: {}", email);
         }
 
         // Return the OIDC user for the authentication to proceed

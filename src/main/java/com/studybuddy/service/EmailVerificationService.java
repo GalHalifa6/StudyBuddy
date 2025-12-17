@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * Service for managing email verification tokens
@@ -74,19 +75,14 @@ public class EmailVerificationService {
             return false;
         }
 
-        // Find all tokens and check against the raw token
-        // Since tokens are hashed, we need to check each one
-        for (EmailVerificationToken token : tokenRepository.findAll()) {
-            if (passwordEncoder.matches(rawToken, token.getTokenHash())) {
-                // Check if token is valid
-                if (token.getUsed()) {
-                    return false; // Token already used
-                }
-                if (token.isExpired()) {
-                    return false; // Token expired
-                }
+        // Optimize: Only check tokens that are not expired and not used
+        // This significantly reduces the number of BCrypt comparisons needed
+        List<EmailVerificationToken> validTokens = tokenRepository.findValidTokens(LocalDateTime.now());
 
-                // Mark token as used
+        // Since tokens are BCrypt hashed with random salt, we need to check each one
+        for (EmailVerificationToken token : validTokens) {
+            if (passwordEncoder.matches(rawToken, token.getTokenHash())) {
+                // Token matches - mark as used and verify user's email
                 token.setUsed(true);
                 tokenRepository.save(token);
 
@@ -99,7 +95,7 @@ public class EmailVerificationService {
             }
         }
 
-        return false; // Token not found
+        return false; // Token not found or invalid
     }
 
     /**

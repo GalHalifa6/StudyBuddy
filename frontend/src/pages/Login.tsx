@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { BookOpen, Lock, User, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
+import { getOAuthAuthUrl } from '../config/api';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -180,7 +181,7 @@ const Login: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => window.location.href = 'http://localhost:8080/oauth2/authorization/google'}
+            onClick={() => window.location.href = getOAuthAuthUrl('google')}
             className="w-full mt-6 flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-gray-700 dark:text-gray-300 font-medium hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all duration-200"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
