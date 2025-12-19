@@ -29,9 +29,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const isOnboardingRoute = location.pathname === '/onboarding';
   
   // DEV-ONLY: Temporary bypass for testing Google linking flow
+  // Only works in development mode - disabled in production builds
   // Set VITE_DISABLE_ONBOARDING_CHECK=true in .env.local to bypass onboarding
-  // This should NEVER be set in production
-  const disableOnboardingCheck = import.meta.env.VITE_DISABLE_ONBOARDING_CHECK === 'true';
+  const disableOnboardingCheck = import.meta.env.DEV && 
+                                  import.meta.env.VITE_DISABLE_ONBOARDING_CHECK === 'true';
   
   const needsOnboarding = !disableOnboardingCheck && 
                           user && 

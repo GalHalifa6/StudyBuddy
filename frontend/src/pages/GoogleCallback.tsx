@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
@@ -10,18 +10,32 @@ const GoogleCallback: React.FC = () => {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState<string>('');
   const [isLinking, setIsLinking] = useState(false);
+  
+  // Track if callback has been processed to prevent re-runs
+  const hasProcessed = useRef(false);
+  // Capture previousGoogleSub before refreshUser() updates currentUser
+  const previousGoogleSubRef = useRef<string | null | undefined>(null);
 
   useEffect(() => {
+    // Prevent re-processing if already handled
+    if (hasProcessed.current) {
+      return;
+    }
+
     const handleCallback = async () => {
       const token = searchParams.get('token');
       const error = searchParams.get('error');
 
       // Check if this was a linking flow (user was already logged in)
       const wasLoggedIn = !!localStorage.getItem('token');
+      // Capture previousGoogleSub before refreshUser() updates currentUser
       const previousGoogleSub = currentUser?.googleSub;
+      previousGoogleSubRef.current = previousGoogleSub;
 
       // Handle OAuth errors from backend
       if (error) {
+        // Mark as processed to prevent re-runs
+        hasProcessed.current = true;
         setStatus('error');
         const errorDescription = searchParams.get('error_description');
         
@@ -52,12 +66,17 @@ const GoogleCallback: React.FC = () => {
       }
 
       if (!token) {
+        // Mark as processed to prevent re-runs
+        hasProcessed.current = true;
         setStatus('error');
         setMessage('Authentication token is missing. Please try signing in again.');
         return;
       }
 
       try {
+        // Mark as processed to prevent re-runs
+        hasProcessed.current = true;
+        
         // Save token to localStorage
         localStorage.setItem('token', token);
         
@@ -66,7 +85,8 @@ const GoogleCallback: React.FC = () => {
         
         // Check if this was a linking flow
         // If user was logged in before and didn't have googleSub, but now does, it was linking
-        const wasLinking = wasLoggedIn && !previousGoogleSub;
+        // Use the captured value from before refreshUser() was called
+        const wasLinking = wasLoggedIn && !previousGoogleSubRef.current;
         
         setStatus('success');
         if (wasLinking) {
@@ -81,6 +101,8 @@ const GoogleCallback: React.FC = () => {
           navigate(wasLinking ? '/settings' : '/dashboard');
         }, 2000);
       } catch (error: any) {
+        // Mark as processed to prevent re-runs
+        hasProcessed.current = true;
         setStatus('error');
         localStorage.removeItem('token');
         const errorMessage = error.response?.data?.message || 
@@ -91,7 +113,8 @@ const GoogleCallback: React.FC = () => {
     };
 
     handleCallback();
-  }, [searchParams, navigate, refreshUser, currentUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, navigate, refreshUser]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
