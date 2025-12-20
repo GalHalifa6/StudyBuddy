@@ -160,7 +160,8 @@ const Admin: React.FC = () => {
       return;
     }
     fetchData();
-  }, [isAdmin, navigate, fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, navigate, showDeleted, showArchived]);
 
   // Helper functions
   const formatDate = (dateString?: string) => {
@@ -675,7 +676,7 @@ const Admin: React.FC = () => {
           matchesStatus = !u.isDeleted && !u.bannedAt && (!u.suspendedUntil || new Date(u.suspendedUntil) <= new Date()) && u.isActive;
           break;
         case 'suspended':
-          matchesStatus = u.suspendedUntil && new Date(u.suspendedUntil) > new Date();
+          matchesStatus = u.suspendedUntil && new Date(u.suspendedUntil) >= new Date();
           break;
         case 'banned':
           matchesStatus = u.bannedAt !== null && u.bannedAt !== undefined;
