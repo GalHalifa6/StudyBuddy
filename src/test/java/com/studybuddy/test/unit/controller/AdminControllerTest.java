@@ -74,7 +74,7 @@ class AdminControllerTest {
         when(userRepository.findAll()).thenReturn(users);
 
         // Act
-        ResponseEntity<List<UserAdminDto>> response = adminController.getAllUsers();
+        ResponseEntity<List<UserAdminDto>> response = adminController.getAllUsers(null);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());

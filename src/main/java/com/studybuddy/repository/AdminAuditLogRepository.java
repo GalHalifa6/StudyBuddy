@@ -25,3 +25,4 @@ public interface AdminAuditLogRepository extends JpaRepository<AdminAuditLog, Lo
     List<AdminAuditLog> findByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }
 
+

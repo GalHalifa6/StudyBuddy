@@ -28,4 +28,12 @@ public interface StudyGroupRepository extends JpaRepository<StudyGroup, Long> {
     
     @Query("SELECT g FROM StudyGroup g WHERE g.course.id = :courseId AND g.visibility = 'open' AND g.isActive = true")
     List<StudyGroup> findOpenGroupsByCourse(@Param("courseId") Long courseId);
+    
+    // Eagerly fetch groups with members for admin panel
+    @Query("SELECT DISTINCT g FROM StudyGroup g LEFT JOIN FETCH g.members LEFT JOIN FETCH g.course LEFT JOIN FETCH g.creator WHERE g.id IN :ids")
+    List<StudyGroup> findByIdsWithMembers(@Param("ids") List<Long> ids);
+    
+    // Eagerly fetch a single group with members for admin panel
+    @Query("SELECT DISTINCT g FROM StudyGroup g LEFT JOIN FETCH g.members LEFT JOIN FETCH g.course LEFT JOIN FETCH g.creator WHERE g.id = :id")
+    java.util.Optional<StudyGroup> findByIdWithMembers(@Param("id") Long id);
 }

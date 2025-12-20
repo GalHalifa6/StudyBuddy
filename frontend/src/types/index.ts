@@ -120,6 +120,10 @@ export interface Course {
   semester?: string;
   createdAt: string;
   groupCount?: number;
+  memberCount?: number;
+  lastActivity?: string;
+  isArchived?: boolean;
+  archivedAt?: string;
   enrolled?: boolean;
 }
 

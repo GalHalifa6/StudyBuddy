@@ -1,9 +1,11 @@
 package com.studybuddy.service;
 
 import com.studybuddy.model.AdminAuditLog;
+import com.studybuddy.model.Course;
 import com.studybuddy.model.Role;
 import com.studybuddy.model.User;
 import com.studybuddy.repository.AdminAuditLogRepository;
+import com.studybuddy.repository.CourseRepository;
 import com.studybuddy.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -24,6 +26,9 @@ public class AdminService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private CourseRepository courseRepository;
 
     @Autowired
     private AdminAuditLogRepository auditLogRepository;
@@ -296,18 +301,22 @@ public class AdminService {
 
     /**
      * Enable login
+     * If user is suspended, automatically unsuspend them as well (admin override)
      */
     @Transactional
     public User enableLogin(Long userId, String reason) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        // Don't enable if banned or suspended
+        // Don't enable if banned
         if (user.isBanned()) {
             throw new IllegalArgumentException("Cannot enable login for banned user. Unban first.");
         }
+        
+        // If suspended, automatically unsuspend (admin can override suspension)
         if (user.isSuspended()) {
-            throw new IllegalArgumentException("Cannot enable login for suspended user. Wait for suspension to expire or remove suspension.");
+            user.setSuspendedUntil(null);
+            user.setSuspensionReason(null);
         }
         
         user.setIsActive(true);
@@ -316,6 +325,122 @@ public class AdminService {
         logAction("ENABLE_LOGIN", "USER", userId, reason, null);
         
         return savedUser;
+    }
+
+    /**
+     * Update course details
+     */
+    @Transactional
+    public Course updateCourse(Long courseId, String name, String description, String reason) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+        
+        Map<String, Object> metadata = new HashMap<>();
+        if (name != null && !name.equals(course.getName())) {
+            metadata.put("oldName", course.getName());
+            metadata.put("newName", name);
+            course.setName(name);
+        }
+        if (description != null && !description.equals(course.getDescription())) {
+            metadata.put("oldDescription", course.getDescription());
+            metadata.put("newDescription", description);
+            course.setDescription(description);
+        }
+        
+        Course savedCourse = courseRepository.save(course);
+        logAction("COURSE_UPDATE", "COURSE", courseId, reason, metadata);
+        
+        return savedCourse;
+    }
+
+    /**
+     * Archive a course
+     */
+    @Transactional
+    public Course archiveCourse(Long courseId, String reason) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+        
+        if (course.getIsArchived() != null && course.getIsArchived()) {
+            throw new IllegalArgumentException("Course is already archived");
+        }
+        
+        course.setIsArchived(true);
+        course.setArchivedAt(LocalDateTime.now());
+        Course savedCourse = courseRepository.save(course);
+        
+        logAction("COURSE_ARCHIVE", "COURSE", courseId, reason, null);
+        
+        return savedCourse;
+    }
+
+    /**
+     * Unarchive a course
+     */
+    @Transactional
+    public Course unarchiveCourse(Long courseId, String reason) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+        
+        if (course.getIsArchived() == null || !course.getIsArchived()) {
+            throw new IllegalArgumentException("Course is not archived");
+        }
+        
+        course.setIsArchived(false);
+        course.setArchivedAt(null);
+        Course savedCourse = courseRepository.save(course);
+        
+        logAction("COURSE_UNARCHIVE", "COURSE", courseId, reason, null);
+        
+        return savedCourse;
+    }
+
+    /**
+     * Permanently delete a course
+     */
+    @Transactional
+    public void deleteCourse(Long courseId, String reason) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+        
+        // Check if course has active groups
+        if (!course.getGroups().isEmpty()) {
+            long activeGroups = course.getGroups().stream()
+                    .filter(g -> g.getIsActive() != null && g.getIsActive())
+                    .count();
+            if (activeGroups > 0) {
+                throw new IllegalArgumentException("Cannot delete course with active study groups. Archive the course instead.");
+            }
+        }
+        
+        logAction("COURSE_DELETE", "COURSE", courseId, reason, null);
+        courseRepository.delete(course);
+    }
+
+    /**
+     * Remove a user from a course
+     */
+    @Transactional
+    public void removeUserFromCourse(Long courseId, Long userId, String reason) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (!course.getStudents().contains(user)) {
+            throw new IllegalArgumentException("User is not enrolled in this course");
+        }
+        
+        course.getStudents().remove(user);
+        user.getCourses().remove(course);
+        
+        courseRepository.save(course);
+        userRepository.save(user);
+        
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("userId", userId);
+        metadata.put("username", user.getUsername());
+        logAction("COURSE_REMOVE_MEMBER", "COURSE", courseId, reason, metadata);
     }
 }
 
