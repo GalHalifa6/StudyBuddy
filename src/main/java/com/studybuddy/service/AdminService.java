@@ -3,9 +3,11 @@ package com.studybuddy.service;
 import com.studybuddy.model.AdminAuditLog;
 import com.studybuddy.model.Course;
 import com.studybuddy.model.Role;
+import com.studybuddy.model.StudyGroup;
 import com.studybuddy.model.User;
 import com.studybuddy.repository.AdminAuditLogRepository;
 import com.studybuddy.repository.CourseRepository;
+import com.studybuddy.repository.StudyGroupRepository;
 import com.studybuddy.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -29,6 +31,9 @@ public class AdminService {
 
     @Autowired
     private CourseRepository courseRepository;
+
+    @Autowired
+    private StudyGroupRepository studyGroupRepository;
 
     @Autowired
     private AdminAuditLogRepository auditLogRepository;
@@ -441,6 +446,18 @@ public class AdminService {
         metadata.put("userId", userId);
         metadata.put("username", user.getUsername());
         logAction("COURSE_REMOVE_MEMBER", "COURSE", courseId, reason, metadata);
+    }
+
+    /**
+     * Delete a study group
+     */
+    @Transactional
+    public void deleteGroup(Long groupId, String reason) {
+        StudyGroup group = studyGroupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("Group not found"));
+        
+        logAction("GROUP_DELETE", "GROUP", groupId, reason, null);
+        studyGroupRepository.delete(group);
     }
 }
 

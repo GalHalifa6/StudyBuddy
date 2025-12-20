@@ -121,7 +121,12 @@ public class AdminController {
     public ResponseEntity<List<UserAdminDto>> getAllUsers(@RequestParam(required = false) Boolean includeDeleted) {
         // Include deleted users if requested, otherwise filter them out
         List<UserAdminDto> users = userRepository.findAll().stream()
-                .filter(user -> includeDeleted != null && includeDeleted || !user.getIsDeleted())
+                .filter(user -> {
+                    if (includeDeleted != null && includeDeleted) {
+                        return true; // Include all users when explicitly requested
+                    }
+                    return !Boolean.TRUE.equals(user.getIsDeleted()); // Otherwise, exclude deleted users
+                })
                 .map(UserAdminDto::fromUser)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(users);
@@ -638,11 +643,11 @@ public class AdminController {
     @DeleteMapping("/groups/{id}")
     public ResponseEntity<?> deleteGroup(@PathVariable Long id, @RequestBody DeleteRequest request) {
         try {
-            StudyGroup group = studyGroupRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Group not found"));
-            
-            studyGroupRepository.delete(group);
+            adminService.deleteGroup(id, request.getReason());
             return ResponseEntity.ok(new AuthDto.MessageResponse("Group deleted successfully", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(new AuthDto.MessageResponse(e.getMessage(), false));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

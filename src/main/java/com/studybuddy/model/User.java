@@ -124,7 +124,11 @@ public class User {
     }
     
     public boolean canLogin() {
-        return isActive && !isDeleted && !isBanned() && !isSuspended();
+        // Use Boolean.TRUE.equals() to safely handle null values
+        // Default to false if null (safer for existing records)
+        boolean active = Boolean.TRUE.equals(isActive);
+        boolean notDeleted = !Boolean.TRUE.equals(isDeleted);
+        return active && notDeleted && !isBanned() && !isSuspended();
     }
 
     // Relationships

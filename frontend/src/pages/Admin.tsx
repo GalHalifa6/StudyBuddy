@@ -648,13 +648,13 @@ const Admin: React.FC = () => {
       
       switch (activityFilter) {
         case 'active':
-          matchesActivity = lastLogin !== null && daysSinceLogin <= 7;
+          matchesActivity = lastLogin !== null && daysSinceLogin < 7;
           break;
         case 'inactive':
-          matchesActivity = lastLogin !== null && daysSinceLogin > 7 && daysSinceLogin < 30;
+          matchesActivity = lastLogin !== null && daysSinceLogin >= 7 && daysSinceLogin <= 30;
           break;
         case 'dormant':
-          matchesActivity = lastLogin === null || daysSinceLogin >= 30;
+          matchesActivity = lastLogin !== null && daysSinceLogin > 30;
           break;
         case 'never':
           matchesActivity = lastLogin === null;
