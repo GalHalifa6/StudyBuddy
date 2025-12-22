@@ -208,6 +208,27 @@ public class AdminService {
 
     /**
      * Soft delete a user
+     * 
+     * IMPORTANT: This is a temporary removal with grace period for recovery.
+     * 
+     * Behavior:
+     * - Sets user.isDeleted = true
+     * - Sets user.isActive = false
+     * - Sets user.deletedAt = current timestamp
+     * 
+     * Does NOT:
+     * - Delete ExpertProfile (preserved for audit/recovery)
+     * - Change user role (preserved for restore)
+     * - Remove verification status (preserved for audit)
+     * 
+     * Purpose:
+     * - Temporary account suspension
+     * - 30-day grace period before permanent deletion
+     * - Allows restoration with all data intact
+     * - Maintains audit trail and expert history
+     * 
+     * To permanently remove: Use permanentDeleteUser() after grace period
+     * To reject expert: Use rejectExpert() (deletes profile, changes role)
      */
     @Transactional
     public User softDeleteUser(Long userId, String reason) {
@@ -221,6 +242,9 @@ public class AdminService {
         user.setDeletedAt(LocalDateTime.now());
         user.setIsActive(false);
         
+        // NOTE: ExpertProfile is intentionally NOT deleted here
+        // This allows recovery and maintains audit trail during grace period
+        
         User savedUser = userRepository.save(user);
         
         logAction("SOFT_DELETE", "USER", userId, reason, null);
@@ -230,6 +254,29 @@ public class AdminService {
 
     /**
      * Restore a soft-deleted user
+     * 
+     * IMPORTANT: This restores a user from soft deletion, preserving all data.
+     * 
+     * Behavior:
+     * - Sets user.isDeleted = false
+     * - Clears user.deletedAt
+     * - Sets user.isActive = true (if not banned/suspended)
+     * 
+     * Preserves:
+     * - ExpertProfile (if exists) - remains intact with all data
+     * - User role (EXPERT/USER) - unchanged
+     * - Verification status - unchanged
+     * - All user data and relationships
+     * 
+     * Purpose:
+     * - Reverse a soft deletion
+     * - Restore user access during grace period
+     * - Maintains all expert data if user was an expert
+     * 
+     * This is why soft delete doesn't touch ExpertProfile - it allows
+     * complete restoration with all expert data intact.
+     * 
+     * Audit: Logs RESTORE action
      */
     @Transactional
     public User restoreUser(Long userId, String reason) {
@@ -247,6 +294,9 @@ public class AdminService {
             user.setIsActive(true);
         }
         
+        // NOTE: ExpertProfile (if exists) remains intact and is automatically
+        // accessible again since the user is restored
+        
         User savedUser = userRepository.save(user);
         
         logAction("RESTORE", "USER", userId, reason, null);
@@ -256,6 +306,28 @@ public class AdminService {
 
     /**
      * Permanently delete a user (only if already soft deleted)
+     * 
+     * IMPORTANT: This is a permanent, irreversible deletion after grace period.
+     * 
+     * Prerequisites:
+     * - User must be soft-deleted first
+     * - Must wait 30 days after soft deletion (grace period)
+     * 
+     * Behavior:
+     * 1. FIRST: Delete ExpertProfile (if exists) to avoid foreign key constraint
+     * 2. THEN: Permanently delete User from database
+     * 
+     * This ensures:
+     * - No orphaned ExpertProfile records
+     * - No foreign key constraint violations
+     * - Complete data removal
+     * 
+     * Purpose:
+     * - Final cleanup after grace period
+     * - GDPR compliance (right to be forgotten)
+     * - Complete data removal
+     * 
+     * Audit: Logs USER_PERMANENT_DELETE action
      */
     @Transactional
     public void permanentDeleteUser(Long userId, String reason) {
@@ -277,14 +349,14 @@ public class AdminService {
             throw new IllegalArgumentException("Cannot permanently delete user until 30 days after soft deletion");
         }
         
-        // Delete expert profile first to avoid foreign key constraint violation
-        // Use native query to ensure deletion happens before user deletion
+        // STEP 1: Delete ExpertProfile FIRST to avoid foreign key constraint violation
+        // This must happen before user deletion
         expertProfileRepository.deleteByUserId(userId);
-        entityManager.flush(); // Force immediate commit of deletion
+        entityManager.flush(); // Force immediate commit of profile deletion
         
         logAction("PERMANENT_DELETE", "USER", userId, reason, null);
         
-        // Delete user
+        // STEP 2: Permanently delete User from database
         userRepository.delete(user);
         entityManager.flush(); // Force immediate commit of user deletion
     }
@@ -498,6 +570,19 @@ public class AdminService {
 
     /**
      * Verify an expert profile
+     * 
+     * Behavior:
+     * - Sets ExpertProfile.isVerified = true
+     * - Sets verifiedAt and verifiedBy fields
+     * - Expert gains access to expert features
+     * - User role remains EXPERT
+     * 
+     * Purpose:
+     * - Admin approval of expert application
+     * - Grants expert privileges
+     * - Expert can now use expert features
+     * 
+     * Audit: Logs EXPERT_VERIFY action with metadata
      */
     @Transactional
     public ExpertProfile verifyExpert(Long expertId, String reason) {
@@ -523,6 +608,25 @@ public class AdminService {
 
     /**
      * Reject an expert profile - delete the profile and change user role to USER
+     * 
+     * IMPORTANT: This is an expert management action, NOT a user deletion.
+     * 
+     * Behavior:
+     * 1. Deletes ExpertProfile completely (removes expert status)
+     * 2. Changes user role from EXPERT → USER
+     * 3. Keeps user active (isDeleted = false, isActive = true)
+     * 
+     * Purpose:
+     * - User is not qualified as expert
+     * - User remains a normal user in the system
+     * - Can still use student features
+     * - Expert profile is removed (not just deactivated)
+     * 
+     * Difference from Soft Delete:
+     * - Soft Delete: User temporarily removed, expert data preserved
+     * - Reject Expert: Expert status removed, user remains active
+     * 
+     * Audit: Logs EXPERT_REJECT action with metadata
      */
     @Transactional
     public void rejectExpert(Long expertId, String reason) {
@@ -539,17 +643,19 @@ public class AdminService {
         String expertUsername = expertUser.getUsername();
         Boolean previousStatus = profile.getIsVerified();
         
-        // Delete the expert profile first using repository method
+        // STEP 1: Delete ExpertProfile completely
+        // This removes expert status and all expert-related data
         expertProfileRepository.deleteById(profile.getId());
         entityManager.flush(); // Force immediate commit of deletion
         entityManager.clear(); // Clear persistence context
         
-        // Reload user entity to ensure it's managed
+        // STEP 2: Change user role from EXPERT to USER
+        // User remains active and can use system as regular user
         User managedUser = userRepository.findById(expertUserId)
                 .orElseThrow(() -> new RuntimeException("User not found after profile deletion"));
         
-        // Change user role from EXPERT to USER
         managedUser.setRole(Role.USER);
+        // NOTE: User remains active (isDeleted = false, isActive = true)
         userRepository.save(managedUser);
         entityManager.flush(); // Ensure role change is committed
         
@@ -565,6 +671,31 @@ public class AdminService {
 
     /**
      * Revoke verification from an expert
+     * 
+     * IMPORTANT: This removes verification but keeps the expert profile.
+     * 
+     * Behavior:
+     * 1. Sets ExpertProfile.isVerified = false
+     * 2. Clears verifiedAt and verifiedBy fields
+     * 3. Keeps ExpertProfile record (for audit/history)
+     * 4. User role remains EXPERT (but loses verified status)
+     * 5. User remains active
+     * 
+     * Purpose:
+     * - Expert loses verified status
+     * - Expert profile history is preserved
+     * - Expert can be re-verified later
+     * - Maintains audit trail
+     * 
+     * Difference from Reject Expert:
+     * - Revoke: Removes verification, keeps profile and EXPERT role
+     * - Reject: Deletes profile, changes role to USER
+     * 
+     * Difference from Soft Delete:
+     * - Revoke: Expert loses verification, account remains active
+     * - Soft Delete: Account temporarily removed, expert data preserved
+     * 
+     * Audit: Logs EXPERT_REVOKE action with metadata
      */
     @Transactional
     public ExpertProfile revokeExpertVerification(Long expertId, String reason) {
@@ -580,9 +711,15 @@ public class AdminService {
         }
         
         Boolean previousStatus = profile.getIsVerified();
+        
+        // Remove verification status but keep profile record
         profile.setIsVerified(false);
         profile.setVerifiedAt(null);
         profile.setVerifiedBy(null);
+        
+        // NOTE: ExpertProfile record is preserved for audit/history
+        // NOTE: User role remains EXPERT (but isVerified = false)
+        // NOTE: User remains active (isDeleted = false)
         
         ExpertProfile savedProfile = expertProfileRepository.save(profile);
         
