@@ -232,12 +232,27 @@ class SessionRequestControllerTest {
         when(sessionRequestRepository.findById(1L)).thenReturn(Optional.of(testRequest));
         when(sessionRepository.hasSchedulingConflict(anyLong(), any(), any())).thenReturn(false);
         when(meetingService.generateJitsiMeetingLink(anyLong())).thenReturn("https://meet.jit.si/test-room");
+        ExpertSession mockSession = ExpertSession.builder()
+            .id(100L)
+            .expert(expertUser)
+            .student(studentUser)
+            .title("Test Session")
+            .build();
+        
         when(sessionRepository.save(any(ExpertSession.class))).thenAnswer(invocation -> {
             ExpertSession session = invocation.getArgument(0);
             session.setId(100L);
             return session;
         });
-        when(sessionRequestRepository.save(any(SessionRequest.class))).thenReturn(testRequest);
+        when(sessionRequestRepository.save(any(SessionRequest.class))).thenAnswer(invocation -> {
+            SessionRequest sr = invocation.getArgument(0);
+            if (sr.getCreatedSession() == null) {
+                sr.setCreatedSession(mockSession);
+            }
+            return sr;
+        });
+        when(notificationService.createNotification(any(User.class), anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(new com.studybuddy.model.Notification());
 
         LocalDateTime chosenStart = LocalDateTime.now().plusDays(2);
         LocalDateTime chosenEnd = chosenStart.plusHours(1);
