@@ -115,10 +115,23 @@ class SessionRequestControllerTest {
     @Test
     void testCreateSessionRequest_Success() {
         // Arrange
+        ExpertProfile expertProfile = new ExpertProfile();
+        expertProfile.setUser(expertUser);
+        expertProfile.setAcceptingNewStudents(true);
+        expertProfile.setIsVerified(true);
+        
         when(userRepository.findByUsername("student")).thenReturn(Optional.of(studentUser));
         when(userRepository.findById(2L)).thenReturn(Optional.of(expertUser));
+        when(expertProfileRepository.findByUser(expertUser)).thenReturn(Optional.of(expertProfile));
         when(courseRepository.findById(1L)).thenReturn(Optional.of(testCourse));
+        when(sessionRepository.hasSchedulingConflict(anyLong(), any(), any())).thenReturn(false);
         when(sessionRequestRepository.save(any(SessionRequest.class))).thenReturn(testRequest);
+        when(meetingService.generateJitsiMeetingLink(anyLong())).thenReturn("https://meet.jit.si/test-room");
+        when(sessionRepository.save(any(com.studybuddy.model.ExpertSession.class))).thenAnswer(invocation -> {
+            com.studybuddy.model.ExpertSession session = invocation.getArgument(0);
+            session.setId(100L);
+            return session;
+        });
 
         // Act
         com.studybuddy.dto.ExpertDto.SessionRequestCreate requestBody = com.studybuddy.dto.ExpertDto.SessionRequestCreate.builder()
@@ -126,14 +139,16 @@ class SessionRequestControllerTest {
             .courseId(1L)
             .title("Test Session")
             .description("Test Description")
+            .scheduledStartTime(java.time.LocalDateTime.now().plusDays(1))
+            .scheduledEndTime(java.time.LocalDateTime.now().plusDays(1).plusHours(1))
             .preferredTimeSlots(new ArrayList<>())
             .build();
 
         ResponseEntity<?> response = studentExpertController.createSessionRequest(requestBody);
 
         // Assert
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        verify(sessionRequestRepository, times(1)).save(any(SessionRequest.class));
+        assertEquals(HttpStatus.OK, response.getStatusCode()); // This creates a session directly, returns OK not CREATED
+        verify(sessionRepository, times(1)).save(any(com.studybuddy.model.ExpertSession.class));
         verify(notificationService, times(1)).createNotification(any(), any(), any(), any());
     }
 
@@ -196,7 +211,13 @@ class SessionRequestControllerTest {
     @Test
     void testApproveSessionRequest_Success() {
         // Arrange
+        ExpertProfile expertProfile = new ExpertProfile();
+        expertProfile.setUser(expertUser);
+        expertProfile.setIsVerified(true);
+        expertProfile.setIsActive(true);
+        
         when(userRepository.findByUsername("expert")).thenReturn(Optional.of(expertUser));
+        when(expertProfileRepository.findByUser(expertUser)).thenReturn(Optional.of(expertProfile));
         when(sessionRequestRepository.findById(1L)).thenReturn(Optional.of(testRequest));
         when(meetingService.generateJitsiMeetingLink(anyLong())).thenReturn("https://meet.jit.si/test-room");
         when(sessionRepository.save(any(ExpertSession.class))).thenAnswer(invocation -> {
@@ -229,7 +250,13 @@ class SessionRequestControllerTest {
     @Test
     void testRejectSessionRequest_Success() {
         // Arrange
+        ExpertProfile expertProfile = new ExpertProfile();
+        expertProfile.setUser(expertUser);
+        expertProfile.setIsVerified(true);
+        expertProfile.setIsActive(true);
+        
         when(userRepository.findByUsername("expert")).thenReturn(Optional.of(expertUser));
+        when(expertProfileRepository.findByUser(expertUser)).thenReturn(Optional.of(expertProfile));
         when(sessionRequestRepository.findById(1L)).thenReturn(Optional.of(testRequest));
         when(sessionRequestRepository.save(any(SessionRequest.class))).thenReturn(testRequest);
 
