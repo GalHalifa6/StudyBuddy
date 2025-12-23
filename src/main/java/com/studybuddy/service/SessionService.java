@@ -34,8 +34,9 @@ public class SessionService {
         validateSessionAvailability(session);
         ensureJoinEligibility(session, userId);
 
+        // Check if already registered - if so, just return the session (idempotent)
         if (participantRepository.existsBySessionIdAndUserId(sessionId, userId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Already registered for this session");
+            return persistAndBroadcast(session);
         }
 
         int currentCount = refreshParticipantCount(session);

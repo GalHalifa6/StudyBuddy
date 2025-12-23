@@ -49,12 +49,12 @@ public class AuthController {
 
     private User resolveCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || authentication.getName() == null) {
-            throw new RuntimeException("User not found");
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getName() == null || "anonymousUser".equals(authentication.getName())) {
+            throw new RuntimeException("User not authenticated");
         }
 
         return userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("User not found in database"));
     }
 
     @PostMapping("/register")
@@ -239,6 +239,13 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser() {
-        return ResponseEntity.ok(AuthDto.UserResponse.fromUser(resolveCurrentUser()));
+        try {
+            User user = resolveCurrentUser();
+            return ResponseEntity.ok(AuthDto.UserResponse.fromUser(user));
+        } catch (RuntimeException e) {
+            // Return 401 Unauthorized if user is not authenticated
+            return ResponseEntity.status(401)
+                    .body(new AuthDto.MessageResponse("Authentication required", false));
+        }
     }
 }

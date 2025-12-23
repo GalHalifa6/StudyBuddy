@@ -66,15 +66,25 @@ const SessionDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       refetch();
       refetchParticipants();
+      // Navigate to session room after joining
+      navigation.navigate('SessionRoom', { 
+        sessionId, 
+        sessionTitle: session?.title || 'Session' 
+      });
     },
     onError: error => {
       const apiError = mapApiError(error);
-      // Handle 409 Conflict (already joined) gracefully
+      // Handle 409 Conflict (already joined) gracefully - also navigate to room
       if (apiError.status === 409) {
         showToast('Already joined this session', 'info');
         queryClient.invalidateQueries({ queryKey: ['sessions'] });
         refetch();
         refetchParticipants();
+        // Navigate to session room even if already joined
+        navigation.navigate('SessionRoom', { 
+          sessionId, 
+          sessionTitle: session?.title || 'Session' 
+        });
       } else {
         showToast(apiError.message, 'error');
       }
@@ -157,8 +167,8 @@ const SessionDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
     );
   }
 
-  const schedule = formatSessionSchedule(session);
-  const duration = formatDuration(session);
+  const schedule = formatSessionSchedule(session) || '';
+  const duration = formatDuration(session) || '';
   const primaryActionLabel = isJoined ? 'Leave session' : 'Join session';
   const actionDisabled = actionPending || (!isJoined && !canJoin);
   
@@ -170,7 +180,7 @@ const SessionDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   return (
     <Screen>
       <View style={styles.hero}>
-        <Text style={styles.title}>{session.title}</Text>
+        <Text style={styles.title}>{session.title || ''}</Text>
         <Text style={styles.schedule}>{schedule || ''}</Text>
         <View style={styles.badgeRow}>
           {session.sessionType ? (
@@ -230,7 +240,7 @@ const SessionDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
           <InfoRow
             icon="school-outline"
             label="Course"
-            value={[session.course.code, session.course.name].filter(Boolean).join(' ')}
+            value={[session.course?.code, session.course?.name].filter(Boolean).join(' ') || ''}
             styles={styles}
             colors={colors}
           />
@@ -250,7 +260,7 @@ const SessionDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
         <InfoRow
           icon="person"
           label="Capacity"
-          value={`${session.currentParticipants}/${session.maxParticipants} participants`}
+          value={`${session.currentParticipants ?? 0}/${session.maxParticipants ?? 0} participants`}
           styles={styles}
           colors={colors}
         />
@@ -259,14 +269,14 @@ const SessionDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       {session.description ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Overview</Text>
-          <Text style={styles.bodyText}>{session.description}</Text>
+          <Text style={styles.bodyText}>{session.description || ''}</Text>
         </View>
       ) : null}
 
       {session.agenda ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Agenda</Text>
-          <Text style={styles.bodyText}>{session.agenda}</Text>
+          <Text style={styles.bodyText}>{session.agenda || ''}</Text>
         </View>
       ) : null}
 

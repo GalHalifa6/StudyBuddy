@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { expertService, studentExpertService, ExpertSession } from '../api/experts';
@@ -92,11 +92,10 @@ const SessionRoom: React.FC = () => {
   const [studentRating, setStudentRating] = useState(0);
   const [copiedCode, setCopiedCode] = useState(false);
   
-  // Media state (for future WebRTC integration)
+  // Media state for Jitsi
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [showJitsiVideo, setShowJitsiVideo] = useState(false);
   
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -129,8 +128,6 @@ const SessionRoom: React.FC = () => {
   // Confetti state
   const [showConfetti, setShowConfetti] = useState(false);
   
-  // Media tooltip state
-  const [showMediaTooltip, setShowMediaTooltip] = useState<string | null>(null);
 
   // Check if current user is the session creator (expert)
   const isSessionExpert = session?.expert?.id === user?.id;
@@ -573,6 +570,46 @@ const SessionRoom: React.FC = () => {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  // Memoize video component to prevent remounting when messages change
+  const videoComponent = useMemo(() => {
+    if (sessionStatus !== 'active' || !session?.id) return null;
+    
+    // Generate meeting link if missing - use stable link based on session ID
+    const meetingLink = session?.meetingLink || `https://meet.jit.si/studybuddy-${session.id}`;
+    
+    return (
+      <div 
+        className="bg-black rounded-xl overflow-hidden shadow-2xl" 
+        style={{ 
+          position: 'absolute',
+          top: '1rem',
+          left: '1rem',
+          right: '1rem',
+          bottom: '1rem',
+          width: 'calc(100% - 2rem)',
+          height: 'calc(100% - 2rem)',
+          minHeight: 0,
+          maxHeight: '100%',
+          flexShrink: 0,
+          flexGrow: 0,
+        }}
+      >
+        <JitsiMeetEmbed
+          key={`jitsi-${session.id}`} // Stable key based on session ID only
+          roomName={meetingLink}
+          displayName={user?.fullName || user?.username || 'Participant'}
+          config={{
+            startWithAudioMuted: false, // Auto-join with audio enabled
+            startWithVideoMuted: false, // Auto-join with video enabled
+            enableWelcomePage: false,
+            enableClosePage: false,
+          }}
+          className="w-full h-full"
+        />
+      </div>
+    );
+  }, [sessionStatus, session?.id, session?.meetingLink, user?.fullName, user?.username]);
+
   // Real-time whiteboard drawing
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -799,7 +836,7 @@ const SessionRoom: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-900 flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
+    <div className={`h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-900 flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`} style={{ height: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
       {showConfetti && <Confetti />}
       
       {/* End Session Modal */}
@@ -881,16 +918,7 @@ const SessionRoom: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            {session.meetingLink && session.meetingPlatform === 'JITSI' && sessionStatus === 'active' && (
-              <button
-                onClick={() => setShowJitsiVideo(!showJitsiVideo)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
-              >
-                <Video className="w-4 h-4" />
-                {showJitsiVideo ? 'Hide Video' : 'Join Video Call'}
-              </button>
-            )}
-            {session.meetingLink && (session.meetingPlatform !== 'JITSI' || sessionStatus !== 'active') && (
+            {session.meetingLink && session.meetingPlatform !== 'JITSI' && (
               <a
                 href={session.meetingLink}
                 target="_blank"
@@ -930,34 +958,13 @@ const SessionRoom: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0, height: '100%' }}>
         {/* Left Panel - Video Area */}
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 bg-gray-900/50 relative p-4">
-            {/* Show Jitsi embed when session is active and user clicked "Show Video" */}
-            {showJitsiVideo && session?.meetingLink && session?.meetingPlatform === 'JITSI' && sessionStatus === 'active' && (
-              <div className="absolute inset-4 z-50 bg-white rounded-xl overflow-hidden shadow-2xl">
-                <div className="relative w-full h-full">
-                  <button
-                    onClick={() => setShowJitsiVideo(false)}
-                    className="absolute top-4 right-4 z-10 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <JitsiMeetEmbed
-                    roomName={session.meetingLink}
-                    displayName={user?.fullName || user?.username || 'Participant'}
-                    config={{
-                      startWithAudioMuted: isMuted,
-                      startWithVideoMuted: !isVideoOn,
-                      enableWelcomePage: false,
-                      enableClosePage: false,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-            {(() => {
+        <div className="flex-1 flex flex-col min-w-0" style={{ minHeight: 0, maxHeight: '100%', overflow: 'hidden' }}>
+          <div className="flex-1 bg-gray-900/50 relative p-4" style={{ minHeight: 0, maxHeight: '100%', overflow: 'hidden', flexShrink: 0 }}>
+            {/* Show Jitsi embed when session is active - memoized to prevent remounting */}
+            {videoComponent}
+            {sessionStatus === 'active' && (!session?.meetingLink || session?.meetingPlatform !== 'JITSI') && (() => {
               // Debug: Log IDs to understand the "amit amit" issue
               console.log('Video panel debug:', {
                 userId: user?.id,
@@ -1100,57 +1107,15 @@ const SessionRoom: React.FC = () => {
           {/* Media Controls */}
           <div className="bg-gray-800/50 backdrop-blur-lg border-t border-gray-700/50 p-4">
             <div className="flex items-center justify-center gap-3">
-              {/* Mic Button with tooltip */}
-              <div className="relative">
-                <button
-                  onMouseEnter={() => setShowMediaTooltip('mic')}
-                  onMouseLeave={() => setShowMediaTooltip(null)}
-                  onClick={() => setIsMuted(!isMuted)}
-                  className={`p-4 rounded-2xl transition-all ${isMuted ? 'bg-red-500 shadow-lg shadow-red-500/30' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  {isMuted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
-                </button>
-                {showMediaTooltip === 'mic' && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10">
-                    🎤 Audio coming soon!
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+              {/* Note: Audio/Video controls are now handled by Jitsi itself when video is embedded */}
+              {/* These controls affect initial mute state only */}
+              {session?.meetingPlatform === 'JITSI' && sessionStatus === 'active' && (
+                <>
+                  <div className="text-xs text-gray-400 px-2">
+                    Video & Audio controls are in the Jitsi interface above
                   </div>
-                )}
-              </div>
-              {/* Video Button with tooltip */}
-              <div className="relative">
-                <button
-                  onMouseEnter={() => setShowMediaTooltip('video')}
-                  onMouseLeave={() => setShowMediaTooltip(null)}
-                  onClick={() => setIsVideoOn(!isVideoOn)}
-                  className={`p-4 rounded-2xl transition-all ${!isVideoOn ? 'bg-red-500 shadow-lg shadow-red-500/30' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  {isVideoOn ? <Video className="w-6 h-6 text-white" /> : <VideoOff className="w-6 h-6 text-white" />}
-                </button>
-                {showMediaTooltip === 'video' && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10">
-                    📹 Video coming soon!
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                  </div>
-                )}
-              </div>
-              {/* Screen Share Button with tooltip */}
-              <div className="relative">
-                <button
-                  onMouseEnter={() => setShowMediaTooltip('screen')}
-                  onMouseLeave={() => setShowMediaTooltip(null)}
-                  onClick={() => setIsScreenSharing(!isScreenSharing)}
-                  className={`p-4 rounded-2xl transition-all ${isScreenSharing ? 'bg-green-500 shadow-lg shadow-green-500/30' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  {isScreenSharing ? <MonitorOff className="w-6 h-6 text-white" /> : <Monitor className="w-6 h-6 text-white" />}
-                </button>
-                {showMediaTooltip === 'screen' && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10">
-                    🖥️ Screen share coming soon!
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
               <div className="w-px h-10 bg-gray-600 mx-2" />
               {/* Leave Session Button - for students / End for expert */}
               {sessionStatus === 'active' && (
@@ -1173,12 +1138,16 @@ const SessionRoom: React.FC = () => {
                 )
               )}
             </div>
-            <p className="text-center text-xs text-gray-500 mt-2">Use external meeting link for video/audio • Chat & whiteboard are real-time</p>
+            <p className="text-center text-xs text-gray-500 mt-2">
+              {session?.meetingPlatform === 'JITSI' && sessionStatus === 'active' 
+                ? 'Video call is active • Chat & whiteboard are real-time' 
+                : 'Chat & whiteboard are real-time'}
+            </p>
           </div>
         </div>
 
         {/* Right Panel - Tools */}
-        <div className="w-96 bg-gray-800/30 backdrop-blur-lg border-l border-gray-700/50 flex flex-col">
+        <div className="w-96 bg-gray-800/30 backdrop-blur-lg border-l border-gray-700/50 flex flex-col flex-shrink-0" style={{ minWidth: '24rem' }}>
           {/* Panel Tabs */}
           <div className="flex border-b border-gray-700/50">
             {[
@@ -1203,11 +1172,11 @@ const SessionRoom: React.FC = () => {
           </div>
 
           {/* Panel Content */}
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0, maxHeight: '100%' }}>
             {/* Chat Panel */}
             {activePanel === 'chat' && (
               <>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ minHeight: 0, maxHeight: '100%' }}>
                   {messages.map((msg) => (
                     <div key={msg.id} className={msg.type === 'system' ? 'text-center' : ''}>
                       {msg.type === 'system' ? (

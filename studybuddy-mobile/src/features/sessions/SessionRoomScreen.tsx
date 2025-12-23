@@ -27,6 +27,7 @@ import { useToast } from '../../components/ui/ToastProvider';
 import { mapApiError } from '../../api/errors';
 import { useAuth } from '../../auth/AuthContext';
 import { useSessionWebSocket, SessionMessage as WSMessage } from '../../hooks/useSessionWebSocket';
+import { JitsiMeetEmbed } from '../../components/JitsiMeetEmbed';
 
 type Props = NativeStackScreenProps<SessionsStackParamList, 'SessionRoom'>;
 type Styles = ReturnType<typeof createStyles>;
@@ -377,6 +378,31 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   // Handle sending a message via WebSocket (fallback to REST if WebSocket not connected)
+  // Memoize video component to prevent remounting when messages change
+  const videoComponent = useMemo(() => {
+    if (sessionStatus !== 'active' || !session?.id) return null;
+    
+    // Generate stable meeting link based on session ID
+    const meetingLink = session?.meetingLink || `https://meet.jit.si/studybuddy-${session.id}`;
+    
+    return (
+      <View style={styles.videoContainer}>
+        <JitsiMeetEmbed
+          key={`jitsi-${session.id}`} // Stable key based on session ID only
+          roomName={meetingLink}
+          displayName={user?.fullName || user?.username || 'Participant'}
+          config={{
+            startWithAudioMuted: false, // Auto-join with audio enabled
+            startWithVideoMuted: false, // Auto-join with video enabled
+            enableWelcomePage: false,
+            enableClosePage: false,
+          }}
+          style={styles.videoEmbed}
+        />
+      </View>
+    );
+  }, [sessionStatus, session?.id, session?.meetingLink, user?.fullName, user?.username, styles.videoContainer, styles.videoEmbed]);
+
   const handleSendMessage = useCallback(() => {
     if (!newMessage.trim()) return;
 
@@ -574,12 +600,10 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
 
         {/* Session Controls */}
         <View style={styles.headerActions}>
-          {session?.meetingLink && sessionStatus === 'active' && (
+          {session?.meetingLink && sessionStatus === 'active' && session?.meetingPlatform !== 'JITSI' && (
             <Pressable style={styles.actionButton} onPress={handleOpenMeetingLink}>
               <Ionicons name="videocam" size={18} color="#fff" />
-              <Text style={styles.actionButtonText}>
-                {session.meetingPlatform === 'JITSI' ? 'Join Video' : 'Video Call'}
-              </Text>
+              <Text style={styles.actionButtonText}>Video Call</Text>
             </Pressable>
           )}
           {isSessionHost && sessionStatus === 'waiting' && (
@@ -655,6 +679,9 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
           <Text style={[styles.tabText, activePanel === 'info' && styles.tabTextActive]}>Info</Text>
         </Pressable>
       </View>
+
+      {/* Video Call Area - Show when session is active - memoized to prevent remounting */}
+      {videoComponent}
 
       {/* Content Area */}
       <KeyboardAvoidingView
@@ -819,7 +846,8 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
             </View>
           </View>
         )}
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      )}
     </SafeAreaView>
   );
 };
@@ -957,6 +985,17 @@ const createStyles = (colors: Palette) =>
     tabTextActive: {
       color: colors.primary,
       fontWeight: '600',
+    },
+    videoContainer: {
+      height: 300, // Fixed height to prevent stretching
+      backgroundColor: '#000',
+      minHeight: 300,
+      maxHeight: 300,
+      flexShrink: 0, // Prevent shrinking when messages grow
+    },
+    videoEmbed: {
+      flex: 1,
+      height: '100%',
     },
     content: {
       flex: 1,

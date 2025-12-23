@@ -484,6 +484,13 @@ public class ExpertController {
             }
             
             session.start();
+            
+            // Generate meeting link if missing
+            if (session.getMeetingLink() == null || session.getMeetingLink().isEmpty()) {
+                session.setMeetingLink(meetingService.generateJitsiMeetingLink(session.getId()));
+                session.setMeetingPlatform("JITSI");
+            }
+            
             sessionRepository.save(session);
             sessionService.broadcastStatusUpdate(session);
             

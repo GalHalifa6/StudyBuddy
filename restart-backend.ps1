@@ -14,3 +14,5 @@ Write-Host "Compiling and starting backend..." -ForegroundColor Green
 cd C:\Users\asher\OneDrive\Desktop\studybuddy-backend
 mvn clean compile spring-boot:run
 
+
+

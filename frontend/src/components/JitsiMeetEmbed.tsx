@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useMemo } from 'react';
 
 interface JitsiMeetEmbedProps {
   roomName: string;
@@ -26,54 +26,46 @@ export const JitsiMeetEmbed: React.FC<JitsiMeetEmbedProps> = ({
   style,
   className,
 }) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  useEffect(() => {
-    if (!iframeRef.current) return;
-
+  // Memoize the URL to prevent unnecessary re-renders
+  const jitsiUrl = useMemo(() => {
     // Extract room name from full URL if needed
     const cleanRoomName = roomName.includes('meet.jit.si/') 
       ? roomName.split('meet.jit.si/')[1] 
       : roomName;
 
-    // Build Jitsi Meet URL with configuration
-    const params = new URLSearchParams({
-      room: cleanRoomName,
-      ...(displayName && { userInfo: JSON.stringify({ displayName }) }),
-      ...(config.startWithAudioMuted !== undefined && { 
-        'config.startWithAudioMuted': String(config.startWithAudioMuted) 
-      }),
-      ...(config.startWithVideoMuted !== undefined && { 
-        'config.startWithVideoMuted': String(config.startWithVideoMuted) 
-      }),
-      ...(config.enableWelcomePage !== undefined && { 
-        'config.enableWelcomePage': String(config.enableWelcomePage) 
-      }),
-      ...(config.enableClosePage !== undefined && { 
-        'config.enableClosePage': String(config.enableClosePage) 
-      }),
-    });
-
-    const jitsiUrl = `https://meet.jit.si/${cleanRoomName}?${params.toString()}`;
-
-    // Set iframe source
-    if (iframeRef.current) {
-      iframeRef.current.src = jitsiUrl;
+    // Build Jitsi Meet URL - simple approach that works reliably
+    // Use the room name directly in the URL path (standard Jitsi format)
+    // Add display name as URL parameter if provided
+    let url = `https://meet.jit.si/${cleanRoomName}`;
+    
+    if (displayName) {
+      const params = new URLSearchParams();
+      params.append('userInfo.displayName', displayName);
+      url += `?${params.toString()}`;
     }
-  }, [roomName, displayName, config]);
+
+    return url;
+  }, [roomName, displayName]);
 
   return (
     <iframe
-      ref={iframeRef}
+      src={jitsiUrl}
       allow="camera; microphone; fullscreen; speaker; display-capture"
       style={{
         width: '100%',
         height: '100%',
         border: 0,
+        flexShrink: 0,
+        flexGrow: 0,
+        minHeight: 0,
+        maxHeight: '100%',
+        display: 'block',
         ...style,
       }}
       className={className}
       title="Jitsi Meet"
+      allowFullScreen
+      scrolling="no"
     />
   );
 };
