@@ -53,6 +53,7 @@ public class Course {
 
     // Relationships
     @ManyToMany(mappedBy = "courses")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"courses", "groups", "createdGroups", "messages", "files", "password", "profileEmbedding"})
     private Set<User> students = new HashSet<>();
 
     @OneToMany(mappedBy = "course", cascade = CascadeType.ALL)

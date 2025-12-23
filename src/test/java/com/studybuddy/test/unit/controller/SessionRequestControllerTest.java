@@ -131,14 +131,7 @@ class SessionRequestControllerTest {
         when(userRepository.findById(2L)).thenReturn(Optional.of(expertUser));
         when(expertProfileRepository.findByUser(expertUser)).thenReturn(Optional.of(expertProfile));
         when(courseRepository.findById(1L)).thenReturn(Optional.of(testCourse));
-        when(sessionRepository.hasSchedulingConflict(anyLong(), any(), any())).thenReturn(false);
         when(sessionRequestRepository.save(any(SessionRequest.class))).thenReturn(testRequest);
-        when(meetingService.generateJitsiMeetingLink(anyLong())).thenReturn("https://meet.jit.si/test-room");
-        when(sessionRepository.save(any(com.studybuddy.model.ExpertSession.class))).thenAnswer(invocation -> {
-            com.studybuddy.model.ExpertSession session = invocation.getArgument(0);
-            session.setId(100L);
-            return session;
-        });
 
         // Act
         java.time.LocalDateTime startTime = java.time.LocalDateTime.now().plusDays(1);
@@ -263,7 +256,7 @@ class SessionRequestControllerTest {
         verify(sessionRepository, times(1)).save(any(ExpertSession.class));
         verify(sessionRequestRepository, times(1)).save(any(SessionRequest.class));
         assertEquals(SessionRequest.RequestStatus.APPROVED, testRequest.getStatus());
-        verify(notificationService, times(1)).createNotification(any(), any(), any(), any());
+        verify(notificationService, times(1)).createNotification(any(User.class), anyString(), anyString(), anyString());
     }
 
     @Test
