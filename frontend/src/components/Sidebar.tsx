@@ -23,10 +23,8 @@ import {
   Bell,
   HelpCircle,
   ClipboardList,
-  Compass,
   LifeBuoy,
   Flag,
-  MoreHorizontal,
 } from 'lucide-react';
 
 interface SidebarProps {

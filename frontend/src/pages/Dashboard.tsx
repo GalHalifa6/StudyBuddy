@@ -126,17 +126,8 @@ const Dashboard: React.FC = () => {
     total: 0,
     groups: [],
   } as MessageUnreadSummary), [overview?.unreadMessages]);
-  const courseHighlights = overview?.courseHighlights ?? [];
   const focusMinutesThisWeek = overview?.metrics?.focusMinutesThisWeek ?? 0;
   const peersCollaborated = overview?.metrics?.studyPalsCount ?? 0;
-
-  const _unreadByGroup = useMemo(() => {
-    const map = new Map<number, MessageUnreadGroupSummary>();
-    unreadSummary.groups.forEach((group) => {
-      map.set(group.groupId, group);
-    });
-    return map;
-  }, [unreadSummary]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
