@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -307,11 +308,11 @@ public class AdminService {
     /**
      * Permanently delete a user (only if already soft deleted)
      * 
-     * IMPORTANT: This is a permanent, irreversible deletion after grace period.
+     * IMPORTANT: This is a permanent, irreversible deletion.
      * 
      * Prerequisites:
      * - User must be soft-deleted first
-     * - Must wait 30 days after soft deletion (grace period)
+     * - Admin can bypass 30-day grace period (admin override)
      * 
      * Behavior:
      * 1. FIRST: Delete ExpertProfile (if exists) to avoid foreign key constraint
@@ -323,9 +324,13 @@ public class AdminService {
      * - Complete data removal
      * 
      * Purpose:
-     * - Final cleanup after grace period
+     * - Admin can immediately permanently delete if needed
+     * - Grace period is informational only (can be bypassed by admin)
      * - GDPR compliance (right to be forgotten)
      * - Complete data removal
+     * 
+     * Note: The 30-day grace period is a recommendation, not a hard requirement.
+     * Admins can permanently delete immediately after soft deletion if needed.
      * 
      * Audit: Logs USER_PERMANENT_DELETE action
      */
@@ -341,22 +346,41 @@ public class AdminService {
             throw new IllegalArgumentException("User must be soft deleted before permanent deletion");
         }
         
-        // Check if soft deleted less than 30 days ago (enforce 30-day grace period)
-        // Allow deletion if deletedAt is at or before 30 days ago (30+ days old)
-        // Prevent deletion if deletedAt is after 30 days ago (less than 30 days old)
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-        if (user.getDeletedAt() != null && user.getDeletedAt().isAfter(thirtyDaysAgo)) {
-            throw new IllegalArgumentException("Cannot permanently delete user until 30 days after soft deletion");
-        }
+        // NOTE: 30-day grace period check removed - admins can permanently delete
+        // immediately after soft deletion if needed. The grace period is informational
+        // and can be bypassed by admin action.
         
         // STEP 1: Delete ExpertProfile FIRST to avoid foreign key constraint violation
         // This must happen before user deletion
         expertProfileRepository.deleteByUserId(userId);
         entityManager.flush(); // Force immediate commit of profile deletion
         
+        // STEP 2: Delete study groups created by the user
+        // First, find all study groups created by this user
+        List<StudyGroup> groupsCreatedByUser = studyGroupRepository.findByCreatorId(userId);
+        
+        if (!groupsCreatedByUser.isEmpty()) {
+            // For each group, delete group_members entries (join table)
+            // This must happen before deleting the groups
+            for (StudyGroup group : groupsCreatedByUser) {
+                // Delete from group_members join table using native query
+                entityManager.createNativeQuery(
+                    "DELETE FROM group_members WHERE group_id = :groupId"
+                ).setParameter("groupId", group.getId()).executeUpdate();
+            }
+            entityManager.flush(); // Ensure group_members deletions are committed
+            
+            // Now delete the study groups themselves
+            // Messages, files, and room shares will be cascade deleted
+            for (StudyGroup group : groupsCreatedByUser) {
+                studyGroupRepository.delete(group);
+            }
+            entityManager.flush(); // Ensure study group deletions are committed
+        }
+        
         logAction("PERMANENT_DELETE", "USER", userId, reason, null);
         
-        // STEP 2: Permanently delete User from database
+        // STEP 3: Permanently delete User from database
         userRepository.delete(user);
         entityManager.flush(); // Force immediate commit of user deletion
     }

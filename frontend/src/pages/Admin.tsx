@@ -54,6 +54,8 @@ const Admin: React.FC = () => {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showUnsuspendModal, setShowUnsuspendModal] = useState(false);
   const [showUnbanModal, setShowUnbanModal] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   
@@ -325,13 +327,58 @@ const Admin: React.FC = () => {
     setShowUnsuspendModal(true);
   };
 
-  const handleRestore = async (userId: number) => {
-    if (!window.confirm('Are you sure you want to restore this deleted user?')) return;
+  const openRestoreModal = (u: User) => {
+    setSelectedUser(u);
+    setReason('');
+    setErrorMessage(null);
+    setShowRestoreModal(true);
+  };
+
+  const handleRestore = async () => {
+    if (!selectedUser || !reason.trim()) {
+      setErrorMessage('Reason is required');
+      return;
+    }
+    setActionLoading(true);
+    setErrorMessage(null);
     try {
-      await api.post(`/admin/users/${userId}/restore`, { reason: 'User restored by admin' });
+      await api.post(`/admin/users/${selectedUser.id}/restore`, { reason });
+      setShowRestoreModal(false);
+      setSelectedUser(null);
+      setReason('');
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to restore user');
+      setErrorMessage(error.response?.data?.message || 'Failed to restore user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openPermanentDeleteModal = (u: User) => {
+    setSelectedUser(u);
+    setReason('');
+    setErrorMessage(null);
+    setShowPermanentDeleteModal(true);
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!selectedUser || !reason.trim()) {
+      setErrorMessage('Reason is required');
+      return;
+    }
+    setActionLoading(true);
+    setErrorMessage(null);
+    try {
+      const request: DeleteUserRequest = { reason };
+      await api.delete(`/admin/users/${selectedUser.id}`, { data: request });
+      setShowPermanentDeleteModal(false);
+      setSelectedUser(null);
+      setReason('');
+      fetchData();
+    } catch (error: any) {
+      setErrorMessage(error.response?.data?.message || 'Failed to permanently delete user');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1256,17 +1303,31 @@ const Admin: React.FC = () => {
                                 
                                 {/* Delete/Restore actions */}
                                 {u.isDeleted ? (
-                                  <button 
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRestore(u.id);
-                                    }}
-                                    className="p-2 hover:bg-green-100 rounded-lg cursor-pointer transition-colors"
-                                    title="Restore User"
-                                  >
-                                    <UserCheck className="w-4 h-4 text-green-500" />
-                                  </button>
+                                  <div className="flex gap-1">
+                                    <button 
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openRestoreModal(u);
+                                      }}
+                                      className="p-2 hover:bg-green-100 rounded-lg cursor-pointer transition-colors"
+                                      title="Restore User"
+                                    >
+                                      <UserCheck className="w-4 h-4 text-green-500" />
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openPermanentDeleteModal(u);
+                                      }}
+                                      className="p-2 hover:bg-red-100 rounded-lg cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="Permanent Delete"
+                                      disabled={isCurrentUser}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-red-600" />
+                                    </button>
+                                  </div>
                                 ) : (
                                   <button 
                                     type="button"
@@ -1772,6 +1833,151 @@ const Admin: React.FC = () => {
                 className="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {actionLoading ? 'Deleting...' : 'Delete User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore User Modal */}
+      {showRestoreModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">Restore User</h2>
+              <button onClick={() => {
+                setShowRestoreModal(false);
+                setReason('');
+                setErrorMessage(null);
+              }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <UserCheck className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{selectedUser.fullName || selectedUser.username}</p>
+                  <p className="text-sm text-gray-500">@{selectedUser.username}</p>
+                </div>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                <p className="text-sm text-green-800">
+                  This will restore the user account. The user will be able to log in again and access their data.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Enter reason for restoring user..."
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  rows={3}
+                />
+              </div>
+              {errorMessage && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-sm text-red-800">{errorMessage}</p>
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowRestoreModal(false);
+                  setReason('');
+                  setErrorMessage(null);
+                }}
+                className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                disabled={actionLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRestore}
+                disabled={actionLoading}
+                className="px-6 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                {actionLoading ? 'Restoring...' : 'Restore User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete Modal */}
+      {showPermanentDeleteModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">Permanent Delete User</h2>
+              <button onClick={() => {
+                setShowPermanentDeleteModal(false);
+                setReason('');
+                setErrorMessage(null);
+              }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{selectedUser.fullName || selectedUser.username}</p>
+                  <p className="text-sm text-gray-500">@{selectedUser.username}</p>
+                </div>
+              </div>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <p className="text-sm text-red-800 font-semibold mb-2">
+                  ⚠️ WARNING: This action is IRREVERSIBLE
+                </p>
+                <p className="text-sm text-red-800">
+                  This will <strong>permanently delete</strong> the user and all associated data from the database. This action cannot be undone. You can permanently delete immediately after soft deletion (30-day grace period can be bypassed by admin).
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Enter reason for permanent deletion..."
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  rows={3}
+                />
+              </div>
+              {errorMessage && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-sm text-red-800">{errorMessage}</p>
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowPermanentDeleteModal(false);
+                  setReason('');
+                  setErrorMessage(null);
+                }}
+                className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                disabled={actionLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePermanentDelete}
+                disabled={actionLoading}
+                className="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {actionLoading ? 'Deleting...' : 'Delete Permanently'}
               </button>
             </div>
           </div>
