@@ -189,8 +189,8 @@ class DirectMessageControllerTest {
         });
         when(receiptRepository.save(any(DirectMessageReceipt.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(messagingTemplate).convertAndSend(anyString(), any());
-        doNothing().when(notificationService).createNotification(any(), any(), any(), any());
+        doNothing().when(messagingTemplate).convertAndSend(anyString(), any(Object.class));
+        doNothing().when(notificationService).createNotification(any(User.class), anyString(), anyString(), anyString());
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("content", "Hello!");
