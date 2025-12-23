@@ -23,6 +23,10 @@ import {
   Bell,
   HelpCircle,
   ClipboardList,
+  Compass,
+  LifeBuoy,
+  Flag,
+  MoreHorizontal,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -79,33 +83,33 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
   const navSections = useMemo<NavSection[]>(() => {
     const sections: NavSection[] = [
       {
-        title: 'My Learning',
+        title: 'My StudyBuddy',
         items: [
           { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-          { to: '/courses', icon: BookOpen, label: 'Courses' },
+          { to: '/my-groups', icon: Users, label: 'My Groups' },
+          { to: '/upcoming-events', icon: Calendar, label: 'Upcoming Events' },
         ],
       },
       {
-        title: 'Collaborate',
+        title: 'Explore',
         items: [
           { to: '/groups', icon: Users, label: 'Study Groups' },
-          { to: '/sessions', icon: Calendar, label: 'Browse Sessions' },
-          { to: '/messages', icon: MessageSquare, label: 'Messages' },
+          { to: '/courses', icon: BookOpen, label: 'Courses' },
+          { to: '/experts', icon: UserCheck, label: 'Experts' },
         ],
       },
       {
-        title: 'Explore & Manage',
+        title: 'Support',
         items: [
-          { to: '/experts', icon: UserCheck, label: 'Browse Experts' },
-          { to: '/qa', icon: HelpCircle, label: 'Public Q&A' },
-          { to: '/my-questions', icon: ClipboardList, label: 'My Questions' },
           { to: '/settings', icon: Settings, label: 'Settings' },
+          { to: '/help', icon: LifeBuoy, label: 'Help' },
+          { to: '/send-report', icon: Flag, label: 'Send Report' },
         ],
       },
     ];
 
     if (isExpert) {
-      sections[0].items.splice(2, 0, { to: '/expert-dashboard', icon: Award, label: 'Expert Hub' });
+      sections[0].items.splice(1, 0, { to: '/expert-dashboard', icon: Award, label: 'Expert Hub' });
     }
 
     if (isAdmin) {

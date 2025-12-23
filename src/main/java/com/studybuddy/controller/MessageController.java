@@ -1,10 +1,12 @@
 package com.studybuddy.controller;
 
+import com.studybuddy.model.Event;
 import com.studybuddy.model.FileUpload;
 import com.studybuddy.model.Message;
 import com.studybuddy.model.MessageReceipt;
 import com.studybuddy.model.StudyGroup;
 import com.studybuddy.model.User;
+import com.studybuddy.repository.EventRepository;
 import com.studybuddy.repository.FileUploadRepository;
 import com.studybuddy.repository.MessageReceiptRepository;
 import com.studybuddy.repository.MessageRepository;
@@ -37,6 +39,9 @@ public class MessageController {
 
     @Autowired
     private FileUploadRepository fileUploadRepository;
+
+    @Autowired
+    private EventRepository eventRepository;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
@@ -74,6 +79,15 @@ public class MessageController {
                     .orElseThrow(() -> new RuntimeException("File not found"));
             message.setAttachedFile(file);
             message.setMessageType("file");
+        }
+
+        // Handle event reference
+        if (payload.containsKey("eventId") && payload.get("eventId") != null) {
+            Long eventId = Long.valueOf(payload.get("eventId").toString());
+            Event event = eventRepository.findById(eventId)
+                    .orElseThrow(() -> new RuntimeException("Event not found"));
+            message.setEvent(event);
+            message.setMessageType("event");
         }
 
         Message savedMessage = messageRepository.save(message);
@@ -230,6 +244,20 @@ public class MessageController {
             file.put("fileType", message.getAttachedFile().getFileType());
             file.put("fileSize", message.getAttachedFile().getFileSize());
             map.put("attachedFile", file);
+        }
+
+        // Safe event info
+        if (message.getEvent() != null) {
+            Map<String, Object> event = new HashMap<>();
+            event.put("id", message.getEvent().getId());
+            event.put("title", message.getEvent().getTitle());
+            event.put("eventType", message.getEvent().getEventType());
+            event.put("startDateTime", message.getEvent().getStartDateTime());
+            event.put("endDateTime", message.getEvent().getEndDateTime());
+            event.put("location", message.getEvent().getLocation());
+            event.put("meetingLink", message.getEvent().getMeetingLink());
+            map.put("event", event);
+            map.put("eventId", message.getEvent().getId());
         }
         
         return map;

@@ -1,6 +1,11 @@
 package com.studybuddy.config;
 
+import com.studybuddy.security.CustomOAuth2AuthorizationRequestResolver;
 import com.studybuddy.security.JwtAuthenticationFilter;
+import com.studybuddy.security.OAuth2FailureHandler;
+import com.studybuddy.security.OAuth2SuccessHandler;
+import com.studybuddy.security.OAuth2UserServiceImpl;
+import com.studybuddy.security.OidcUserServiceImpl;
 import com.studybuddy.security.UserDetailsServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +19,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -34,6 +41,21 @@ public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    private OAuth2UserServiceImpl oauth2UserService;
+
+    @Autowired
+    private OidcUserServiceImpl oidcUserService;
+
+    @Autowired
+    private OAuth2SuccessHandler oauth2SuccessHandler;
+
+    @Autowired
+    private OAuth2FailureHandler oauth2FailureHandler;
+
+    @Autowired
+    private ClientRegistrationRepository clientRegistrationRepository;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -60,11 +82,23 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/api-docs/**").permitAll()
                         .requestMatchers("/ws/**", "/ws-native/**").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
+                )
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestResolver(customOAuth2AuthorizationRequestResolver())
+                        )
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(oauth2UserService)
+                                .oidcUserService(oidcUserService)
+                        )
+                        .successHandler(oauth2SuccessHandler)
+                        .failureHandler(oauth2FailureHandler)
                 );
 
         http.authenticationProvider(authenticationProvider());
@@ -74,6 +108,11 @@ public class SecurityConfig {
         http.headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
 
         return http.build();
+    }
+
+    @Bean
+    public OAuth2AuthorizationRequestResolver customOAuth2AuthorizationRequestResolver() {
+        return new CustomOAuth2AuthorizationRequestResolver(clientRegistrationRepository);
     }
 
     @Bean

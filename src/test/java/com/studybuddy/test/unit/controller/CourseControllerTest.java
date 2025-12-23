@@ -49,13 +49,14 @@ class CourseControllerTest {
         testCourse.setDescription("Basic CS course");
         testCourse.setFaculty("Engineering");
         testCourse.setSemester("Fall 2024");
+        testCourse.setIsArchived(false);
     }
 
     @Test
     void testGetAllCourses_Success() {
         // Arrange
         List<Course> courses = new ArrayList<>(List.of(testCourse));
-        when(courseRepository.findAll()).thenReturn(courses);
+        when(courseRepository.findByIsArchivedFalse()).thenReturn(courses);
         when(studyGroupRepository.findByCourseIdAndIsActiveTrue(anyLong())).thenReturn(new ArrayList<>());
 
         // Act
@@ -66,7 +67,7 @@ class CourseControllerTest {
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().size());
         assertEquals("CS101", response.getBody().get(0).get("code"));
-        verify(courseRepository, times(1)).findAll();
+        verify(courseRepository, times(1)).findByIsArchivedFalse();
     }
 
     @Test
@@ -126,7 +127,7 @@ class CourseControllerTest {
         group.setId(1L);
         group.setName("Test Group");
         
-        when(courseRepository.findAll()).thenReturn(courses);
+        when(courseRepository.findByIsArchivedFalse()).thenReturn(courses);
         when(studyGroupRepository.findByCourseIdAndIsActiveTrue(1L)).thenReturn(List.of(group));
 
         // Act
@@ -135,6 +136,7 @@ class CourseControllerTest {
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
         assertEquals(1, response.getBody().get(0).get("groupCount"));
     }
 }

@@ -9,3 +9,8 @@ export { sessionService, userSearchService } from './sessions';
 export { default as api } from './axios';
 export { dashboardService } from './dashboard';
 export { questionService } from './questions';
+export { default as feedService } from './feed';
+export { default as quizService } from './quiz';
+export { matchingService } from './matching';
+export { calendarService } from './calendar';
+

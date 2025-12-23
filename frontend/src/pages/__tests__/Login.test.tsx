@@ -42,7 +42,7 @@ describe('Login Page', () => {
 
       expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
       expect(screen.getByPlaceholderText(/enter your username/i)).toBeInTheDocument();
       expect(screen.getByPlaceholderText(/enter your password/i)).toBeInTheDocument();
     });
@@ -61,8 +61,8 @@ describe('Login Page', () => {
       const user = userEvent.setup();
       renderWithProviders(<Login />);
 
-      const form = screen.getByRole('button', { name: /sign in/i }).closest('form');
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const form = screen.getByRole('button', { name: 'Sign in' }).closest('form');
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
       
       // HTML5 validation prevents form submission when required fields are empty
       await user.click(submitButton);
@@ -80,7 +80,7 @@ describe('Login Page', () => {
       renderWithProviders(<Login />);
 
       const usernameInput = screen.getByLabelText(/username/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       await user.type(usernameInput, 'testuser');
       await user.click(submitButton);
@@ -96,7 +96,7 @@ describe('Login Page', () => {
 
       const usernameInput = screen.getByLabelText(/username/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       await user.type(usernameInput, 'testuser');
       await user.type(passwordInput, 'password123');
@@ -114,7 +114,7 @@ describe('Login Page', () => {
 
       const usernameInput = screen.getByLabelText(/username/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       // Submit with valid data to trigger an error
       await user.type(usernameInput, 'testuser');
@@ -145,7 +145,7 @@ describe('Login Page', () => {
 
       const usernameInput = screen.getByLabelText(/username/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       await user.type(usernameInput, 'testuser');
       await user.type(passwordInput, 'password123');
@@ -169,7 +169,7 @@ describe('Login Page', () => {
 
       const usernameInput = screen.getByLabelText(/username/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       await user.type(usernameInput, 'testuser');
       await user.type(passwordInput, 'password123');
@@ -187,7 +187,7 @@ describe('Login Page', () => {
 
       const usernameInput = screen.getByLabelText(/username/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       await user.type(usernameInput, 'testuser');
       await user.type(passwordInput, 'password123');
@@ -207,7 +207,7 @@ describe('Login Page', () => {
 
       const usernameInput = screen.getByLabelText(/username/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       await user.type(usernameInput, 'testuser');
       await user.type(passwordInput, 'wrongpassword');
@@ -234,7 +234,7 @@ describe('Login Page', () => {
 
       const usernameInput = screen.getByLabelText(/username/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       await user.type(usernameInput, 'testuser');
       await user.type(passwordInput, 'password123');
@@ -260,7 +260,7 @@ describe('Login Page', () => {
 
       const usernameInput = screen.getByLabelText(/username/i);
       const passwordInput = screen.getByLabelText(/password/i);
-      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      const submitButton = screen.getByRole('button', { name: 'Sign in' });
 
       await user.type(usernameInput, 'testuser');
       await user.type(passwordInput, 'password123');

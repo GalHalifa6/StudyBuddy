@@ -26,16 +26,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  const isOnboardingRoute = location.pathname === '/onboarding';
-  const needsOnboarding = user && user.role === 'USER' && user.onboardingCompleted !== true;
+  // Onboarding disabled for now
+  // const isOnboardingRoute = location.pathname === '/onboarding';
+  // const needsOnboarding = user && user.role === 'USER' && user.onboardingCompleted !== true;
 
-  if (needsOnboarding && !isOnboardingRoute) {
-    return <Navigate to="/onboarding" replace />;
-  }
+  // if (needsOnboarding && !isOnboardingRoute) {
+  //   return <Navigate to="/onboarding" replace />;
+  // }
 
-  if (!needsOnboarding && isOnboardingRoute) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // if (!needsOnboarding && isOnboardingRoute) {
+  //   return <Navigate to="/dashboard" replace />;
+  // }
 
   return <>{children}</>;
 };

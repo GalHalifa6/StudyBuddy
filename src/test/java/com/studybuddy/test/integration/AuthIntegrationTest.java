@@ -2,8 +2,10 @@ package com.studybuddy.test.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studybuddy.dto.AuthDto;
+import com.studybuddy.model.AllowedEmailDomain;
 import com.studybuddy.model.Role;
 import com.studybuddy.model.User;
+import com.studybuddy.repository.AllowedEmailDomainRepository;
 import com.studybuddy.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,13 +41,25 @@ class AuthIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
+    private AllowedEmailDomainRepository domainRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private User testUser;
+    private AllowedEmailDomain testDomain;
 
     @BeforeEach
     void setUp() {
         userRepository.deleteAll();
+        domainRepository.deleteAll();
+
+        // Add test domain to allowed list
+        testDomain = new AllowedEmailDomain();
+        testDomain.setDomain("example.com");
+        testDomain.setStatus(AllowedEmailDomain.DomainStatus.ALLOW);
+        testDomain.setInstitutionName("Test University");
+        domainRepository.save(testDomain);
 
         testUser = new User();
         testUser.setUsername("testuser");
@@ -54,6 +68,7 @@ class AuthIntegrationTest {
         testUser.setFullName("Test User");
         testUser.setRole(Role.USER);
         testUser.setIsActive(true);
+        testUser.setIsEmailVerified(true); // Set as verified for login tests
         userRepository.save(testUser);
     }
 
@@ -144,9 +159,12 @@ class AuthIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").exists())
-                .andExpect(jsonPath("$.username").value("testuser"))
-                .andExpect(jsonPath("$.email").value("test@example.com"))
-                .andExpect(jsonPath("$.role").value("USER"));
+                .andExpect(jsonPath("$.user").exists())
+                .andExpect(jsonPath("$.user.username").value("testuser"))
+                .andExpect(jsonPath("$.user.email").value("test@example.com"))
+                .andExpect(jsonPath("$.user.role").value("USER"))
+                .andExpect(jsonPath("$.user.emailVerified").value(true))
+                .andExpect(jsonPath("$.user.institutionName").value("Test University"));
     }
 
     @Test

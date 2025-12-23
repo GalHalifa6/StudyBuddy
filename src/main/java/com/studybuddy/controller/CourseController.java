@@ -24,8 +24,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,18 +70,18 @@ public class CourseController {
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getAllCourses() {
         // Only show non-archived courses to regular users
-        List<Course> allCourses = courseRepository.findByIsArchivedFalse();
+        List<Course> courses = courseRepository.findByIsArchivedFalse();
+        
         User currentUser = null;
         try {
             currentUser = getCurrentUser();
         } catch (RuntimeException ignored) {
             // Access allowed without authentication; we'll omit enrollment flags when unavailable
         }
+        
         final Set<Long> enrolledCourseIds = currentUser != null
                 ? currentUser.getCourses().stream().map(Course::getId).collect(Collectors.toSet())
                 : Collections.<Long>emptySet();
-        
-        List<Course> courses = allCourses;
         
         // Add group count to each course
         List<Map<String, Object>> result = courses.stream().map(course -> {
@@ -156,12 +156,14 @@ public class CourseController {
         List<Course> courses = allCourses.stream()
                 .filter(course -> course.getIsArchived() == null || !course.getIsArchived())
                 .collect(Collectors.toList());
+        
         User currentUser = null;
         try {
             currentUser = getCurrentUser();
         } catch (RuntimeException ignored) {
             // Anonymous access allowed
         }
+        
         final Set<Long> enrolledCourseIds = currentUser != null
                 ? currentUser.getCourses().stream().map(Course::getId).collect(Collectors.toSet())
                 : Collections.<Long>emptySet();

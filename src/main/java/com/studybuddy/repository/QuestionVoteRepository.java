@@ -14,4 +14,6 @@ public interface QuestionVoteRepository extends JpaRepository<QuestionVote, Long
     boolean existsByQuestionIdAndUserId(Long questionId, Long userId);
     
     void deleteByQuestionIdAndUserId(Long questionId, Long userId);
+    
+    void deleteByUserId(Long userId);
 }

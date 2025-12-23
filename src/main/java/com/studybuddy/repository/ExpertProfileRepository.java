@@ -3,6 +3,8 @@ package com.studybuddy.repository;
 import com.studybuddy.model.ExpertProfile;
 import com.studybuddy.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -11,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ExpertProfileRepository extends JpaRepository<ExpertProfile, Long> {
+public interface ExpertProfileRepository extends JpaRepository<ExpertProfile, Long>, JpaSpecificationExecutor<ExpertProfile> {
 
     Optional<ExpertProfile> findByUser(User user);
     
@@ -70,4 +72,9 @@ public interface ExpertProfileRepository extends JpaRepository<ExpertProfile, Lo
 
     @Query("SELECT AVG(ep.averageRating) FROM ExpertProfile ep WHERE ep.isActive = true AND ep.totalRatings > 0")
     Double getOverallAverageRating();
+    
+    // Delete expert profile by user ID (for foreign key constraint handling)
+    @Modifying
+    @Query("DELETE FROM ExpertProfile ep WHERE ep.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }

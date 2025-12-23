@@ -74,20 +74,31 @@ public class AuthDto {
     public static class JwtResponse {
         private String token;
         private String type = "Bearer";
+        private UserInfo user;
+
+        public JwtResponse(String token, UserInfo user) {
+            this.token = token;
+            this.user = user;
+        }
+
+        // Legacy constructor for backward compatibility
+        public JwtResponse(String token, Long id, String username, String email, String role, String fullName) {
+            this.token = token;
+            this.user = new UserInfo(id, username, email, role, fullName, false, null);
+        }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UserInfo {
         private Long id;
         private String username;
         private String email;
         private String role;
         private String fullName;
-
-        public JwtResponse(String token, Long id, String username, String email, String role, String fullName) {
-            this.token = token;
-            this.id = id;
-            this.username = username;
-            this.email = email;
-            this.role = role;
-            this.fullName = fullName;
-        }
+        private Boolean emailVerified;
+        private String institutionName;
     }
 
     @Data
@@ -96,23 +107,34 @@ public class AuthDto {
         private String message;
         private boolean success;
         private List<String> errors;
+        private String errorCode; // For specific error codes like EMAIL_NOT_VERIFIED
 
         public MessageResponse(String message) {
             this.message = message;
             this.success = !message.toLowerCase().contains("error") && !message.toLowerCase().contains("failed");
             this.errors = null;
+            this.errorCode = null;
         }
         
         public MessageResponse(String message, boolean success) {
             this.message = message;
             this.success = success;
             this.errors = null;
+            this.errorCode = null;
         }
         
         public MessageResponse(String message, boolean success, List<String> errors) {
             this.message = message;
             this.success = success;
             this.errors = errors;
+            this.errorCode = null;
+        }
+
+        public MessageResponse(String message, boolean success, List<String> errors, String errorCode) {
+            this.message = message;
+            this.success = success;
+            this.errors = errors;
+            this.errorCode = errorCode;
         }
     }
 
@@ -138,6 +160,8 @@ public class AuthDto {
         private String fullName;
         private String role;
         private Boolean isActive;
+        private Boolean emailVerified;
+        private String googleSub; // Google OAuth identifier (null if not linked)
         private List<String> topicsOfInterest;
         private String proficiencyLevel;
         private List<String> preferredLanguages;
@@ -157,6 +181,8 @@ public class AuthDto {
                 user.getFullName(),
                 user.getRole() != null ? user.getRole().name() : null,
                 user.getIsActive(),
+                user.getIsEmailVerified(),
+                user.getGoogleSub(), // Expose googleSub to frontend
                 user.getTopicsOfInterest(),
                 user.getProficiencyLevel(),
                 user.getPreferredLanguages(),
@@ -169,5 +195,14 @@ public class AuthDto {
                 user.getOnboardingCompletedAt()
             );
         }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ResendVerificationRequest {
+        @NotBlank(message = "Email is required")
+        @Email(message = "Please provide a valid email address")
+        private String email;
     }
 }

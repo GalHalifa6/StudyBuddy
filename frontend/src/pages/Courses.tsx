@@ -179,29 +179,46 @@ const Courses: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-6 rounded-3xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
-            <Sparkles className="h-4 w-4" />
-            Smarter Course Catalog
+    <div className="space-y-8 animate-fade-in">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 rounded-3xl text-white p-8 shadow-lg overflow-hidden relative">
+        <div className="absolute inset-0 opacity-20 bg-noise" />
+        <div className="relative z-10">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-2 text-indigo-100 mb-2">
+                <BookOpen className="h-5 w-5" />
+                <span className="text-sm uppercase tracking-[0.2em]">Course Catalog</span>
+              </div>
+              <h1 className="text-3xl md:text-4xl font-semibold mb-3">
+                Discover & Enroll
+              </h1>
+              <p className="text-indigo-100 max-w-2xl leading-relaxed">
+                Browse available courses, enroll with one click, and access your personalized learning journey.
+              </p>
+            </div>
+            <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <GraduationCap className="h-8 w-8 text-indigo-100" />
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-indigo-100/80">Your Progress</p>
+                  <p className="text-lg font-semibold">Learning Stats</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm text-indigo-100/90">
+                <div>
+                  <p className="text-2xl font-semibold leading-none">{courses.length}</p>
+                  <p className="mt-1">Available courses</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold leading-none">{myCourses.length}</p>
+                  <p className="mt-1">Enrolled courses</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <h1 className="mt-3 text-3xl font-bold text-gray-900 dark:text-white">Find the right course, faster</h1>
-          <p className="mt-2 max-w-2xl text-gray-600 dark:text-gray-400">
-            Compare offerings, enroll with one click, and keep your active courses a tab away.
-            Use the toggle below to jump between the full catalog and your personal enrollments.
-          </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="rounded-2xl bg-primary-100 px-4 py-3 text-center text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
-            <p className="text-2xl font-semibold">{courses.length}</p>
-            <p className="text-xs uppercase tracking-wide">Active courses</p>
-          </div>
-          <div className="rounded-2xl bg-emerald-100 px-4 py-3 text-center text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-            <p className="text-2xl font-semibold">{myCourses.length}</p>
-            <p className="text-xs uppercase tracking-wide">My enrollments</p>
-          </div>
-        </div>
+        <div className="absolute -right-20 -bottom-32 w-96 h-96 bg-gradient-to-br from-indigo-400/40 to-purple-400/40 blur-3xl rounded-full" />
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -310,32 +327,30 @@ const Courses: React.FC = () => {
             const isProcessing = processingCourseId === course.id;
 
             return (
-              <Link
+              <div
                 key={course.id}
-                to={`/courses/${course.id}`}
-                className="card-hover flex h-full flex-col justify-between gap-6 p-6"
+                className="card flex h-full flex-col justify-between gap-6 p-6 hover:shadow-lg transition-shadow"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-400 to-secondary-500 text-xl font-bold text-white">
-                        {course.code.substring(0, 2)}
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 text-2xl font-bold text-white shadow-lg flex-shrink-0">
+                      {course.code.substring(0, 2)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="badge-primary">{course.semester || 'Current'}</span>
+                        {isEnrolled && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
+                            <CheckCircle className="h-3 w-3" />
+                            Enrolled
+                          </span>
+                        )}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="badge-primary">{course.semester || 'Current'}</span>
-                          {isEnrolled && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
-                              <CheckCircle className="h-3 w-3" />
-                              Enrolled
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{course.name}</h3>
-                        <p className="mt-1 line-clamp-2 text-sm text-gray-600 dark:text-gray-400">
-                          {course.description || 'No description provided yet.'}
-                        </p>
-                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{course.name}</h3>
+                      <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 mb-2">{course.code}</p>
+                      <p className="line-clamp-2 text-sm text-gray-600 dark:text-gray-400">
+                        {course.description || 'No description provided yet.'}
+                      </p>
                     </div>
                   </div>
 
@@ -361,17 +376,13 @@ const Courses: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
                   {isEnrolled ? (
                     activeView === 'enrolled' ? (
                       <button
                         type="button"
-                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-400 dark:hover:border-red-500 dark:hover:text-red-400"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleUnenroll(course.id);
-                        }}
+                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border-2 border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition-all hover:border-red-300 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:text-red-400 dark:hover:border-red-800 dark:hover:bg-red-900/20"
+                        onClick={() => handleUnenroll(course.id)}
                         disabled={isProcessing}
                       >
                         {isProcessing ? (
@@ -382,46 +393,38 @@ const Courses: React.FC = () => {
                         ) : (
                           <>
                             <MinusCircle className="h-4 w-4" />
-                            Leave course
+                            Leave Course
                           </>
                         )}
                       </button>
                     ) : (
-                      <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                      <div className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
                         <CheckCircle className="h-4 w-4" />
-                        Enrolled
-                      </span>
+                        Already Enrolled
+                      </div>
                     )
                   ) : (
                     <button
                       type="button"
-                      className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleEnroll(course.id);
-                      }}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70"
+                      onClick={() => handleEnroll(course.id)}
                       disabled={isProcessing}
                     >
                       {isProcessing ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Joining...
+                          Enrolling...
                         </>
                       ) : (
                         <>
                           <Plus className="h-4 w-4" />
-                          Enroll
+                          Enroll Now
                         </>
                       )}
                     </button>
                   )}
-                  <span className="inline-flex items-center gap-2 text-sm font-medium text-primary-600 dark:text-primary-300">
-                    View details
-                    <ArrowRight className="h-4 w-4" />
-                  </span>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>

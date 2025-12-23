@@ -5,7 +5,9 @@ import com.studybuddy.dto.AuthDto;
 import com.studybuddy.dto.UserAdminDto;
 import com.studybuddy.model.Role;
 import com.studybuddy.model.User;
+import com.studybuddy.repository.*;
 import com.studybuddy.repository.UserRepository;
+import com.studybuddy.service.AdminService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +34,27 @@ class AdminControllerTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private EmailVerificationTokenRepository emailVerificationTokenRepository;
+
+    @Mock
+    private NotificationRepository notificationRepository;
+
+    @Mock
+    private GroupMemberRequestRepository groupMemberRequestRepository;
+
+    @Mock
+    private QuestionVoteRepository questionVoteRepository;
+
+    @Mock
+    private SessionParticipantRepository sessionParticipantRepository;
+
+    @Mock
+    private ExpertProfileRepository expertProfileRepository;
+
+    @Mock
+    private AdminService adminService;
+
     @InjectMocks
     private AdminController adminController;
 
@@ -47,6 +70,8 @@ class AdminControllerTest {
         testUser.setFullName("Test User");
         testUser.setRole(Role.USER);
         testUser.setIsActive(true);
+        testUser.setIsDeleted(false);
+        testUser.setIsEmailVerified(false);
 
         adminUser = new User();
         adminUser.setId(2L);
@@ -55,16 +80,20 @@ class AdminControllerTest {
         adminUser.setFullName("Admin User");
         adminUser.setRole(Role.ADMIN);
         adminUser.setIsActive(true);
+        adminUser.setIsDeleted(false);
+        adminUser.setIsEmailVerified(false);
     }
 
     @Test
     void testGetAllUsers_Success() {
         // Arrange
+        testUser.setIsDeleted(false);
+        adminUser.setIsDeleted(false);
         List<User> users = new ArrayList<>(List.of(testUser, adminUser));
         when(userRepository.findAll()).thenReturn(users);
 
         // Act
-        ResponseEntity<List<UserAdminDto>> response = adminController.getAllUsers();
+        ResponseEntity<List<UserAdminDto>> response = adminController.getAllUsers(null);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -110,9 +139,9 @@ class AdminControllerTest {
         // Arrange
         AdminController.RoleUpdateRequest request = new AdminController.RoleUpdateRequest();
         request.setRole("EXPERT");
+        request.setReason("Test reason");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        when(adminService.updateUserRole(1L, Role.EXPERT, "Test reason")).thenReturn(testUser);
 
         // Act
         ResponseEntity<?> response = adminController.updateUserRole(1L, request);
@@ -123,9 +152,7 @@ class AdminControllerTest {
         assertTrue(response.getBody() instanceof AuthDto.MessageResponse);
         AuthDto.MessageResponse messageResponse = (AuthDto.MessageResponse) response.getBody();
         assertTrue(messageResponse.isSuccess());
-        verify(userRepository, times(1)).save(argThat(user -> 
-            user.getRole() == Role.EXPERT
-        ));
+        verify(adminService, times(1)).updateUserRole(1L, Role.EXPERT, "Test reason");
     }
 
     @Test
@@ -133,8 +160,7 @@ class AdminControllerTest {
         // Arrange
         AdminController.RoleUpdateRequest request = new AdminController.RoleUpdateRequest();
         request.setRole("INVALID_ROLE");
-
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        request.setReason("Test reason");
 
         // Act
         ResponseEntity<?> response = adminController.updateUserRole(1L, request);
@@ -145,7 +171,7 @@ class AdminControllerTest {
         assertTrue(response.getBody() instanceof AuthDto.MessageResponse);
         AuthDto.MessageResponse messageResponse = (AuthDto.MessageResponse) response.getBody();
         assertFalse(messageResponse.isSuccess());
-        verify(userRepository, never()).save(any(User.class));
+        verify(adminService, never()).updateUserRole(anyLong(), any(), anyString());
     }
 
     @Test
@@ -153,15 +179,16 @@ class AdminControllerTest {
         // Arrange
         AdminController.RoleUpdateRequest request = new AdminController.RoleUpdateRequest();
         request.setRole("EXPERT");
+        request.setReason("Test reason");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+        when(adminService.updateUserRole(1L, Role.EXPERT, "Test reason"))
+                .thenThrow(new RuntimeException("User not found"));
 
         // Act
         ResponseEntity<?> response = adminController.updateUserRole(1L, request);
 
         // Assert
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -169,10 +196,10 @@ class AdminControllerTest {
         // Arrange
         AdminController.StatusUpdateRequest request = new AdminController.StatusUpdateRequest();
         request.setActive(true);
+        request.setReason("Test reason");
         testUser.setIsActive(false);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        when(adminService.enableLogin(1L, "Test reason")).thenReturn(testUser);
 
         // Act
         ResponseEntity<?> response = adminController.updateUserStatus(1L, request);
@@ -180,9 +207,7 @@ class AdminControllerTest {
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        verify(userRepository, times(1)).save(argThat(user -> 
-            user.getIsActive() == true
-        ));
+        verify(adminService, times(1)).enableLogin(1L, "Test reason");
     }
 
     @Test
@@ -190,9 +215,9 @@ class AdminControllerTest {
         // Arrange
         AdminController.StatusUpdateRequest request = new AdminController.StatusUpdateRequest();
         request.setActive(false);
+        request.setReason("Test reason");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        when(adminService.disableLogin(1L, "Test reason")).thenReturn(testUser);
 
         // Act
         ResponseEntity<?> response = adminController.updateUserStatus(1L, request);
@@ -200,9 +225,7 @@ class AdminControllerTest {
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        verify(userRepository, times(1)).save(argThat(user -> 
-            user.getIsActive() == false
-        ));
+        verify(adminService, times(1)).disableLogin(1L, "Test reason");
     }
 
     @Test
@@ -210,25 +233,28 @@ class AdminControllerTest {
         // Arrange
         AdminController.StatusUpdateRequest request = new AdminController.StatusUpdateRequest();
         request.setActive(true);
+        request.setReason("Test reason");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+        when(adminService.enableLogin(1L, "Test reason"))
+                .thenThrow(new RuntimeException("User not found"));
 
         // Act
         ResponseEntity<?> response = adminController.updateUserStatus(1L, request);
 
         // Assert
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
-    void testDeleteUser_Success() {
+    void testPermanentDeleteUser_Success() {
         // Arrange
-        when(userRepository.existsById(1L)).thenReturn(true);
-        doNothing().when(userRepository).deleteById(1L);
+        AdminController.DeleteRequest request = new AdminController.DeleteRequest();
+        request.setReason("Test reason");
+        
+        doNothing().when(adminService).permanentDeleteUser(1L, "Test reason");
 
         // Act
-        ResponseEntity<?> response = adminController.deleteUser(1L);
+        ResponseEntity<?> response = adminController.permanentDeleteUser(1L, request);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -236,20 +262,28 @@ class AdminControllerTest {
         assertTrue(response.getBody() instanceof AuthDto.MessageResponse);
         AuthDto.MessageResponse messageResponse = (AuthDto.MessageResponse) response.getBody();
         assertTrue(messageResponse.isSuccess());
-        verify(userRepository, times(1)).deleteById(1L);
+        verify(adminService, times(1)).permanentDeleteUser(1L, "Test reason");
     }
 
     @Test
-    void testDeleteUser_NotFound() {
+    void testPermanentDeleteUser_NotFound() {
         // Arrange
-        when(userRepository.existsById(1L)).thenReturn(false);
+        AdminController.DeleteRequest request = new AdminController.DeleteRequest();
+        request.setReason("Test reason");
+        
+        doThrow(new RuntimeException("User not found"))
+                .when(adminService).permanentDeleteUser(1L, "Test reason");
 
         // Act
-        ResponseEntity<?> response = adminController.deleteUser(1L);
+        ResponseEntity<?> response = adminController.permanentDeleteUser(1L, request);
 
         // Assert
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        verify(userRepository, never()).deleteById(anyLong());
+        verify(adminService, times(1)).permanentDeleteUser(1L, "Test reason");
     }
 }
+
+
+
+
 

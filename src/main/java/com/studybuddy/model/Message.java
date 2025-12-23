@@ -38,7 +38,7 @@ public class Message {
     private String content;
 
     @Column(length = 20, nullable = false)
-    private String messageType = "text"; // text, file, system
+    private String messageType = "text"; // text, file, system, event
 
     @Column(nullable = false)
     private Boolean isPinned = false;
@@ -48,6 +48,12 @@ public class Message {
     @JoinColumn(name = "file_id")
     @JsonIgnoreProperties({"group", "uploader", "extractedText", "contentEmbedding", "filePath", "hibernateLazyInitializer", "handler"})
     private FileUpload attachedFile;
+
+    // Reference to event (if messageType is "event")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id")
+    @JsonIgnoreProperties({"group", "creator", "hibernateLazyInitializer", "handler"})
+    private Event event;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

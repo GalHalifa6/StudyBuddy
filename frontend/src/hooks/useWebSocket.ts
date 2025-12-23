@@ -93,12 +93,15 @@ export const useWebSocket = ({ groupId, onMessage }: UseWebSocketOptions) => {
   );
 
   useEffect(() => {
-    connect();
+    // Only connect if groupId is valid (greater than 0)
+    if (groupId > 0) {
+      connect();
+    }
 
     return () => {
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [connect, disconnect, groupId]);
 
   return {
     isConnected,
