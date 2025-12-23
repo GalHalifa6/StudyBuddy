@@ -790,7 +790,7 @@ const Admin: React.FC = () => {
           matchesStatus = !u.isDeleted && !u.bannedAt && (!u.suspendedUntil || new Date(u.suspendedUntil) <= now) && (u.isActive === true || u.isActive === undefined);
           break;
         case 'suspended':
-          matchesStatus = u.suspendedUntil && new Date(u.suspendedUntil) >= now;
+          matchesStatus = !!(u.suspendedUntil && new Date(u.suspendedUntil) >= now);
           break;
         case 'banned':
           matchesStatus = u.bannedAt !== null && u.bannedAt !== undefined;
@@ -1223,7 +1223,7 @@ const Admin: React.FC = () => {
                               <div className="flex items-center gap-2">
                                 {u.email}
                                 {u.isEmailVerified && (
-                                  <CheckCircle className="w-4 h-4 text-green-500" title="Verified" />
+                                  <CheckCircle className="w-4 h-4 text-green-500" aria-label="Verified" />
                                 )}
                               </div>
                             </td>
