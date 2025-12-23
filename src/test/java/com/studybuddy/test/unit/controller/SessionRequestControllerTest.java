@@ -134,10 +134,15 @@ class SessionRequestControllerTest {
         });
 
         // Act
-        java.util.List<java.util.Map<String, Object>> timeSlots = new ArrayList<>();
-        java.util.Map<String, Object> timeSlot = new java.util.HashMap<>();
-        timeSlot.put("start", java.time.LocalDateTime.now().plusDays(1).toString());
-        timeSlot.put("end", java.time.LocalDateTime.now().plusDays(1).plusHours(1).toString());
+        java.time.LocalDateTime startTime = java.time.LocalDateTime.now().plusDays(1);
+        java.time.LocalDateTime endTime = startTime.plusHours(1);
+        
+        com.studybuddy.dto.ExpertDto.TimeSlot timeSlot = com.studybuddy.dto.ExpertDto.TimeSlot.builder()
+            .start(startTime)
+            .end(endTime)
+            .build();
+        
+        java.util.List<com.studybuddy.dto.ExpertDto.TimeSlot> timeSlots = new ArrayList<>();
         timeSlots.add(timeSlot);
         
         com.studybuddy.dto.ExpertDto.SessionRequestCreate requestBody = com.studybuddy.dto.ExpertDto.SessionRequestCreate.builder()
