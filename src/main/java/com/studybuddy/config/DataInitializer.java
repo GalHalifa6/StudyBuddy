@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
+
 /**
  * Data Initializer - Seeds the database with demo data for MVP presentation
  * This runs automatically on application startup if the database is empty

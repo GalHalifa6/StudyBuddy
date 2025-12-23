@@ -31,6 +31,53 @@ export interface User {
   questionnaireResponses?: Record<string, string>;
   onboardingCompleted?: boolean;
   onboardingCompletedAt?: string;
+  // Admin management fields
+  lastLoginAt?: string;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  suspendedUntil?: string;
+  suspensionReason?: string;
+  bannedAt?: string;
+  banReason?: string;
+  isEmailVerified?: boolean;
+  coursesCount?: number;
+  groupsCount?: number;
+}
+
+// Admin action types
+export interface SuspendUserRequest {
+  days?: number; // null or 0 for indefinite
+  reason: string;
+}
+
+export interface BanUserRequest {
+  reason: string;
+}
+
+export interface UnbanUserRequest {
+  reason: string;
+}
+
+export interface UnsuspendUserRequest {
+  reason: string;
+}
+
+export interface RestoreUserRequest {
+  reason: string;
+}
+
+export interface DeleteUserRequest {
+  reason: string;
+}
+
+export interface UpdateRoleRequest {
+  role: UserRole;
+  reason?: string;
+}
+
+export interface UpdateStatusRequest {
+  active: boolean;
+  reason?: string;
 }
 
 // Auth types
@@ -73,6 +120,10 @@ export interface Course {
   semester?: string;
   createdAt: string;
   groupCount?: number;
+  memberCount?: number;
+  lastActivity?: string;
+  isArchived?: boolean;
+  archivedAt?: string;
   enrolled?: boolean;
 }
 

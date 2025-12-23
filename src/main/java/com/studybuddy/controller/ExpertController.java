@@ -5,7 +5,6 @@ import com.studybuddy.model.*;
 import com.studybuddy.repository.*;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -50,6 +49,32 @@ public class ExpertController {
 
     @Autowired
     private com.studybuddy.service.NotificationService notificationService;
+
+    /**
+     * Helper method to check if current expert is verified
+     * Throws exception if not verified (except for admins)
+     * This should be called at the start of expert-only endpoints
+     */
+    private void ensureExpertIsVerified() {
+        User currentUser = getCurrentUser();
+        
+        // Admins can always access
+        if (currentUser.getRole() == Role.ADMIN) {
+            return;
+        }
+        
+        // Check if expert has a profile
+        ExpertProfile profile = expertProfileRepository.findByUser(currentUser).orElse(null);
+        
+        if (profile == null) {
+            throw new RuntimeException("Expert profile not found. Please complete your profile first.");
+        }
+        
+        // Check if expert is verified
+        if (profile.getIsVerified() == null || !profile.getIsVerified()) {
+            throw new RuntimeException("Your expert account is pending verification. Please wait for admin approval before using expert features.");
+        }
+    }
 
     // ==================== Expert Profile Endpoints ====================
 
@@ -231,6 +256,11 @@ public class ExpertController {
             }
             
             profile.setIsActive(true);
+            // Ensure isVerified is explicitly set to false for new profiles (pending verification)
+            // Only set if this is a new profile (id is null) or if it's currently null/false
+            if (profile.getId() == null || profile.getIsVerified() == null || !profile.getIsVerified()) {
+                profile.setIsVerified(false);
+            }
             
             ExpertProfile savedProfile = expertProfileRepository.save(profile);
             return ResponseEntity.ok(toExpertProfileResponse(savedProfile));
@@ -246,6 +276,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> updateAvailability(@RequestBody ExpertDto.AvailabilityUpdateRequest request) {
         try {
+            ensureExpertIsVerified();
             User currentUser = getCurrentUser();
             ExpertProfile profile = expertProfileRepository.findByUser(currentUser)
                     .orElseThrow(() -> new RuntimeException("Expert profile not found"));
@@ -273,6 +304,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> getExpertDashboard() {
         try {
+            ensureExpertIsVerified();
             User currentUser = getCurrentUser();
             ExpertProfile profile = expertProfileRepository.findByUser(currentUser)
                     .orElseThrow(() -> new RuntimeException("Expert profile not found"));
@@ -318,6 +350,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> createSession(@Valid @RequestBody ExpertDto.SessionRequest request) {
         try {
+            ensureExpertIsVerified();
             User expert = getCurrentUser();
             
             // Check for scheduling conflicts
@@ -420,6 +453,7 @@ public class ExpertController {
     @GetMapping("/me/sessions")
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<List<ExpertDto.SessionResponse>> getExpertSessions() {
+        ensureExpertIsVerified();
         User expert = getCurrentUser();
         List<ExpertSession> sessions = sessionRepository.findByExpertIdOrderByScheduledStartTimeDesc(expert.getId());
         return ResponseEntity.ok(sessions.stream().map(this::toSessionResponse).collect(Collectors.toList()));
@@ -431,6 +465,7 @@ public class ExpertController {
     @GetMapping("/users/search")
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> searchUsers(@RequestParam String query) {
+        ensureExpertIsVerified();
         if (query == null || query.trim().length() < 2) {
             return ResponseEntity.ok(Collections.emptyList());
         }
@@ -475,6 +510,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> startSession(@PathVariable Long sessionId) {
         try {
+            ensureExpertIsVerified();
             User expert = getCurrentUser();
             ExpertSession session = sessionRepository.findById(sessionId)
                     .orElseThrow(() -> new RuntimeException("Session not found"));
@@ -511,6 +547,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> completeSession(@PathVariable Long sessionId, @RequestBody(required = false) Map<String, String> body) {
         try {
+            ensureExpertIsVerified();
             User expert = getCurrentUser();
             ExpertSession session = sessionRepository.findById(sessionId)
                     .orElseThrow(() -> new RuntimeException("Session not found"));
@@ -545,6 +582,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> cancelSession(@PathVariable Long sessionId, @RequestBody Map<String, String> body) {
         try {
+            ensureExpertIsVerified();
             User expert = getCurrentUser();
             ExpertSession session = sessionRepository.findById(sessionId)
                     .orElseThrow(() -> new RuntimeException("Session not found"));
@@ -570,6 +608,7 @@ public class ExpertController {
     @GetMapping("/me/questions")
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<List<ExpertDto.QuestionResponse>> getExpertQuestions() {
+        ensureExpertIsVerified();
         User expert = getCurrentUser();
         List<ExpertQuestion> questions = questionRepository.findByExpertIdOrderByCreatedAtDesc(expert.getId());
         return ResponseEntity.ok(questions.stream().map(this::toQuestionResponse).collect(Collectors.toList()));
@@ -581,6 +620,7 @@ public class ExpertController {
     @GetMapping("/me/questions/pending")
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<List<ExpertDto.QuestionResponse>> getPendingQuestions() {
+        ensureExpertIsVerified();
         User expert = getCurrentUser();
         List<ExpertQuestion> questions = questionRepository.findPendingQuestionsForExpert(expert.getId());
         return ResponseEntity.ok(questions.stream().map(this::toQuestionResponse).collect(Collectors.toList()));
@@ -593,6 +633,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> answerQuestion(@PathVariable Long questionId, @Valid @RequestBody ExpertDto.AnswerRequest request) {
         try {
+            ensureExpertIsVerified();
             User expert = getCurrentUser();
             ExpertQuestion question = questionRepository.findById(questionId)
                     .orElseThrow(() -> new RuntimeException("Question not found"));
@@ -640,6 +681,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> claimQuestion(@PathVariable Long questionId) {
         try {
+            ensureExpertIsVerified();
             User expert = getCurrentUser();
             ExpertQuestion question = questionRepository.findById(questionId)
                     .orElseThrow(() -> new RuntimeException("Question not found"));
@@ -676,6 +718,7 @@ public class ExpertController {
     @PreAuthorize("hasAuthority('ROLE_EXPERT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<?> respondToReview(@PathVariable Long reviewId, @RequestBody Map<String, String> body) {
         try {
+            ensureExpertIsVerified();
             User expert = getCurrentUser();
             ExpertReview review = reviewRepository.findById(reviewId)
                     .orElseThrow(() -> new RuntimeException("Review not found"));

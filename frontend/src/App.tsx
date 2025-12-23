@@ -15,6 +15,8 @@ import GroupDetail from './pages/GroupDetail';
 import Messages from './pages/Messages';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
+import AdminAuditLogs from './pages/AdminAuditLogs';
+import AdminExpertVerification from './pages/AdminExpertVerification';
 import ExpertDashboard from './pages/ExpertDashboard';
 import ExpertsBrowse from './pages/ExpertsBrowse';
 import SessionsBrowse from './pages/SessionsBrowse';
@@ -52,6 +54,8 @@ function App() {
               <Route path="/messages" element={<Messages />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/audit" element={<AdminAuditLogs />} />
+              <Route path="/admin/experts" element={<AdminExpertVerification />} />
               <Route path="/expert-dashboard" element={<ExpertDashboard />} />
               <Route path="/experts" element={<ExpertsBrowse />} />
               <Route path="/questions" element={<Questions />} />
