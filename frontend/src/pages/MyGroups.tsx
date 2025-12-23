@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { groupService, messageService, fileService, calendarService } from '../api';
-import { StudyGroup, Message, FileUpload, Event, EventType, CreateEventRequest } from '../types';
+import { StudyGroup, Message, FileUpload, Event, EventType, CreateEventRequest, User } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { Client, IMessage } from '@stomp/stompjs';
 // @ts-expect-error - SockJS types are not available
@@ -1429,16 +1429,19 @@ const MyGroups: React.FC = () => {
                       location: '',
                       meetingLink: '',
                     });
-                  } catch (error: any) {
+                  } catch (error: unknown) {
                     console.error('Error creating event:', error);
                     let errorMsg = 'Failed to create event';
-                    if (error?.response?.data) {
-                      if (typeof error.response.data === 'string') {
-                        errorMsg = error.response.data;
-                      } else if (error.response.data.message) {
-                        errorMsg = error.response.data.message;
-                      } else {
-                        errorMsg = JSON.stringify(error.response.data);
+                    if (error && typeof error === 'object' && 'response' in error) {
+                      const axiosError = error as { response?: { data?: unknown } };
+                      if (axiosError.response?.data) {
+                        if (typeof axiosError.response.data === 'string') {
+                          errorMsg = axiosError.response.data;
+                        } else if (typeof axiosError.response.data === 'object' && axiosError.response.data !== null && 'message' in axiosError.response.data) {
+                          errorMsg = String((axiosError.response.data as { message: unknown }).message);
+                        } else {
+                          errorMsg = JSON.stringify(axiosError.response.data);
+                        }
                       }
                     }
                     alert('Error creating event: ' + errorMsg);
