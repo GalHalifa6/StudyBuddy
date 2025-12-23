@@ -618,7 +618,12 @@ const ExpertsBrowse: React.FC = () => {
 
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as any)}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === 'all' || value === 'answered' || value === 'unanswered') {
+                  setFilterStatus(value);
+                }
+              }}
               className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white text-sm"
             >
               <option value="all">All Questions</option>
