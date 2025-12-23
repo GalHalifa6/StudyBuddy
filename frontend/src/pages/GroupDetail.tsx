@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { groupService } from '../api';
 import { StudyGroup, GroupMemberStatus } from '../types';
-import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft,
   Users,

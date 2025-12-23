@@ -211,10 +211,11 @@ const MyGroups: React.FC = () => {
         wsClientRef.current = null;
         setIsConnected(false);
       }
-      subscribedGroupsRef.current.clear();
-      subscriptionsRef.current.clear();
+      const subscribedGroups = subscribedGroupsRef.current;
+      const subscriptions = subscriptionsRef.current;
+      subscribedGroups.clear();
+      subscriptions.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
   // Subscribe to new groups as chats are loaded or updated

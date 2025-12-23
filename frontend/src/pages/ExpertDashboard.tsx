@@ -127,7 +127,6 @@ const ExpertDashboard: React.FC = () => {
     }, 30000);
     
     return () => clearInterval(refreshInterval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
   
   useEffect(() => {
@@ -1666,9 +1665,14 @@ const ExpertDashboard: React.FC = () => {
                     setApprovalAction(null);
                     setApprovalForm({});
                     await loadSessionRequests();
-                  } catch (error: any) {
+                  } catch (error: unknown) {
                     console.error('Failed to process request:', error);
-                    alert(error.response?.data?.message || 'Failed to process request. Please try again.');
+                    const errorMessage = error && typeof error === 'object' && 'response' in error
+                      ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+                      : error instanceof Error
+                      ? error.message
+                      : 'Failed to process request. Please try again.';
+                    alert(errorMessage || 'Failed to process request. Please try again.');
                   }
                 }}
                 className={`px-6 py-2 text-white rounded-xl transition-colors ${

@@ -30,12 +30,10 @@ import {
   ChevronUp,
   ThumbsUp,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 
 type TabType = 'experts' | 'sessions' | 'questions';
 
 const ExpertsBrowse: React.FC = () => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('experts');
   const [loading, setLoading] = useState(true);
   
