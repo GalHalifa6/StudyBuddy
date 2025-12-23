@@ -8,7 +8,6 @@ import {
   Clock,
   GraduationCap,
   MessageSquare,
-  Plus,
   Shield,
   Sparkles,
   TrendingUp,
@@ -16,9 +15,9 @@ import {
   Video,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { dashboardService, groupService } from '../api';
+import { dashboardService, groupService, feedService } from '../api';
+import { FeedResponse } from '../api/feed';
 import {
-  CourseHighlight,
   DashboardOverview,
   MessageUnreadGroupSummary,
   MessageUnreadSummary,
@@ -30,20 +29,47 @@ const Dashboard: React.FC = () => {
   const { user, isAdmin, isExpert } = useAuth();
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [feedData, setFeedData] = useState<FeedResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [groupsData, overviewData] = await Promise.all([
+        console.log('Fetching dashboard data...');
+        
+        // Fetch independently so one failure doesn't block others
+        const [groupsResult, overviewResult, feedResult] = await Promise.allSettled([
           groupService.getMyGroups(),
           dashboardService.getOverview(),
+          feedService.getStudentFeed(),
         ]);
-
-        setMyGroups(groupsData);
-        setOverview(overviewData);
+        
+        if (groupsResult.status === 'fulfilled') {
+          console.log('My groups:', groupsResult.value);
+          setMyGroups(groupsResult.value);
+        } else {
+          console.error('Failed to load groups:', groupsResult.reason);
+        }
+        
+        if (overviewResult.status === 'fulfilled') {
+          console.log('Overview data:', overviewResult.value);
+          setOverview(overviewResult.value);
+        } else {
+          console.error('Failed to load overview:', overviewResult.reason);
+        }
+        
+        if (feedResult.status === 'fulfilled') {
+          console.log('Feed data:', feedResult.value);
+          setFeedData(feedResult.value);
+        } else {
+          console.error('Failed to load feed:', feedResult.reason);
+        }
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
+        if (error instanceof Error) {
+          console.error('Error message:', error.message);
+          console.error('Error stack:', error.stack);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -100,11 +126,10 @@ const Dashboard: React.FC = () => {
     total: 0,
     groups: [],
   } as MessageUnreadSummary);
-  const courseHighlights = overview?.courseHighlights ?? [];
   const focusMinutesThisWeek = overview?.metrics?.focusMinutesThisWeek ?? 0;
   const peersCollaborated = overview?.metrics?.studyPalsCount ?? 0;
 
-  const unreadByGroup = useMemo(() => {
+  const _unreadByGroup = useMemo(() => {
     const map = new Map<number, MessageUnreadGroupSummary>();
     unreadSummary.groups.forEach((group) => {
       map.set(group.groupId, group);
@@ -276,85 +301,148 @@ const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-md shadow-gray-200/60 dark:shadow-gray-950/40">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-indigo-100 dark:border-indigo-900/60 p-6 shadow-md shadow-indigo-100/40 dark:shadow-indigo-950/30">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">My Study Groups</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Stay on top of the conversations and plans happening with your peers.</p>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Your Feed</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Personalized updates and recommendations just for you.</p>
               </div>
-              <Link
-                to="/groups"
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-lg"
-              >
-                Manage groups
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+              <span className="inline-flex items-center gap-1 text-xs font-medium bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200 px-2.5 py-1 rounded-full">
+                <Sparkles className="h-3.5 w-3.5" />
+                AI Powered
+              </span>
             </div>
-
-            {myGroups.length === 0 ? (
+            
+            {!feedData || !feedData.feedItems || feedData.feedItems.length === 0 ? (
               <div className="bg-gray-50 dark:bg-gray-900/60 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl p-10 text-center">
                 <div className="mx-auto h-16 w-16 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-500 dark:text-indigo-200 rounded-full flex items-center justify-center mb-4">
-                  <Users className="h-8 w-8" />
+                  <Sparkles className="h-8 w-8" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No study groups yet</h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">
-                  Join or create a study group to collaborate with classmates, share resources, and keep discussions organized.
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nothing to show yet</h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  Complete your profile quiz and enroll in courses to get personalized recommendations.
                 </p>
-                <Link
-                  to="/groups"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition"
-                >
-                  Find a study group
-                  <Plus className="h-4 w-4" />
-                </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {myGroups.map((group) => {
-                  const unreadMeta = unreadByGroup.get(group.id);
-                  const unreadCount = unreadMeta?.unreadCount ?? 0;
-                  const memberCount = group.memberCount ?? group.members?.length ?? 0;
-                  const activityTimestamp = unreadMeta?.lastMessageAt ?? group.updatedAt ?? group.createdAt;
-
-                  return (
-                  <div
-                    key={group.id}
-                    className="border border-gray-200 dark:border-gray-800 rounded-xl p-5 bg-white dark:bg-gray-900/80 hover:border-indigo-200 dark:hover:border-indigo-900 transition"
-                  >
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{group.name}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{group.course?.code ?? 'Independent study'}</p>
+              <div className="space-y-4">
+                {feedData.feedItems.map((item, index) => {
+                  // QUIZ_REMINDER
+                  if (item.itemType === 'QUIZ_REMINDER') {
+                    return (
+                      <div key={`quiz-${index}`} className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl text-white p-5 shadow-md">
+                        <div className="flex items-start gap-3">
+                          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                            <Sparkles className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-base font-semibold mb-1">Complete Your Profile</h4>
+                            <p className="text-amber-50 text-sm mb-3">{item.quizMessage}</p>
+                            <Link
+                              to="/quiz-onboarding"
+                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-white text-amber-600 rounded-lg hover:bg-amber-50 transition text-sm font-medium"
+                            >
+                              Take the quiz
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {unreadCount > 0 && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-200 px-2.5 py-1 rounded-full">
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            {unreadCount}
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-1 text-xs font-medium bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200 px-2.5 py-1 rounded-full">
-                          <Users className="h-3.5 w-3.5" />
-                          {memberCount} members
-                        </span>
+                    );
+                  }
+                  
+                  // GROUP_ACTIVITY
+                  if (item.itemType === 'GROUP_ACTIVITY') {
+                    return (
+                      <div key={`activity-${index}`} className="border border-blue-200 dark:border-blue-900 rounded-xl p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/40 dark:to-cyan-950/40 hover:shadow-md transition">
+                        <div className="flex items-start gap-3">
+                          <div className="bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-200 p-2 rounded-lg">
+                            <MessageSquare className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.groupName}</h4>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">{item.activityMessage}</p>
+                            <Link
+                              to={`/groups/${item.groupId}`}
+                              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400"
+                            >
+                              View group
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">{group.description || 'No description provided yet.'}</p>
-                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        Active {activityTimestamp ? formatRelativeTime(activityTimestamp) : 'recently'}
-                      </span>
-                      <Link
-                        to={`/groups/${group.id}`}
-                        className="inline-flex items-center gap-1 font-medium text-indigo-600 dark:text-indigo-400"
-                      >
-                        Enter group
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    </div>
-                  </div>
-                  );
+                    );
+                  }
+                  
+                  // UPCOMING_SESSION
+                  if (item.itemType === 'UPCOMING_SESSION') {
+                    return (
+                      <div key={`session-${index}`} className="border border-emerald-200 dark:border-emerald-900 rounded-xl p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 hover:shadow-md transition">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3 flex-1">
+                            <div className="bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-200 p-2 rounded-lg">
+                              <Calendar className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.sessionTitle}</h4>
+                              <p className="text-xs text-emerald-600 dark:text-emerald-300">{item.courseName}</p>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                with {item.expertName} • {new Date(item.scheduledAt!).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-600 text-white px-2 py-1 rounded-full">
+                              <Users className="h-3 w-3" />
+                              {item.availableSpots}
+                            </span>
+                            <Link
+                              to={`/sessions/${item.sessionId}`}
+                              className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400"
+                            >
+                              Join
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // GROUP_MATCH
+                  if (item.itemType === 'GROUP_MATCH') {
+                    return (
+                      <div key={`match-${index}`} className="border border-indigo-200 dark:border-indigo-900 rounded-xl p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/40 dark:to-purple-950/40 hover:shadow-md transition">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.groupName}</h4>
+                              <span className="inline-flex items-center gap-1 text-xs font-bold bg-indigo-600 text-white px-2 py-1 rounded-full">
+                                {item.matchPercentage}% match
+                              </span>
+                            </div>
+                            <p className="text-xs text-indigo-600 dark:text-indigo-300 mb-2">{item.courseName}</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">{item.matchReason}</p>
+                            <div className="flex items-center justify-between">
+                              <span className="inline-flex items-center gap-1 text-xs font-medium bg-white/60 dark:bg-gray-900/60 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full">
+                                <Users className="h-3 w-3" />
+                                {item.currentSize}/{item.maxSize}
+                              </span>
+                              <Link
+                                to={`/groups/${item.groupId}`}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 dark:text-indigo-400"
+                              >
+                                View group
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return null;
                 })}
               </div>
             )}
@@ -516,92 +604,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-md shadow-gray-200/60 dark:shadow-gray-950/40">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Your course highlights</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Personalized recommendations and activity signals drawn from your enrolled courses.</p>
-          </div>
-          <Link
-            to="/courses"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition"
-          >
-            Explore catalog
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
 
-        {courseHighlights.length === 0 ? (
-          <div className="bg-gray-50 dark:bg-gray-900/60 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl p-10 text-center">
-            <div className="mx-auto h-16 w-16 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-500 dark:text-indigo-200 rounded-full flex items-center justify-center mb-4">
-              <BookOpen className="h-8 w-8" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No course insights yet</h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              Enroll in a course to unlock curated study groups, upcoming sessions, and popular discussion threads.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {courseHighlights.map((highlight: CourseHighlight) => (
-              <div
-                key={highlight.courseId}
-                className="border border-gray-200 dark:border-gray-800 rounded-xl p-5 bg-white dark:bg-gray-900/80 hover:border-indigo-200 dark:hover:border-indigo-900 transition"
-              >
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div>
-                    <p className="text-sm uppercase tracking-wide text-indigo-500 font-medium">{highlight.code}</p>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{highlight.name}</h3>
-                  </div>
-                  <span className="inline-flex items-center gap-1 text-xs font-medium bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200 px-2.5 py-1 rounded-full">
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    {highlight.questionCount} Q&A
-                  </span>
-                </div>
-
-                <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-indigo-500" />
-                    {highlight.groupCount} study groups · {highlight.openGroupCount} open to join
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-indigo-500" />
-                    {highlight.upcomingSession
-                      ? `Next session ${formatDateRange(highlight.upcomingSession)}`
-                      : 'No upcoming sessions scheduled'}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-indigo-500" />
-                    {highlight.questionCount} public questions
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4 text-indigo-500" />
-                    {highlight.expertCount} experts specializing in this course
-                  </div>
-                </div>
-
-                {highlight.recentQuestion && (
-                  <div className="bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-xl p-3 mb-4">
-                    <p className="text-xs uppercase font-medium text-indigo-500 mb-1">Community question highlight</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{highlight.recentQuestion.title}</p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-sm">
-                  <Link
-                    to={`/courses/${highlight.courseId}`}
-                    className="inline-flex items-center gap-2 font-medium text-indigo-600 dark:text-indigo-400"
-                  >
-                    View course extras
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Enrolled course</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 };

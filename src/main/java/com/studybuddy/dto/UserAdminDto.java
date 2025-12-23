@@ -25,6 +25,16 @@ public class UserAdminDto {
     private LocalDateTime updatedAt;
     private int coursesCount;
     private int groupsCount;
+    
+    // New admin management fields
+    private LocalDateTime lastLoginAt;
+    private Boolean isDeleted;
+    private LocalDateTime deletedAt;
+    private LocalDateTime suspendedUntil;
+    private String suspensionReason;
+    private LocalDateTime bannedAt;
+    private String banReason;
+    private Boolean isEmailVerified;
 
     public static UserAdminDto fromUser(User user) {
         UserAdminDto dto = new UserAdminDto();
@@ -38,6 +48,14 @@ public class UserAdminDto {
         dto.setUpdatedAt(user.getUpdatedAt());
         dto.setCoursesCount(user.getCourses() != null ? user.getCourses().size() : 0);
         dto.setGroupsCount(user.getGroups() != null ? user.getGroups().size() : 0);
+        dto.setLastLoginAt(user.getLastLoginAt());
+        dto.setIsDeleted(user.getIsDeleted());
+        dto.setDeletedAt(user.getDeletedAt());
+        dto.setSuspendedUntil(user.getSuspendedUntil());
+        dto.setSuspensionReason(user.getSuspensionReason());
+        dto.setBannedAt(user.getBannedAt());
+        dto.setBanReason(user.getBanReason());
+        dto.setIsEmailVerified(user.getIsEmailVerified());
         return dto;
     }
 }

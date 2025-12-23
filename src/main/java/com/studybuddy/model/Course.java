@@ -46,6 +46,11 @@ public class Course {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(nullable = false)
+    private Boolean isArchived = false;
+
+    private LocalDateTime archivedAt;
+
     // Relationships
     @ManyToMany(mappedBy = "courses")
     private Set<User> students = new HashSet<>();

@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+
 
 /**
  * Data Initializer - Seeds the database with demo data for MVP presentation
@@ -34,6 +36,8 @@ public class DataInitializer implements CommandLineRunner {
     private final SessionParticipantRepository sessionParticipantRepository;
     private final MessageRepository messageRepository;
     private final AllowedEmailDomainRepository allowedEmailDomainRepository;
+    private final QuizQuestionRepository quizQuestionRepository;
+    private final CharacteristicProfileRepository characteristicProfileRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -53,7 +57,7 @@ public class DataInitializer implements CommandLineRunner {
             return;
         }
 
-        log.info("🚀 Initializing demo data for StudyBuddy MVP...");
+        log.info("🚀 Initializing demo data for StudyBuddy MVP with Matching System...");
 
         // Create Users
         User admin = createAdmin();
@@ -63,11 +67,31 @@ public class DataInitializer implements CommandLineRunner {
         User student2 = createStudent2();
         User student3 = createStudent3();
 
-        // Create Courses
+        // ==================== MATCHING SYSTEM ====================
+        
+        // Step 1: Create 4 Courses
+        log.info("Creating courses...");
+        Course cs101 = createCourse("CS101", "Computer Science 101", "Introduction to programming and algorithms", "Computer Science", "Fall 2024");
+        Course linearAlgebra = createCourse("MATH201", "Linear Algebra", "Vectors, matrices, and linear transformations", "Mathematics", "Fall 2024");
+        Course psychology = createCourse("PSY101", "Introduction to Psychology", "Fundamentals of human behavior and cognition", "Psychology", "Fall 2024");
+        Course economics = createCourse("ECON101", "Macroeconomics", "Economic principles at the macro level", "Economics", "Fall 2024");
+        
+        // Step 2: Create 20 Quiz Questions
+        log.info("Creating quiz questions...");
+        createQuizQuestions();
+        
+        // Step 3: Create 50 Students with profiles
+        log.info("Creating 50 students with characteristic profiles...");
+        List<User> allStudents = createStudentsWithProfiles(cs101, linearAlgebra, psychology, economics);
+        
+        // Step 4: Create 10 Study Groups with intentional deficits
+        log.info("Creating study groups with role deficits...");
+        createStudyGroupsWithDeficits(allStudents, cs101, linearAlgebra, psychology, economics);
+        
+        // Old demo data for backward compatibility
         Course calculus = createCourse("MATH101", "Calculus I", "Introduction to differential and integral calculus", "Mathematics", "Fall 2024");
         Course dataStructures = createCourse("CS201", "Data Structures", "Fundamental data structures and algorithms", "Computer Science", "Fall 2024");
         Course physics = createCourse("PHYS101", "Physics I", "Mechanics, thermodynamics, and waves", "Physics", "Fall 2024");
-        Course linearAlgebra = createCourse("MATH201", "Linear Algebra", "Vectors, matrices, and linear transformations", "Mathematics", "Fall 2024");
         Course webDev = createCourse("CS301", "Web Development", "Full-stack web development with modern frameworks", "Computer Science", "Fall 2024");
 
         // Enroll students in courses
@@ -553,4 +577,462 @@ public class DataInitializer implements CommandLineRunner {
 
         return savedSession;
     }
+    
+    // ==================== MATCHING SYSTEM HELPERS ====================
+    
+    /**
+     * Create 20 quiz questions with 4 options each.
+     * Each option impacts at least 2 roles.
+     */
+    private void createQuizQuestions() {
+        createQuestion(1, "When working on a group project, I prefer to:",
+            "Take charge and delegate tasks to everyone", Map.of(RoleType.LEADER, 1.0, RoleType.PLANNER, 0.3),
+            "Create a detailed timeline and track progress", Map.of(RoleType.PLANNER, 1.0, RoleType.TEAM_PLAYER, 0.4),
+            "Focus on mastering the technical details", Map.of(RoleType.EXPERT, 1.0, RoleType.CHALLENGER, 0.3),
+            "Brainstorm creative solutions", Map.of(RoleType.CREATIVE, 1.0, RoleType.COMMUNICATOR, 0.3)
+        );
+        
+        createQuestion(2, "During team discussions, I usually:",
+            "Question assumptions and push for better solutions", Map.of(RoleType.CHALLENGER, 1.0, RoleType.LEADER, 0.4),
+            "Make sure everyone's voice is heard", Map.of(RoleType.COMMUNICATOR, 1.0, RoleType.TEAM_PLAYER, 0.6),
+            "Provide expert analysis and data", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.3),
+            "Suggest innovative approaches", Map.of(RoleType.CREATIVE, 1.0, RoleType.COMMUNICATOR, 0.4)
+        );
+        
+        createQuestion(3, "My strength in a team is:",
+            "Keeping everyone organized and on schedule", Map.of(RoleType.PLANNER, 1.0, RoleType.LEADER, 0.3),
+            "Supporting teammates and maintaining morale", Map.of(RoleType.TEAM_PLAYER, 1.0, RoleType.COMMUNICATOR, 0.5),
+            "Deep knowledge in the subject matter", Map.of(RoleType.EXPERT, 1.0, RoleType.CHALLENGER, 0.2),
+            "Finding unique perspectives", Map.of(RoleType.CREATIVE, 1.0, RoleType.CHALLENGER, 0.4)
+        );
+        
+        createQuestion(4, "When facing a problem, I:",
+            "Rally the team and create an action plan", Map.of(RoleType.LEADER, 1.0, RoleType.PLANNER, 0.5),
+            "Research thoroughly before deciding", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.4),
+            "Challenge conventional thinking", Map.of(RoleType.CHALLENGER, 1.0, RoleType.CREATIVE, 0.5),
+            "Facilitate brainstorming sessions", Map.of(RoleType.COMMUNICATOR, 1.0, RoleType.CREATIVE, 0.4)
+        );
+        
+        createQuestion(5, "People usually describe me as:",
+            "A natural leader who takes initiative", Map.of(RoleType.LEADER, 1.0, RoleType.CHALLENGER, 0.3),
+            "Organized and dependable", Map.of(RoleType.PLANNER, 1.0, RoleType.TEAM_PLAYER, 0.5),
+            "Knowledgeable and analytical", Map.of(RoleType.EXPERT, 1.0, RoleType.CHALLENGER, 0.3),
+            "Imaginative and original", Map.of(RoleType.CREATIVE, 1.0, RoleType.COMMUNICATOR, 0.3)
+        );
+        
+        createQuestion(6, "In group conflicts, I tend to:",
+            "Take control and mediate decisively", Map.of(RoleType.LEADER, 1.0, RoleType.COMMUNICATOR, 0.4),
+            "Listen to all sides and find compromise", Map.of(RoleType.TEAM_PLAYER, 1.0, RoleType.COMMUNICATOR, 0.6),
+            "Analyze the root cause logically", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.3),
+            "Challenge everyone to think differently", Map.of(RoleType.CHALLENGER, 1.0, RoleType.LEADER, 0.3)
+        );
+        
+        createQuestion(7, "I enjoy tasks that require:",
+            "Strategic planning and coordination", Map.of(RoleType.PLANNER, 1.0, RoleType.LEADER, 0.4),
+            "Deep research and analysis", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.3),
+            "Creative problem-solving", Map.of(RoleType.CREATIVE, 1.0, RoleType.CHALLENGER, 0.4),
+            "Team collaboration and communication", Map.of(RoleType.COMMUNICATOR, 1.0, RoleType.TEAM_PLAYER, 0.5)
+        );
+        
+        createQuestion(8, "My ideal role in a team project:",
+            "Project manager overseeing everything", Map.of(RoleType.LEADER, 1.0, RoleType.PLANNER, 0.6),
+            "Subject matter expert providing guidance", Map.of(RoleType.EXPERT, 1.0, RoleType.COMMUNICATOR, 0.3),
+            "Creative director exploring new ideas", Map.of(RoleType.CREATIVE, 1.0, RoleType.LEADER, 0.3),
+            "Team coordinator ensuring everyone contributes", Map.of(RoleType.TEAM_PLAYER, 1.0, RoleType.COMMUNICATOR, 0.5)
+        );
+        
+        createQuestion(9, "When deadlines approach, I:",
+            "Create a clear plan and prioritize tasks", Map.of(RoleType.PLANNER, 1.0, RoleType.LEADER, 0.5),
+            "Stay calm and support stressed teammates", Map.of(RoleType.TEAM_PLAYER, 1.0, RoleType.COMMUNICATOR, 0.4),
+            "Focus intensely on the technical work", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.3),
+            "Find innovative shortcuts", Map.of(RoleType.CREATIVE, 1.0, RoleType.CHALLENGER, 0.4)
+        );
+        
+        createQuestion(10, "I contribute most by:",
+            "Setting direction and making final decisions", Map.of(RoleType.LEADER, 1.0, RoleType.CHALLENGER, 0.3),
+            "Organizing workflows and tracking progress", Map.of(RoleType.PLANNER, 1.0, RoleType.TEAM_PLAYER, 0.4),
+            "Providing expert insights and validation", Map.of(RoleType.EXPERT, 1.0, RoleType.CHALLENGER, 0.3),
+            "Generating fresh ideas and perspectives", Map.of(RoleType.CREATIVE, 1.0, RoleType.COMMUNICATOR, 0.4)
+        );
+        
+        createQuestion(11, "I prefer meetings that:",
+            "Have clear agenda and outcomes", Map.of(RoleType.PLANNER, 1.0, RoleType.LEADER, 0.4),
+            "Allow open discussion and brainstorming", Map.of(RoleType.CREATIVE, 1.0, RoleType.COMMUNICATOR, 0.5),
+            "Focus on data and evidence", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.3),
+            "Challenge status quo thinking", Map.of(RoleType.CHALLENGER, 1.0, RoleType.LEADER, 0.3)
+        );
+        
+        createQuestion(12, "My communication style is:",
+            "Direct and action-oriented", Map.of(RoleType.LEADER, 1.0, RoleType.CHALLENGER, 0.4),
+            "Diplomatic and inclusive", Map.of(RoleType.COMMUNICATOR, 1.0, RoleType.TEAM_PLAYER, 0.6),
+            "Precise and fact-based", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.3),
+            "Enthusiastic and idea-driven", Map.of(RoleType.CREATIVE, 1.0, RoleType.COMMUNICATOR, 0.4)
+        );
+        
+        createQuestion(13, "I handle stress by:",
+            "Taking charge and solving problems", Map.of(RoleType.LEADER, 1.0, RoleType.PLANNER, 0.3),
+            "Creating structured plans", Map.of(RoleType.PLANNER, 1.0, RoleType.TEAM_PLAYER, 0.3),
+            "Analyzing and understanding the situation", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.4),
+            "Thinking creatively about solutions", Map.of(RoleType.CREATIVE, 1.0, RoleType.CHALLENGER, 0.3)
+        );
+        
+        createQuestion(14, "In brainstorming sessions, I:",
+            "Guide the discussion towards practical outcomes", Map.of(RoleType.LEADER, 1.0, RoleType.PLANNER, 0.4),
+            "Encourage everyone to contribute", Map.of(RoleType.COMMUNICATOR, 1.0, RoleType.TEAM_PLAYER, 0.6),
+            "Evaluate ideas critically", Map.of(RoleType.EXPERT, 1.0, RoleType.CHALLENGER, 0.5),
+            "Generate unconventional ideas", Map.of(RoleType.CREATIVE, 1.0, RoleType.CHALLENGER, 0.5)
+        );
+        
+        createQuestion(15, "My decision-making style:",
+            "Quick and decisive", Map.of(RoleType.LEADER, 1.0, RoleType.CHALLENGER, 0.3),
+            "Careful and methodical", Map.of(RoleType.PLANNER, 1.0, RoleType.EXPERT, 0.4),
+            "Based on thorough analysis", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.5),
+            "Intuitive and innovative", Map.of(RoleType.CREATIVE, 1.0, RoleType.LEADER, 0.3)
+        );
+        
+        createQuestion(16, "I motivate others by:",
+            "Setting clear goals and expectations", Map.of(RoleType.LEADER, 1.0, RoleType.PLANNER, 0.4),
+            "Providing support and encouragement", Map.of(RoleType.TEAM_PLAYER, 1.0, RoleType.COMMUNICATOR, 0.6),
+            "Sharing knowledge and expertise", Map.of(RoleType.EXPERT, 1.0, RoleType.COMMUNICATOR, 0.4),
+            "Inspiring with new possibilities", Map.of(RoleType.CREATIVE, 1.0, RoleType.LEADER, 0.3)
+        );
+        
+        createQuestion(17, "When learning new material, I:",
+            "Organize it into structured frameworks", Map.of(RoleType.PLANNER, 1.0, RoleType.EXPERT, 0.4),
+            "Dive deep into understanding", Map.of(RoleType.EXPERT, 1.0, RoleType.CHALLENGER, 0.3),
+            "Connect it to creative applications", Map.of(RoleType.CREATIVE, 1.0, RoleType.EXPERT, 0.3),
+            "Discuss it with others", Map.of(RoleType.COMMUNICATOR, 1.0, RoleType.TEAM_PLAYER, 0.5)
+        );
+        
+        createQuestion(18, "In debates, I usually:",
+            "Take a strong position and defend it", Map.of(RoleType.CHALLENGER, 1.0, RoleType.LEADER, 0.5),
+            "Mediate different viewpoints", Map.of(RoleType.COMMUNICATOR, 1.0, RoleType.TEAM_PLAYER, 0.5),
+            "Present evidence and logic", Map.of(RoleType.EXPERT, 1.0, RoleType.CHALLENGER, 0.4),
+            "Propose alternative frameworks", Map.of(RoleType.CREATIVE, 1.0, RoleType.CHALLENGER, 0.5)
+        );
+        
+        createQuestion(19, "I feel accomplished when:",
+            "I've led the team to success", Map.of(RoleType.LEADER, 1.0, RoleType.PLANNER, 0.3),
+            "Everyone worked well together", Map.of(RoleType.TEAM_PLAYER, 1.0, RoleType.COMMUNICATOR, 0.5),
+            "I solved a complex problem", Map.of(RoleType.EXPERT, 1.0, RoleType.CHALLENGER, 0.3),
+            "I created something original", Map.of(RoleType.CREATIVE, 1.0, RoleType.LEADER, 0.3)
+        );
+        
+        createQuestion(20, "My approach to group work is:",
+            "Take ownership and drive results", Map.of(RoleType.LEADER, 1.0, RoleType.PLANNER, 0.4),
+            "Collaborate and build consensus", Map.of(RoleType.TEAM_PLAYER, 1.0, RoleType.COMMUNICATOR, 0.6),
+            "Master the material thoroughly", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.3),
+            "Explore innovative methods", Map.of(RoleType.CREATIVE, 1.0, RoleType.CHALLENGER, 0.4)
+        );
+        
+        log.info("Created 20 quiz questions with {} options each", 4);
+    }
+    
+    private void createQuestion(int order, String questionText, 
+            String opt1Text, Map<RoleType, Double> opt1Weights,
+            String opt2Text, Map<RoleType, Double> opt2Weights,
+            String opt3Text, Map<RoleType, Double> opt3Weights,
+            String opt4Text, Map<RoleType, Double> opt4Weights) {
+        
+        QuizQuestion question = QuizQuestion.builder()
+                .questionText(questionText)
+                .orderIndex(order)
+                .active(true)
+                .options(new ArrayList<>())
+                .build();
+        
+        QuizOption opt1 = QuizOption.builder()
+                .optionText(opt1Text)
+                .orderIndex(1)
+                .roleWeights(new java.util.HashMap<>(opt1Weights))
+                .build();
+        
+        QuizOption opt2 = QuizOption.builder()
+                .optionText(opt2Text)
+                .orderIndex(2)
+                .roleWeights(new java.util.HashMap<>(opt2Weights))
+                .build();
+        
+        QuizOption opt3 = QuizOption.builder()
+                .optionText(opt3Text)
+                .orderIndex(3)
+                .roleWeights(new java.util.HashMap<>(opt3Weights))
+                .build();
+        
+        QuizOption opt4 = QuizOption.builder()
+                .optionText(opt4Text)
+                .orderIndex(4)
+                .roleWeights(new java.util.HashMap<>(opt4Weights))
+                .build();
+        
+        question.addOption(opt1);
+        question.addOption(opt2);
+        question.addOption(opt3);
+        question.addOption(opt4);
+        
+        quizQuestionRepository.save(question);
+    }
+    
+    /**
+     * Create 50 students with characteristic profiles.
+     */
+    private List<User> createStudentsWithProfiles(Course cs101, Course linearAlgebra, Course psychology, Course economics) {
+        List<User> students = new ArrayList<>();
+        List<Course> allCourses = List.of(cs101, linearAlgebra, psychology, economics);
+        
+        // 10 Leaders
+        students.add(createStudentWithProfile("leo_leader", "Leo Leader", 
+                1.0, 0.6, 0.3, 0.3, 0.5, 0.4, 0.5, allCourses));
+        students.add(createStudentWithProfile("captain_kirk", "Captain Kirk", 
+                1.0, 0.5, 0.3, 0.3, 0.6, 0.4, 0.4, allCourses));
+        students.add(createStudentWithProfile("boss_betty", "Boss Betty", 
+                1.0, 0.7, 0.3, 0.3, 0.5, 0.4, 0.5, allCourses));
+        students.add(createStudentWithProfile("chief_charlie", "Chief Charlie", 
+                1.0, 0.6, 0.3, 0.3, 0.4, 0.5, 0.6, allCourses));
+        students.add(createStudentWithProfile("director_dan", "Director Dan", 
+                1.0, 0.6, 0.4, 0.3, 0.5, 0.4, 0.4, allCourses));
+        students.add(createStudentWithProfile("major_mary", "Major Mary", 
+                1.0, 0.5, 0.3, 0.3, 0.6, 0.5, 0.5, allCourses));
+        students.add(createStudentWithProfile("commander_chris", "Commander Chris", 
+                1.0, 0.6, 0.3, 0.3, 0.5, 0.4, 0.4, allCourses));
+        students.add(createStudentWithProfile("president_paul", "President Paul", 
+                1.0, 0.7, 0.3, 0.3, 0.6, 0.4, 0.5, allCourses));
+        students.add(createStudentWithProfile("general_grace", "General Grace", 
+                1.0, 0.6, 0.3, 0.3, 0.5, 0.5, 0.6, allCourses));
+        students.add(createStudentWithProfile("alpha_alex", "Alpha Alex", 
+                1.0, 0.5, 0.3, 0.3, 0.6, 0.4, 0.5, allCourses));
+        
+        // 5 Planners
+        students.add(createStudentWithProfile("penny_planner", "Penny Planner", 
+                0.4, 1.0, 0.3, 0.3, 0.5, 0.6, 0.3, allCourses));
+        students.add(createStudentWithProfile("orson_organizer", "Orson Organizer", 
+                0.3, 1.0, 0.3, 0.3, 0.4, 0.6, 0.3, allCourses));
+        students.add(createStudentWithProfile("scheduler_sam", "Scheduler Sam", 
+                0.4, 1.0, 0.3, 0.3, 0.5, 0.7, 0.3, allCourses));
+        students.add(createStudentWithProfile("coordinator_chloe", "Coordinator Chloe", 
+                0.3, 1.0, 0.3, 0.3, 0.6, 0.6, 0.3, allCourses));
+        students.add(createStudentWithProfile("taskmaster_tom", "Taskmaster Tom", 
+                0.5, 1.0, 0.3, 0.3, 0.4, 0.6, 0.3, allCourses));
+        
+        // 5 Experts
+        students.add(createStudentWithProfile("sheldon_cooper", "Sheldon Cooper", 
+                0.3, 0.4, 1.0, 0.3, 0.4, 0.3, 0.5, allCourses));
+        students.add(createStudentWithProfile("professor_x", "Professor X", 
+                0.3, 0.4, 1.0, 0.3, 0.5, 0.4, 0.4, allCourses));
+        students.add(createStudentWithProfile("genius_gina", "Genius Gina", 
+                0.3, 0.4, 1.0, 0.3, 0.4, 0.3, 0.4, allCourses));
+        students.add(createStudentWithProfile("scholar_steve", "Scholar Steve", 
+                0.3, 0.5, 1.0, 0.3, 0.5, 0.4, 0.3, allCourses));
+        students.add(createStudentWithProfile("brainiac_bob", "Brainiac Bob", 
+                0.3, 0.4, 1.0, 0.3, 0.4, 0.3, 0.5, allCourses));
+        
+        // 5 Creatives
+        students.add(createStudentWithProfile("davinci", "Davinci", 
+                0.3, 0.3, 0.3, 1.0, 0.5, 0.4, 0.5, allCourses));
+        students.add(createStudentWithProfile("picasso", "Picasso", 
+                0.3, 0.3, 0.3, 1.0, 0.5, 0.4, 0.6, allCourses));
+        students.add(createStudentWithProfile("creative_cara", "Creative Cara", 
+                0.3, 0.3, 0.3, 1.0, 0.6, 0.5, 0.4, allCourses));
+        students.add(createStudentWithProfile("innovator_ivan", "Innovator Ivan", 
+                0.4, 0.3, 0.3, 1.0, 0.5, 0.4, 0.5, allCourses));
+        students.add(createStudentWithProfile("visionary_vera", "Visionary Vera", 
+                0.3, 0.3, 0.3, 1.0, 0.5, 0.4, 0.6, allCourses));
+        
+        // 5 Communicators
+        students.add(createStudentWithProfile("chatty_cathy", "Chatty Cathy", 
+                0.3, 0.4, 0.3, 0.4, 1.0, 0.7, 0.3, allCourses));
+        students.add(createStudentWithProfile("speaker_sarah", "Speaker Sarah", 
+                0.4, 0.4, 0.3, 0.3, 1.0, 0.7, 0.3, allCourses));
+        students.add(createStudentWithProfile("mediator_mike", "Mediator Mike", 
+                0.3, 0.4, 0.3, 0.3, 1.0, 0.8, 0.3, allCourses));
+        students.add(createStudentWithProfile("diplomat_diana", "Diplomat Diana", 
+                0.3, 0.4, 0.3, 0.3, 1.0, 0.7, 0.3, allCourses));
+        students.add(createStudentWithProfile("peaceful_pete", "Peaceful Pete", 
+                0.3, 0.4, 0.3, 0.3, 1.0, 0.8, 0.2, allCourses));
+        
+        // 5 Challengers
+        students.add(createStudentWithProfile("debate_debbie", "Debate Debbie", 
+                0.4, 0.3, 0.4, 0.4, 0.4, 0.3, 1.0, allCourses));
+        students.add(createStudentWithProfile("devils_advocate", "Devil's Advocate", 
+                0.4, 0.3, 0.3, 0.4, 0.4, 0.3, 1.0, allCourses));
+        students.add(createStudentWithProfile("rebel_rachel", "Rebel Rachel", 
+                0.5, 0.3, 0.3, 0.5, 0.4, 0.3, 1.0, allCourses));
+        students.add(createStudentWithProfile("contrarian_carl", "Contrarian Carl", 
+                0.4, 0.3, 0.4, 0.4, 0.3, 0.3, 1.0, allCourses));
+        students.add(createStudentWithProfile("questioner_quinn", "Questioner Quinn", 
+                0.3, 0.3, 0.5, 0.4, 0.4, 0.3, 1.0, allCourses));
+        
+        // 15 Balanced/Mixed students
+        students.add(createStudentWithProfile("average_joe", "Average Joe", 
+                0.5, 0.5, 0.5, 0.5, 0.5, 0.6, 0.5, allCourses));
+        students.add(createStudentWithProfile("general_kenobi", "General Kenobi", 
+                0.6, 0.5, 0.5, 0.4, 0.6, 0.5, 0.5, allCourses));
+        students.add(createStudentWithProfile("balanced_betty", "Balanced Betty", 
+                0.5, 0.6, 0.5, 0.5, 0.6, 0.6, 0.4, allCourses));
+        students.add(createStudentWithProfile("moderate_mike", "Moderate Mike", 
+                0.5, 0.5, 0.6, 0.5, 0.5, 0.6, 0.5, allCourses));
+        students.add(createStudentWithProfile("versatile_vicky", "Versatile Vicky", 
+                0.6, 0.5, 0.5, 0.5, 0.6, 0.6, 0.5, allCourses));
+        students.add(createStudentWithProfile("flexible_frank", "Flexible Frank", 
+                0.5, 0.6, 0.5, 0.5, 0.5, 0.7, 0.4, allCourses));
+        students.add(createStudentWithProfile("neutral_nancy", "Neutral Nancy", 
+                0.5, 0.5, 0.5, 0.5, 0.6, 0.6, 0.5, allCourses));
+        students.add(createStudentWithProfile("standard_stan", "Standard Stan", 
+                0.5, 0.6, 0.6, 0.5, 0.5, 0.6, 0.4, allCourses));
+        students.add(createStudentWithProfile("regular_rita", "Regular Rita", 
+                0.5, 0.5, 0.5, 0.6, 0.6, 0.6, 0.5, allCourses));
+        students.add(createStudentWithProfile("typical_tim", "Typical Tim", 
+                0.6, 0.5, 0.5, 0.5, 0.5, 0.6, 0.5, allCourses));
+        students.add(createStudentWithProfile("common_claire", "Common Claire", 
+                0.5, 0.6, 0.5, 0.5, 0.6, 0.6, 0.4, allCourses));
+        students.add(createStudentWithProfile("ordinary_oscar", "Ordinary Oscar", 
+                0.5, 0.5, 0.6, 0.5, 0.5, 0.6, 0.5, allCourses));
+        students.add(createStudentWithProfile("median_molly", "Median Molly", 
+                0.5, 0.5, 0.5, 0.6, 0.6, 0.7, 0.4, allCourses));
+        students.add(createStudentWithProfile("normal_ned", "Normal Ned", 
+                0.6, 0.5, 0.5, 0.5, 0.5, 0.6, 0.5, allCourses));
+        students.add(createStudentWithProfile("everyday_emma", "Everyday Emma", 
+                0.5, 0.6, 0.5, 0.5, 0.6, 0.7, 0.4, allCourses));
+        
+        log.info("Created {} students with characteristic profiles", students.size());
+        return students;
+    }
+    
+    private User createStudentWithProfile(String username, String fullName,
+            double leader, double planner, double expert, double creative,
+            double communicator, double teamPlayer, double challenger,
+            List<Course> allCourses) {
+        
+        // Create user
+        User student = new User();
+        student.setUsername(username);
+        student.setEmail(username + "@studybuddy.edu");
+        student.setPassword(passwordEncoder.encode("test123"));
+        student.setFullName(fullName);
+        student.setRole(Role.USER);
+        student.setIsActive(true);
+        student.setProficiencyLevel("intermediate");
+        student.setCollaborationStyle("balanced");
+        student.setTopicsOfInterest(new ArrayList<>(List.of("Technology", "Mathematics", "Psychology")));
+        student.setPreferredLanguages(new ArrayList<>(List.of("English")));
+        User savedStudent = userRepository.save(student);
+        
+        // Randomly enroll in 1-3 courses
+        java.util.Random random = new java.util.Random();
+        int numCourses = random.nextInt(3) + 1; // 1-3 courses
+        List<Course> shuffledCourses = new ArrayList<>(allCourses);
+        java.util.Collections.shuffle(shuffledCourses);
+        for (int i = 0; i < numCourses; i++) {
+            savedStudent.getCourses().add(shuffledCourses.get(i));
+        }
+        savedStudent = userRepository.save(savedStudent);
+        
+        // Create characteristic profile
+        CharacteristicProfile profile = CharacteristicProfile.builder()
+                .user(savedStudent)
+                .roleScores(new java.util.HashMap<>())
+                .quizStatus(com.studybuddy.model.QuizStatus.COMPLETED)
+                .totalQuestions(20)
+                .answeredQuestions(20)
+                .reliabilityPercentage(1.0)
+                .build();
+        
+        profile.setRoleScore(RoleType.LEADER, leader);
+        profile.setRoleScore(RoleType.PLANNER, planner);
+        profile.setRoleScore(RoleType.EXPERT, expert);
+        profile.setRoleScore(RoleType.CREATIVE, creative);
+        profile.setRoleScore(RoleType.COMMUNICATOR, communicator);
+        profile.setRoleScore(RoleType.TEAM_PLAYER, teamPlayer);
+        profile.setRoleScore(RoleType.CHALLENGER, challenger);
+        
+        characteristicProfileRepository.save(profile);
+        
+        return savedStudent;
+    }
+    
+    /**
+     * Create 10 study groups with intentional role deficits.
+     */
+    private void createStudyGroupsWithDeficits(List<User> allStudents, Course cs101, Course linearAlgebra, Course psychology, Course economics) {
+        // Group 1: "The Headless Horsemen" - Missing Leader (has planners, experts, no leader)
+        List<User> group1Members = getStudentsByNames(allStudents, List.of("penny_planner", "orson_organizer", "sheldon_cooper", "brainiac_bob"));
+        createGroupWithMembers("The Headless Horsemen", "We have great ideas but no direction.", cs101, group1Members);
+        
+        // Group 2: "Chaos Theory" - Missing Planner (has leaders, creatives, no planner)
+        List<User> group2Members = getStudentsByNames(allStudents, List.of("leo_leader", "captain_kirk", "davinci", "picasso"));
+        createGroupWithMembers("Chaos Theory", "We meet but never get anything done.", cs101, group2Members);
+        
+        // Group 3: "The Echo Chamber" - Missing Challenger (all agreeable, no challenger)
+        List<User> group3Members = getStudentsByNames(allStudents, List.of("chatty_cathy", "peaceful_pete", "balanced_betty", "common_claire"));
+        createGroupWithMembers("The Echo Chamber", "We all agree on everything.", linearAlgebra, group3Members);
+        
+        // Group 4: "Silent Study" - Missing Communicator (experts, no communicator)
+        List<User> group4Members = getStudentsByNames(allStudents, List.of("sheldon_cooper", "genius_gina", "scholar_steve", "average_joe"));
+        createGroupWithMembers("Silent Study", "Nobody talks.", linearAlgebra, group4Members);
+        
+        // Group 5: "All Chiefs No Indians" - Missing Team Player (all leaders, no team player)
+        List<User> group5Members = getStudentsByNames(allStudents, List.of("boss_betty", "chief_charlie", "director_dan", "major_mary"));
+        createGroupWithMembers("All Chiefs No Indians", "Too many leaders, no work done.", psychology, group5Members);
+        
+        // Group 6: "Dreamers United" - Missing Expert (creatives, no expert)
+        List<User> group6Members = getStudentsByNames(allStudents, List.of("davinci", "creative_cara", "innovator_ivan", "visionary_vera"));
+        createGroupWithMembers("Dreamers United", "Great ideas, no technical depth.", psychology, group6Members);
+        
+        // Group 7: "Yes Men" - Missing Challenger (all team players, no challenger)
+        List<User> group7Members = getStudentsByNames(allStudents, List.of("peaceful_pete", "mediator_mike", "diplomat_diana", "flexible_frank"));
+        createGroupWithMembers("Yes Men", "Everyone agrees, no critical thinking.", economics, group7Members);
+        
+        // Group 8: "The Thinkers" - Missing Creative (experts, planners, no creative)
+        List<User> group8Members = getStudentsByNames(allStudents, List.of("professor_x", "penny_planner", "scheduler_sam", "brainiac_bob"));
+        createGroupWithMembers("The Thinkers", "Logical but lacking innovation.", economics, group8Members);
+        
+        // Group 9: "The Talkers" - Balanced but small (needs more variety)
+        List<User> group9Members = getStudentsByNames(allStudents, List.of("speaker_sarah", "chatty_cathy", "general_kenobi"));
+        createGroupWithMembers("The Talkers", "Good communication, need more skills.", cs101, group9Members);
+        
+        // Group 10: "Mixed Bag" - Random composition (moderately balanced)
+        List<User> group10Members = getStudentsByNames(allStudents, List.of("moderate_mike", "versatile_vicky", "standard_stan", "typical_tim"));
+        createGroupWithMembers("Mixed Bag", "Decent balance, room for improvement.", linearAlgebra, group10Members);
+        
+        log.info("Created 10 study groups with intentional role deficits");
+    }
+    
+    private List<User> getStudentsByNames(List<User> allStudents, List<String> usernames) {
+        List<User> result = new ArrayList<>();
+        for (String username : usernames) {
+            allStudents.stream()
+                .filter(s -> s.getUsername().equals(username))
+                .findFirst()
+                .ifPresent(result::add);
+        }
+        return result;
+    }
+    
+    private void createGroupWithMembers(String name, String description, Course course, List<User> members) {
+        if (members.isEmpty()) {
+            log.warn("Cannot create group {} - no members provided", name);
+            return;
+        }
+        
+        User creator = members.get(0);
+        
+        // Ensure all members are enrolled in the course
+        for (User member : members) {
+            if (!member.getCourses().contains(course)) {
+                member.getCourses().add(course);
+                userRepository.save(member);
+            }
+        }
+        
+        // Use existing createStudyGroup and addMemberToGroup methods
+        StudyGroup group = createStudyGroup(name, description, "Group Study", course, creator, 8);
+        
+        // Add remaining members (skip first since creator is already added)
+        for (int i = 1; i < members.size(); i++) {
+            addMemberToGroup(group, members.get(i));
+        }
+        
+        log.info("Created group: {} with {} members", name, members.size());
+    }
 }
+

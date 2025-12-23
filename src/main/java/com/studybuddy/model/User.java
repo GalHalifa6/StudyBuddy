@@ -94,12 +94,51 @@ public class User {
     @Column(nullable = false)
     private Boolean isActive = true;
 
+    // Admin management fields
+    private LocalDateTime lastLoginAt;
+    
+    @Column(nullable = false)
+    private Boolean isDeleted = false;
+    
+    private LocalDateTime deletedAt;
+    
+    private LocalDateTime suspendedUntil;
+    
+    @Column(columnDefinition = "TEXT")
+    private String suspensionReason;
+    
+    private LocalDateTime bannedAt;
+    
+    @Column(columnDefinition = "TEXT")
+    private String banReason;
+    
+    @Column(nullable = false)
+    private Boolean isEmailVerified = false;
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @LastModifiedDate
     private LocalDateTime updatedAt;
+    
+    // Helper methods for account status
+    public boolean isSuspended() {
+        // Use !isBefore to make the check inclusive: suspended until exactly now is still suspended
+        return suspendedUntil != null && !suspendedUntil.isBefore(LocalDateTime.now());
+    }
+    
+    public boolean isBanned() {
+        return bannedAt != null;
+    }
+    
+    public boolean canLogin() {
+        // Use Boolean.TRUE.equals() to safely handle null values
+        // Default to false if null (safer for existing records)
+        boolean active = Boolean.TRUE.equals(isActive);
+        boolean notDeleted = !Boolean.TRUE.equals(isDeleted);
+        return active && notDeleted && !isBanned() && !isSuspended();
+    }
 
     // Relationships
     @ManyToMany

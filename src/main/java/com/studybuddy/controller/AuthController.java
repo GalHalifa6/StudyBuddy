@@ -24,6 +24,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -180,6 +181,28 @@ public class AuthController {
             AuthDto.UserInfo userInfo = new AuthDto.UserInfo(
                     user.getId(),
                     user.getUsername(),
+            // Check if user can login (not banned, suspended, deleted, or inactive)
+            if (!user.canLogin()) {
+                String errorMessage = "Account is not active";
+                if (user.isBanned()) {
+                    errorMessage = "Account has been banned";
+                } else if (user.isSuspended()) {
+                    errorMessage = "Account is suspended until " + user.getSuspendedUntil();
+                } else if (user.getIsDeleted()) {
+                    errorMessage = "Account has been deleted";
+                }
+                return ResponseEntity.status(403)
+                        .body(new AuthDto.MessageResponse("Login failed: " + errorMessage, false, List.of(errorMessage)));
+            }
+
+            // Update last login timestamp
+            user.setLastLoginAt(LocalDateTime.now());
+            userRepository.save(user);
+
+            return ResponseEntity.ok(new AuthDto.JwtResponse(
+                    jwt, 
+                    user.getId(), 
+                    user.getUsername(), 
                     user.getEmail(),
                     user.getRole().name(),
                     user.getFullName(),

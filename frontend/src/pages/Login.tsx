@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getOnboardingStatus } from '../api/quiz';
 import { BookOpen, Lock, User, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import { getOAuthAuthUrl } from '../config/api';
 
@@ -33,7 +34,19 @@ const Login: React.FC = () => {
 
     try {
       await login({ username, password });
-      navigate('/dashboard');
+      
+      // Check if user needs onboarding
+      try {
+        const onboardingStatus = await getOnboardingStatus();
+        if (onboardingStatus.requiresOnboarding) {
+          navigate('/quiz-onboarding');
+        } else {
+          navigate('/dashboard');
+        }
+      } catch {
+        // If onboarding check fails, proceed to dashboard
+        navigate('/dashboard');
+      }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       // Handle detailed error messages from backend
