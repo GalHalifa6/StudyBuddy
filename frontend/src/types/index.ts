@@ -23,6 +23,7 @@ export interface User {
   email: string;
   fullName?: string;
   role: UserRole;
+  googleSub?: string | null; // Google OAuth identifier (null if not linked)
   topicsOfInterest?: string[];
   proficiencyLevel?: string;
   preferredLanguages?: string[];

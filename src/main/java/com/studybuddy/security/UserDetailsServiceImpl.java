@@ -9,10 +9,12 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.UUID;
 
 /**
  * Custom UserDetailsService implementation for Spring Security
@@ -36,9 +38,17 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         logger.info("Loading user: {} with role: {} -> authority: {}", username, user.getRole(), authority);
         SimpleGrantedAuthority grantedAuthority = new SimpleGrantedAuthority(authority);
 
+        // Google/OAuth users may not have a password in the DB. Spring Security's User constructor
+        // rejects null/empty passwords, so we provide a BCrypt-hashed random placeholder.
+        // This preserves behavior: password-based login for OAuth users remains effectively impossible.
+        String password = user.getPassword();
+        if (password == null || password.isBlank()) {
+            password = new BCryptPasswordEncoder().encode("oauth2-user-" + UUID.randomUUID());
+        }
+
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
-                user.getPassword(),
+                password,
                 Collections.singletonList(grantedAuthority)
         );
     }

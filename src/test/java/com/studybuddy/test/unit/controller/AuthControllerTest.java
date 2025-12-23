@@ -6,6 +6,8 @@ import com.studybuddy.model.Role;
 import com.studybuddy.model.User;
 import com.studybuddy.repository.UserRepository;
 import com.studybuddy.security.JwtUtils;
+import com.studybuddy.service.EmailDomainService;
+import com.studybuddy.service.EmailVerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +50,12 @@ class AuthControllerTest {
     private JwtUtils jwtUtils;
 
     @Mock
+    private EmailDomainService emailDomainService;
+
+    @Mock
+    private EmailVerificationService emailVerificationService;
+
+    @Mock
     private BindingResult bindingResult;
 
     @Mock
@@ -70,6 +78,7 @@ class AuthControllerTest {
         testUser.setFullName("Test User");
         testUser.setRole(Role.USER);
         testUser.setIsActive(true);
+        testUser.setEmailVerified(true); // Add email verification
 
         registerRequest = new AuthDto.RegisterRequest();
         registerRequest.setUsername("newuser");
@@ -86,6 +95,7 @@ class AuthControllerTest {
     void testRegisterUser_Success() {
         // Arrange
         when(bindingResult.hasErrors()).thenReturn(false);
+        when(emailDomainService.isEmailDomainAllowed(anyString())).thenReturn(true); // Mock domain validation
         when(userRepository.existsByUsername(anyString())).thenReturn(false);
         when(userRepository.existsByEmail(anyString())).thenReturn(false);
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
@@ -101,12 +111,14 @@ class AuthControllerTest {
         AuthDto.MessageResponse messageResponse = (AuthDto.MessageResponse) response.getBody();
         assertTrue(messageResponse.isSuccess());
         verify(userRepository, times(1)).save(any(User.class));
+        verify(emailVerificationService, times(1)).createAndSendVerificationToken(any(User.class));
     }
 
     @Test
     void testRegisterUser_UsernameAlreadyExists() {
         // Arrange
         when(bindingResult.hasErrors()).thenReturn(false);
+        when(emailDomainService.isEmailDomainAllowed(anyString())).thenReturn(true);
         when(userRepository.existsByUsername(anyString())).thenReturn(true);
 
         // Act
@@ -125,6 +137,7 @@ class AuthControllerTest {
     void testRegisterUser_EmailAlreadyExists() {
         // Arrange
         when(bindingResult.hasErrors()).thenReturn(false);
+        when(emailDomainService.isEmailDomainAllowed(anyString())).thenReturn(true);
         when(userRepository.existsByUsername(anyString())).thenReturn(false);
         when(userRepository.existsByEmail(anyString())).thenReturn(true);
 
@@ -172,6 +185,7 @@ class AuthControllerTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(jwtUtils.generateToken(any(UserDetails.class))).thenReturn("test-jwt-token");
         when(userRepository.findByUsername(anyString())).thenReturn(Optional.of(testUser));
+        when(emailDomainService.getInstitutionName(anyString())).thenReturn("Test University");
 
         // Act
         ResponseEntity<?> response = authController.authenticateUser(loginRequest, bindingResult);
@@ -182,7 +196,12 @@ class AuthControllerTest {
         assertTrue(response.getBody() instanceof AuthDto.JwtResponse);
         AuthDto.JwtResponse jwtResponse = (AuthDto.JwtResponse) response.getBody();
         assertEquals("test-jwt-token", jwtResponse.getToken());
-        assertEquals("testuser", jwtResponse.getUsername());
+        assertNotNull(jwtResponse.getUser());
+        assertEquals("testuser", jwtResponse.getUser().getUsername());
+        assertEquals("test@example.com", jwtResponse.getUser().getEmail());
+        assertEquals("USER", jwtResponse.getUser().getRole());
+        assertTrue(jwtResponse.getUser().getEmailVerified());
+        assertEquals("Test University", jwtResponse.getUser().getInstitutionName());
     }
 
     @Test
@@ -225,6 +244,7 @@ class AuthControllerTest {
         // Arrange
         registerRequest.setRole("EXPERT");
         when(bindingResult.hasErrors()).thenReturn(false);
+        when(emailDomainService.isEmailDomainAllowed(anyString())).thenReturn(true);
         when(userRepository.existsByUsername(anyString())).thenReturn(false);
         when(userRepository.existsByEmail(anyString())).thenReturn(false);
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
@@ -245,6 +265,7 @@ class AuthControllerTest {
         // Arrange
         registerRequest.setRole("INVALID_ROLE");
         when(bindingResult.hasErrors()).thenReturn(false);
+        when(emailDomainService.isEmailDomainAllowed(anyString())).thenReturn(true);
         when(userRepository.existsByUsername(anyString())).thenReturn(false);
         when(userRepository.existsByEmail(anyString())).thenReturn(false);
 
@@ -258,6 +279,54 @@ class AuthControllerTest {
         assertFalse(messageResponse.isSuccess());
         assertTrue(messageResponse.getMessage().contains("Invalid role"));
         verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testRegisterUser_InvalidDomain() {
+        // Arrange
+        when(bindingResult.hasErrors()).thenReturn(false);
+        when(emailDomainService.isEmailDomainAllowed(anyString())).thenReturn(false); // Domain not allowed
+        when(emailDomainService.extractDomain(anyString())).thenReturn("example.com");
+
+        // Act
+        ResponseEntity<?> response = authController.registerUser(registerRequest, bindingResult);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        AuthDto.MessageResponse messageResponse = (AuthDto.MessageResponse) response.getBody();
+        assertFalse(messageResponse.isSuccess());
+        assertTrue(messageResponse.getMessage().contains("not authorized"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testLogin_EmailNotVerified() {
+        // Arrange
+        testUser.setEmailVerified(false); // Email not verified
+        testUser.setGoogleSub(null); // Manual registration user
+        
+        when(bindingResult.hasErrors()).thenReturn(false);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        UserDetails userDetails = org.springframework.security.core.userdetails.User
+                .withUsername("testuser")
+                .password("encodedPassword")
+                .authorities("ROLE_USER")
+                .build();
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findByUsername(anyString())).thenReturn(Optional.of(testUser));
+
+        // Act
+        ResponseEntity<?> response = authController.authenticateUser(loginRequest, bindingResult);
+
+        // Assert
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNotNull(response.getBody());
+        AuthDto.MessageResponse messageResponse = (AuthDto.MessageResponse) response.getBody();
+        assertFalse(messageResponse.isSuccess());
+        assertEquals("EMAIL_NOT_VERIFIED", messageResponse.getErrorCode());
+        assertTrue(messageResponse.getMessage().contains("not verified"));
     }
 }
 

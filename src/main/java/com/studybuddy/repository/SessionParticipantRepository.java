@@ -24,4 +24,6 @@ public interface SessionParticipantRepository extends JpaRepository<SessionParti
     long countBySessionId(Long sessionId);
     
     List<SessionParticipant> findBySessionIdAndStatus(Long sessionId, SessionParticipant.ParticipantStatus status);
+    
+    void deleteByUserId(Long userId);
 }

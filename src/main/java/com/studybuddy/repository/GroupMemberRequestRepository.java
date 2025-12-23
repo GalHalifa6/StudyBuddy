@@ -44,4 +44,10 @@ public interface GroupMemberRequestRepository extends JpaRepository<GroupMemberR
     @Query("SELECT r FROM GroupMemberRequest r WHERE r.group.creator.id = :creatorId " +
            "AND r.requestType = 'JOIN_REQUEST' AND r.status = 'PENDING' ORDER BY r.createdAt DESC")
     List<GroupMemberRequest> findPendingJoinRequestsForCreator(@Param("creatorId") Long creatorId);
+    
+    void deleteByUserId(Long userId);
+    
+    void deleteByInvitedById(Long invitedById);
+    
+    void deleteByRespondedById(Long respondedById);
 }

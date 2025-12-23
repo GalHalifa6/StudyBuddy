@@ -73,6 +73,7 @@ public interface ExpertProfileRepository extends JpaRepository<ExpertProfile, Lo
     @Query("SELECT AVG(ep.averageRating) FROM ExpertProfile ep WHERE ep.isActive = true AND ep.totalRatings > 0")
     Double getOverallAverageRating();
     
+    void deleteByUserId(Long userId);
     // Delete expert profile by user ID (for foreign key constraint handling)
     @Modifying
     @Query("DELETE FROM ExpertProfile ep WHERE ep.user.id = :userId")

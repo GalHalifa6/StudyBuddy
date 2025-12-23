@@ -35,6 +35,7 @@ public class DataInitializer implements CommandLineRunner {
     private final ExpertSessionRepository expertSessionRepository;
     private final SessionParticipantRepository sessionParticipantRepository;
     private final MessageRepository messageRepository;
+    private final AllowedEmailDomainRepository allowedEmailDomainRepository;
     private final QuizQuestionRepository quizQuestionRepository;
     private final CharacteristicProfileRepository characteristicProfileRepository;
     private final PasswordEncoder passwordEncoder;
@@ -42,9 +43,17 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        // Only initialize if database is empty
+        // Always seed domains if table is empty (independent of users)
+        if (allowedEmailDomainRepository.count() == 0) {
+            log.info("📧 Seeding allowed email domains...");
+            seedIsraeliUniversities();
+        } else {
+            log.info("Allowed email domains already exist. Skipping domain seeding.");
+        }
+
+        // Only initialize demo data if users table is empty
         if (userRepository.count() > 0) {
-            log.info("Database already contains data. Skipping initialization.");
+            log.info("Database already contains user data. Skipping demo data initialization.");
             return;
         }
 
@@ -225,6 +234,92 @@ public class DataInitializer implements CommandLineRunner {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
+    /**
+     * Seeds Israeli universities and colleges as allowed email domains
+     */
+    private void seedIsraeliUniversities() {
+        log.info("Seeding Israeli universities and colleges...");
+
+        // Major Israeli Universities
+        createAllowedDomain("tau.ac.il", "Tel Aviv University");
+        createAllowedDomain("mail.tau.ac.il", "Tel Aviv University");
+        createAllowedDomain("post.tau.ac.il", "Tel Aviv University");
+        
+        createAllowedDomain("technion.ac.il", "Technion - Israel Institute of Technology");
+        createAllowedDomain("campus.technion.ac.il", "Technion - Israel Institute of Technology");
+        
+        createAllowedDomain("huji.ac.il", "Hebrew University of Jerusalem");
+        createAllowedDomain("mail.huji.ac.il", "Hebrew University of Jerusalem");
+        
+        createAllowedDomain("bgu.ac.il", "Ben-Gurion University of the Negev");
+        createAllowedDomain("post.bgu.ac.il", "Ben-Gurion University of the Negev");
+        
+        createAllowedDomain("biu.ac.il", "Bar-Ilan University");
+        createAllowedDomain("mail.biu.ac.il", "Bar-Ilan University");
+        
+        createAllowedDomain("haifa.ac.il", "University of Haifa");
+        createAllowedDomain("staff.haifa.ac.il", "University of Haifa");
+        
+        createAllowedDomain("weizmann.ac.il", "Weizmann Institute of Science");
+        
+        createAllowedDomain("openu.ac.il", "Open University of Israel");
+        createAllowedDomain("campus.openu.ac.il", "Open University of Israel");
+        
+        createAllowedDomain("ariel.ac.il", "Ariel University");
+        
+        // Academic Colleges
+        createAllowedDomain("jct.ac.il", "Jerusalem College of Technology");
+        createAllowedDomain("g.jct.ac.il", "Jerusalem College of Technology");
+        
+        createAllowedDomain("ac.sce.ac.il", "Sami Shamoon College of Engineering");
+        createAllowedDomain("sce.ac.il", "Sami Shamoon College of Engineering");
+        
+        createAllowedDomain("afeka.ac.il", "Afeka Tel Aviv Academic College of Engineering");
+        createAllowedDomain("students.afeka.ac.il", "Afeka Tel Aviv Academic College of Engineering");
+        
+        createAllowedDomain("braude.ac.il", "Braude College of Engineering");
+        
+        createAllowedDomain("azrieli.ac.il", "Azrieli College of Engineering Jerusalem");
+        
+        createAllowedDomain("hadassah.ac.il", "Hadassah Academic College");
+        
+        createAllowedDomain("ruppin.ac.il", "Ruppin Academic Center");
+        
+        createAllowedDomain("shenkar.ac.il", "Shenkar College");
+        
+        createAllowedDomain("bezalel.ac.il", "Bezalel Academy of Arts and Design");
+        
+        createAllowedDomain("idc.ac.il", "Reichman University (IDC Herzliya)");
+        createAllowedDomain("runi.ac.il", "Reichman University");
+        
+        createAllowedDomain("colman.ac.il", "College of Management Academic Studies");
+        
+        createAllowedDomain("sapir.ac.il", "Sapir Academic College");
+        
+        createAllowedDomain("ashkelon.ac.il", "Ashkelon Academic College");
+        
+        createAllowedDomain("telhai.ac.il", "Tel-Hai College");
+        
+        // Add demo domain for testing
+        createAllowedDomain("studybuddy.com", "StudyBuddy Demo");
+
+        log.info("Seeded {} allowed email domains", allowedEmailDomainRepository.count());
+    }
+
+    private void createAllowedDomain(String domain, String institutionName) {
+        // Normalize domain to lowercase for consistent storage and checking
+        // This matches the behavior of DomainAdminController.addDomain()
+        String normalizedDomain = domain.toLowerCase();
+        
+        if (!allowedEmailDomainRepository.existsByDomain(normalizedDomain)) {
+            AllowedEmailDomain allowedDomain = new AllowedEmailDomain();
+            allowedDomain.setDomain(normalizedDomain);
+            allowedDomain.setStatus(AllowedEmailDomain.DomainStatus.ALLOW);
+            allowedDomain.setInstitutionName(institutionName);
+            allowedEmailDomainRepository.save(allowedDomain);
+        }
+    }
+
     private User createAdmin() {
         User admin = new User();
         admin.setUsername("admin");
@@ -233,19 +328,23 @@ public class DataInitializer implements CommandLineRunner {
         admin.setFullName("System Administrator");
         admin.setRole(Role.ADMIN);
         admin.setIsActive(true);
+        admin.setEmailVerified(true); // Admin is pre-verified
         admin.setProficiencyLevel("advanced");
         admin.setCollaborationStyle("balanced");
+        admin.setTopicsOfInterest(new ArrayList<>());
+        admin.setPreferredLanguages(new ArrayList<>());
         return userRepository.save(admin);
     }
 
     private User createExpert1() {
         User expert = new User();
         expert.setUsername("dr.cohen");
-        expert.setEmail("dr.cohen@university.edu");
+        expert.setEmail("dr.cohen@studybuddy.com");
         expert.setPassword(passwordEncoder.encode("expert123"));
         expert.setFullName("Dr. Yossi Cohen");
         expert.setRole(Role.EXPERT);
         expert.setIsActive(true);
+        expert.setEmailVerified(true); // Demo users are pre-verified
         expert.setProficiencyLevel("advanced");
         expert.setCollaborationStyle("discussion_heavy");
         expert.setTopicsOfInterest(new ArrayList<>(List.of("Algorithms", "Data Structures", "Software Engineering")));
@@ -256,11 +355,12 @@ public class DataInitializer implements CommandLineRunner {
     private User createExpert2() {
         User expert = new User();
         expert.setUsername("prof.levi");
-        expert.setEmail("prof.levi@university.edu");
+        expert.setEmail("prof.levi@studybuddy.com");
         expert.setPassword(passwordEncoder.encode("expert123"));
         expert.setFullName("Prof. Rachel Levi");
         expert.setRole(Role.EXPERT);
         expert.setIsActive(true);
+        expert.setEmailVerified(true); // Demo users are pre-verified
         expert.setProficiencyLevel("advanced");
         expert.setCollaborationStyle("balanced");
         expert.setTopicsOfInterest(new ArrayList<>(List.of("Mathematics", "Calculus", "Linear Algebra")));
@@ -271,11 +371,12 @@ public class DataInitializer implements CommandLineRunner {
     private User createStudent1() {
         User student = new User();
         student.setUsername("sarah.student");
-        student.setEmail("sarah@student.edu");
+        student.setEmail("sarah@studybuddy.com");
         student.setPassword(passwordEncoder.encode("student123"));
         student.setFullName("Sarah Ben-David");
         student.setRole(Role.USER);
         student.setIsActive(true);
+        student.setEmailVerified(true); // Demo users are pre-verified
         student.setProficiencyLevel("intermediate");
         student.setCollaborationStyle("discussion_heavy");
         student.setTopicsOfInterest(new ArrayList<>(List.of("Computer Science", "Mathematics")));
@@ -286,11 +387,12 @@ public class DataInitializer implements CommandLineRunner {
     private User createStudent2() {
         User student = new User();
         student.setUsername("david.learner");
-        student.setEmail("david@student.edu");
+        student.setEmail("david@studybuddy.com");
         student.setPassword(passwordEncoder.encode("student123"));
         student.setFullName("David Mizrachi");
         student.setRole(Role.USER);
         student.setIsActive(true);
+        student.setEmailVerified(true); // Demo users are pre-verified
         student.setProficiencyLevel("beginner");
         student.setCollaborationStyle("quiet_focus");
         student.setTopicsOfInterest(new ArrayList<>(List.of("Web Development", "Mathematics")));
@@ -301,11 +403,12 @@ public class DataInitializer implements CommandLineRunner {
     private User createStudent3() {
         User student = new User();
         student.setUsername("maya.coder");
-        student.setEmail("maya@student.edu");
+        student.setEmail("maya@studybuddy.com");
         student.setPassword(passwordEncoder.encode("student123"));
         student.setFullName("Maya Goldstein");
         student.setRole(Role.USER);
         student.setIsActive(true);
+        student.setEmailVerified(true); // Demo users are pre-verified
         student.setProficiencyLevel("advanced");
         student.setCollaborationStyle("balanced");
         student.setTopicsOfInterest(new ArrayList<>(List.of("Programming", "Physics", "Web Development")));

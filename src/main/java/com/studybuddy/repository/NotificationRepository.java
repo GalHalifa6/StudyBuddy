@@ -39,4 +39,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     // Find notifications by actor for duplicate checking
     List<Notification> findByReferenceIdAndReferenceTypeAndActorIdAndActionStatus(
             Long referenceId, String referenceType, Long actorId, String actionStatus);
+    
+    void deleteByUserId(Long userId);
 }

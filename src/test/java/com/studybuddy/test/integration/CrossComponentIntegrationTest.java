@@ -12,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import com.studybuddy.service.EmailVerificationService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
@@ -63,14 +64,21 @@ class CrossComponentIntegrationTest {
     private GroupMemberRequestRepository requestRepository;
 
     @Autowired
+    private AllowedEmailDomainRepository domainRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private EmailVerificationService emailVerificationService;
+
     private User user1;
     private User user2;
     private Course testCourse;
+    private AllowedEmailDomain testDomain;
 
     @BeforeEach
     void setUp() {
@@ -81,6 +89,14 @@ class CrossComponentIntegrationTest {
         fileUploadRepository.deleteAll();
         notificationRepository.deleteAll();
         requestRepository.deleteAll();
+        domainRepository.deleteAll();
+
+        // Add test domain to allowed list (needed for registration tests)
+        testDomain = new AllowedEmailDomain();
+        testDomain.setDomain("example.com");
+        testDomain.setStatus(AllowedEmailDomain.DomainStatus.ALLOW);
+        testDomain.setInstitutionName("Test University");
+        domainRepository.save(testDomain);
 
         // Create user1
         user1 = new User();
@@ -281,7 +297,22 @@ class CrossComponentIntegrationTest {
                         .content(objectMapper.writeValueAsString(registerRequest)))
                 .andExpect(status().isOk());
 
-        // 2. Login
+        // 2. Verify email - get the user and create verification token, then verify
+        entityManager.flush();
+        entityManager.clear();
+        User registeredUser = userRepository.findByUsername("newuser")
+                .orElseThrow(() -> new RuntimeException("User not found after registration"));
+        
+        // Create verification token and get the raw token
+        String rawToken = emailVerificationService.createAndSendVerificationToken(registeredUser);
+        
+        // Verify the email using the real endpoint
+        mockMvc.perform(get("/api/auth/verify-email")
+                        .param("token", rawToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // 3. Login
         AuthDto.LoginRequest loginRequest = new AuthDto.LoginRequest();
         loginRequest.setUsername("newuser");
         loginRequest.setPassword("password123");
@@ -297,7 +328,7 @@ class CrossComponentIntegrationTest {
 
         String token = objectMapper.readTree(loginResponse).get("token").asText();
 
-        // 3. Create a group (using token)
+        // 4. Create a group (using token)
         Map<String, Object> groupRequest = new HashMap<>();
         groupRequest.put("name", "My Study Group");
         groupRequest.put("description", "My Description");

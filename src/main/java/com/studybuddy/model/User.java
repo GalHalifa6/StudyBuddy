@@ -47,10 +47,18 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @NotBlank
-    @Column(nullable = false)
+    // Password is nullable for Google OAuth users
+    @Column(nullable = true)
     @JsonIgnore
     private String password;
+
+    // Google OAuth identifier (sub claim from Google)
+    @Column(unique = true, nullable = true)
+    private String googleSub;
+
+    // Email verification status
+    @Column(nullable = false)
+    private Boolean emailVerified = false;
 
     private String fullName;
 
