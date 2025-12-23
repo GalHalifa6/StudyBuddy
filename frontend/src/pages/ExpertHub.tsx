@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import {
   studentExpertService,
   ExpertSearchResult,
   ExpertProfile,
   ExpertSession,
   AskQuestionRequest,
-  CreateReviewRequest,
   ExpertReview,
 } from '../api/experts';
 import { sessionService, SessionInfo } from '../api/sessions';
@@ -20,22 +18,12 @@ import {
   MessageCircle,
   Users,
   CheckCircle,
-  Filter,
   X,
   Send,
   User,
   Award,
-  Calendar,
   Clock,
-  Video,
   ExternalLink,
-  Sparkles,
-  GraduationCap,
-  HelpCircle,
-  Briefcase,
-  BookOpen,
-  TrendingUp,
-  Mail,
   Shield,
   Loader2,
   ChevronDown,

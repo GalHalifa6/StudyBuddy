@@ -3,14 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import {
-  Shield,
   Search,
   Filter,
   X,
   Eye,
   ChevronLeft,
   ChevronRight,
-  Calendar,
   Loader2,
   FileText,
 } from 'lucide-react';

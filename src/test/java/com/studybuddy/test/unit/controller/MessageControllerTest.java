@@ -6,6 +6,7 @@ import com.studybuddy.model.Message;
 import com.studybuddy.model.StudyGroup;
 import com.studybuddy.model.User;
 import com.studybuddy.repository.FileUploadRepository;
+import com.studybuddy.repository.MessageReceiptRepository;
 import com.studybuddy.repository.MessageRepository;
 import com.studybuddy.repository.StudyGroupRepository;
 import com.studybuddy.repository.UserRepository;

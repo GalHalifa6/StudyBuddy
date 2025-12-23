@@ -25,8 +25,6 @@ import {
   Loader2,
   Ban,
   Clock,
-  Mail,
-  Calendar,
   FileText,
 } from 'lucide-react';
 

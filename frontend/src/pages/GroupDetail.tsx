@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Users,
   Loader2,
-  MessageSquare,
   Lock,
   UserPlus,
   Clock,

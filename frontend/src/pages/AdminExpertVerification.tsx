@@ -15,12 +15,6 @@ import {
   Ban,
   Loader2,
   Award,
-  GraduationCap,
-  Calendar,
-  Mail,
-  User,
-  Building,
-  BookOpen,
   Clock,
 } from 'lucide-react';
 

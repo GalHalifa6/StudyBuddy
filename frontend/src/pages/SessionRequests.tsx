@@ -7,7 +7,6 @@ import {
   User,
   CheckCircle,
   XCircle,
-  AlertCircle,
   ArrowLeftRight,
   X,
   BookOpen,

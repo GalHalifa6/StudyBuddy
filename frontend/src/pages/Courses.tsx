@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { courseService } from '../api';
 import { Course } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +14,6 @@ import {
   MinusCircle,
   Plus,
   Search,
-  Sparkles,
   Users,
   X,
 } from 'lucide-react';

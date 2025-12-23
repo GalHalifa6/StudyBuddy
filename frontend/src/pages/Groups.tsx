@@ -13,10 +13,6 @@ import {
   UserPlus,
   Clock,
   Shield,
-  CheckCircle,
-  XCircle,
-  Filter,
-  Sparkles,
   BookOpen,
   SlidersHorizontal,
   TrendingUp

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { directMessageService, Conversation, DirectMessage, SendDirectMessageRequest } from '../api/directMessages';
-import { MessageSquare, Send, Search, User, ArrowLeft } from 'lucide-react';
+import { MessageSquare, Send, Search, ArrowLeft } from 'lucide-react';
 
 interface DirectMessagesProps {
   selectedConversationId?: number | null;
@@ -11,7 +10,6 @@ interface DirectMessagesProps {
 
 const DirectMessages: React.FC<DirectMessagesProps> = ({ selectedConversationId: initialSelectedId, onBack }) => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);

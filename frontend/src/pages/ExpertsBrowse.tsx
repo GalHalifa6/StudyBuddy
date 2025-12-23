@@ -9,7 +9,6 @@ import {
   ExpertReview,
   sessionRequestService,
   CreateSessionRequestPayload,
-  TimeSlot,
 } from '../api/experts';
 import {
   Search,
