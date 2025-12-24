@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sessionRequestService, SessionRequest } from '../api/experts';
+import { useToast } from '../context/ToastContext';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   Calendar,
   Clock,
@@ -14,9 +16,11 @@ import {
 
 const SessionRequests: React.FC = () => {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const [requests, setRequests] = useState<SessionRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [cancelRequestId, setCancelRequestId] = useState<number | null>(null);
 
   useEffect(() => {
     loadRequests();
@@ -29,18 +33,24 @@ const SessionRequests: React.FC = () => {
       setRequests(data);
     } catch (error) {
       console.error('Failed to load session requests:', error);
-      alert('Failed to load session requests');
+      showError('Failed to load session requests');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancelRequest = async (requestId: number) => {
-    if (!confirm('Are you sure you want to cancel this session request?')) return;
+  const handleCancelRequest = (requestId: number) => {
+    setCancelRequestId(requestId);
+  };
+
+  const confirmCancelRequest = async () => {
+    if (!cancelRequestId) return;
+    const requestId = cancelRequestId;
+    setCancelRequestId(null);
     try {
       await sessionRequestService.cancelRequest(requestId);
       await loadRequests();
-      alert('Session request cancelled successfully');
+      showSuccess('Session request cancelled successfully');
     } catch (error: unknown) {
       console.error('Failed to cancel request:', error);
       const errorMessage = error && typeof error === 'object' && 'response' in error
@@ -48,7 +58,7 @@ const SessionRequests: React.FC = () => {
         : error instanceof Error
         ? error.message
         : 'Failed to cancel request';
-      alert(errorMessage || 'Failed to cancel request');
+      showError(errorMessage || 'Failed to cancel request');
     }
   };
 
@@ -102,7 +112,18 @@ const SessionRequests: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <ConfirmDialog
+        isOpen={cancelRequestId !== null}
+        title="Cancel Session Request?"
+        message="Are you sure you want to cancel this session request?"
+        onConfirm={confirmCancelRequest}
+        onCancel={() => setCancelRequestId(null)}
+        confirmText="Cancel Request"
+        cancelText="Keep Request"
+        variant="default"
+      />
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Session Requests</h1>
@@ -269,6 +290,7 @@ const SessionRequests: React.FC = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 

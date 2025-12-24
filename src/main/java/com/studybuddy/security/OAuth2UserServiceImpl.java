@@ -120,6 +120,8 @@ public class OAuth2UserServiceImpl extends DefaultOAuth2UserService {
             user.setPassword(null); // No password for OAuth users
             user.setRole(Role.USER);
             user.setIsActive(true);
+            user.setIsDeleted(false); // Explicitly set required field
+            user.setOnboardingCompleted(false); // Explicitly set required field
             user.setTopicsOfInterest(new ArrayList<>());
             user.setPreferredLanguages(new ArrayList<>());
 

@@ -1105,15 +1105,26 @@ const Admin: React.FC = () => {
                   <option value="EXPERT">Experts</option>
                   <option value="ADMIN">Admins</option>
                 </select>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showDeleted}
-                    onChange={(e) => setShowDeleted(e.target.checked)}
-                    className="w-4 h-4 text-primary-600 rounded"
-                  />
-                  <span className="text-sm text-gray-600">Show Deleted</span>
-                </label>
+                <button
+                  onClick={() => {
+                    if (showDeleted) {
+                      // Show all users
+                      setShowDeleted(false);
+                      setStatusFilter('all');
+                    } else {
+                      // Show only deleted users
+                      setShowDeleted(true);
+                      setStatusFilter('deleted');
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    showDeleted && statusFilter === 'deleted'
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {showDeleted && statusFilter === 'deleted' ? 'Show All Users' : 'Show Only Deleted'}
+                </button>
               </div>
 
               {/* Advanced Filters */}

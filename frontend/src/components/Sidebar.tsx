@@ -5,6 +5,7 @@ import { ROLE_LABELS } from '../types';
 import { notificationService } from '../api/notifications';
 import { messageService } from '../api/messages';
 import NotificationPanel from './NotificationPanel';
+import ThemeToggle from './ThemeToggle';
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
@@ -229,18 +230,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
         ))}
       </nav>
 
-      {/* Logout */}
+      {/* Logout and Theme Toggle */}
       <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          onClick={handleLogout}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors ${
-            isCollapsed ? 'justify-center' : ''
-          }`}
-          title={isCollapsed ? 'Logout' : undefined}
-        >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          {!isCollapsed && <span>Logout</span>}
-        </button>
+        <div className={`flex items-center gap-2 ${isCollapsed ? 'flex-col' : ''}`}>
+          <ThemeToggle variant="icon" className="flex-shrink-0" />
+          <button
+            onClick={handleLogout}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl flex-1 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors ${
+              isCollapsed ? 'justify-center w-full' : ''
+            }`}
+            title={isCollapsed ? 'Logout' : undefined}
+          >
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            {!isCollapsed && <span>Logout</span>}
+          </button>
+        </div>
       </div>
 
       {/* Notification Panel */}

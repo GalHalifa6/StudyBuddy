@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { groupService, courseService, matchingService } from '../api';
 import { StudyGroup, Course, GroupMemberRequest } from '../types';
+import { useToast } from '../context/ToastContext';
 import { 
   Users, 
   Plus, 
@@ -23,6 +24,7 @@ import { useAuth } from '../context/AuthContext';
 const Groups: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
   const { user, isAdmin, isExpert } = useAuth();
+  const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
   const initialRouteCourseId = courseId ? Number.parseInt(courseId, 10) : Number.NaN;
   const [groups, setGroups] = useState<StudyGroup[]>([]);
@@ -213,7 +215,7 @@ const Groups: React.FC = () => {
   const handleJoinGroup = async (groupId: number, visibility: string) => {
     // Private groups can't be joined directly
     if (visibility === 'private') {
-      alert('This is a private group. Only the creator can invite members.');
+      showError('This is a private group. Only the creator can invite members.');
       return;
     }
 
@@ -224,10 +226,10 @@ const Groups: React.FC = () => {
         // Request sent, refresh pending requests
         const pendingRequests = await groupService.getMyRequests();
         setMyPendingRequests(pendingRequests);
-        alert(result.message);
+        showSuccess(result.message);
       } else {
         // Successfully joined - redirect to MyGroups chat
-        alert('Successfully joined the group! Redirecting to chat...');
+        showSuccess('Successfully joined the group! Redirecting to chat...');
         setTimeout(() => {
           navigate(`/my-groups?group=${groupId}`);
         }, 500);
@@ -235,7 +237,7 @@ const Groups: React.FC = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error joining group:', error);
-      alert(error?.response?.data?.message || 'Error joining group');
+      showError(error?.response?.data?.message || 'Error joining group');
     } finally {
       setJoiningGroupId(null);
     }

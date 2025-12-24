@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getQuiz, submitQuiz, skipQuiz, QuizQuestion } from '../api/quiz';
+import { useToast } from '../context/ToastContext';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -16,6 +18,7 @@ import {
 
 const QuizOnboarding: React.FC = () => {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -23,6 +26,7 @@ const QuizOnboarding: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
 
   useEffect(() => {
     loadQuiz();
@@ -34,7 +38,18 @@ const QuizOnboarding: React.FC = () => {
       const quizData = await getQuiz();
       // Sort by orderIndex
       const sortedQuestions = quizData.sort((a, b) => a.orderIndex - b.orderIndex);
-      setQuestions(sortedQuestions);
+      // Only show question with orderIndex = 1 (the first question)
+      const firstQuestion = sortedQuestions.filter(q => q.orderIndex === 1);
+      if (firstQuestion.length === 0 && sortedQuestions.length > 0) {
+        // Fallback: if no question with orderIndex=1, use the first one in the list
+        setQuestions([sortedQuestions[0]]);
+      } else {
+        setQuestions(firstQuestion);
+      }
+      // Reset to first question index
+      setCurrentQuestionIndex(0);
+      // Clear any previous answers when loading
+      setAnswers({});
     } catch (err) {
       setError('Failed to load quiz questions. Please try again.');
     } finally {
@@ -86,48 +101,54 @@ const QuizOnboarding: React.FC = () => {
 
     try {
       const response = await submitQuiz({ answers });
+      showSuccess(response.message);
       setSuccessMessage(response.message);
       
       // Navigate to dashboard after showing success message
       setTimeout(() => {
-        navigate('/dashboard', { replace: true });
-      }, 1800);
+        window.location.href = '/dashboard';
+      }, 1000);
     } catch (err: unknown) {
       const errorMessage = err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
         : err instanceof Error
         ? err.message
         : 'Failed to submit quiz. Please try again.';
-      setError(errorMessage || 'Failed to submit quiz. Please try again.');
-    } finally {
+      const finalError = errorMessage || 'Failed to submit quiz. Please try again.';
+      setError(finalError);
+      showError(finalError);
       setIsSubmitting(false);
     }
   };
 
-  const handleSkip = async () => {
-    if (!confirm('Are you sure you want to skip the quiz? This will limit group matching recommendations.')) {
-      return;
-    }
+  const handleSkip = () => {
+    setShowSkipConfirm(true);
+  };
 
+  const confirmSkip = async () => {
+    setShowSkipConfirm(false);
     setIsSubmitting(true);
     setError(null);
 
     try {
       const response = await skipQuiz();
+      showSuccess(response.message);
       setSuccessMessage(response.message);
       
-      // Navigate to dashboard after showing success message
+      // Force full page reload to ensure ProtectedRoute re-checks quiz status
+      // Use a short delay to show the success message
       setTimeout(() => {
-        navigate('/dashboard', { replace: true });
-      }, 1500);
+        window.location.href = '/dashboard';
+      }, 1000);
     } catch (err: unknown) {
       const errorMessage = err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
         : err instanceof Error
         ? err.message
         : 'Failed to skip quiz. Please try again.';
-      setError(errorMessage || 'Failed to skip quiz. Please try again.');
-    } finally {
+      const finalError = errorMessage || 'Failed to skip quiz. Please try again.';
+      setError(finalError);
+      showError(finalError);
       setIsSubmitting(false);
     }
   };
@@ -172,7 +193,18 @@ const QuizOnboarding: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 p-6 transition-colors duration-200 sm:p-10">
+    <>
+      <ConfirmDialog
+        isOpen={showSkipConfirm}
+        title="Skip Quiz?"
+        message="Are you sure you want to skip the quiz? This will limit group matching recommendations."
+        onConfirm={confirmSkip}
+        onCancel={() => setShowSkipConfirm(false)}
+        confirmText="Skip Quiz"
+        cancelText="Cancel"
+        variant="default"
+      />
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 p-6 transition-colors duration-200 sm:p-10">
       <div className="mx-auto max-w-5xl">
         {/* Header */}
         <div className="mb-8 text-center">
@@ -389,6 +421,7 @@ const QuizOnboarding: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

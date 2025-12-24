@@ -25,6 +25,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -136,6 +137,7 @@ public class AuthController {
         user.setRole(role);
         user.setIsActive(true);
         user.setIsEmailVerified(false); // Email not verified yet
+        user.setIsDeleted(false); // Explicitly set required field
         user.setTopicsOfInterest(new ArrayList<>());
         user.setPreferredLanguages(new ArrayList<>());
         user.setQuestionnaireResponses(new HashMap<>());
@@ -144,7 +146,27 @@ public class AuthController {
         user.setOnboardingCompleted(!isStudent);
         user.setOnboardingCompletedAt(isStudent ? null : LocalDateTime.now());
 
-        userRepository.save(user);
+        try {
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            logger.error("Database constraint violation during user registration: {}", e.getMessage(), e);
+            errors.add("Registration failed: " + e.getMostSpecificCause().getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new AuthDto.MessageResponse(
+                            "Registration failed due to database error",
+                            false,
+                            errors
+                    ));
+        } catch (Exception e) {
+            logger.error("Unexpected error during user registration: {}", e.getMessage(), e);
+            errors.add("Registration failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new AuthDto.MessageResponse(
+                            "Registration failed due to unexpected error",
+                            false,
+                            errors
+                    ));
+        }
 
         // Send verification email
         try {

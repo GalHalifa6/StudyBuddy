@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { courseService } from '../api';
 import { Course } from '../types';
 import {
@@ -234,20 +235,20 @@ const ExpertDashboard: React.FC = () => {
   const handleCreateSession = async () => {
     // Validate required fields
     if (!sessionForm.title.trim()) {
-      alert('Please enter a session title');
+      showError('Please enter a session title');
       return;
     }
     if (!sessionForm.scheduledStartTime) {
-      alert('Please select a start time');
+      showError('Please select a start time');
       return;
     }
     if (!sessionForm.scheduledEndTime) {
-      alert('Please select an end time');
+      showError('Please select an end time');
       return;
     }
     // Validate student selection for one-on-one
     if (sessionForm.sessionType === 'ONE_ON_ONE' && !selectedStudent) {
-      alert('Please select a student for the one-on-one session');
+      showError('Please select a student for the one-on-one session');
       return;
     }
 
@@ -263,6 +264,7 @@ const ExpertDashboard: React.FC = () => {
       
       console.log('Creating session with data:', sessionData);
       await expertService.createSession(sessionData);
+      showSuccess('Session created successfully!');
       setShowSessionModal(false);
       setSessionForm({
         title: '',
@@ -289,7 +291,7 @@ const ExpertDashboard: React.FC = () => {
         : error instanceof Error
         ? error.message
         : 'Failed to create session. Please try again.';
-      alert(errorMessage || 'Failed to create session. Please try again.');
+      showError(errorMessage || 'Failed to create session. Please try again.');
     }
   };
 
@@ -1631,7 +1633,7 @@ const ExpertDashboard: React.FC = () => {
                   try {
                     if (approvalAction === 'approve') {
                       if (!approvalForm.chosenStart || !approvalForm.chosenEnd) {
-                        alert('Please select start and end times');
+                        showError('Please select start and end times');
                         return;
                       }
                       await sessionRequestService.approveRequest(selectedRequest.id, {
@@ -1639,26 +1641,26 @@ const ExpertDashboard: React.FC = () => {
                         chosenEnd: approvalForm.chosenEnd,
                         message: approvalForm.message,
                       } as ApproveSessionRequestPayload);
-                      alert('Session request approved! A session has been created.');
+                      showSuccess('Session request approved! A session has been created.');
                     } else if (approvalAction === 'reject') {
                       if (!approvalForm.reason?.trim()) {
-                        alert('Please provide a rejection reason');
+                        showError('Please provide a rejection reason');
                         return;
                       }
                       await sessionRequestService.rejectRequest(selectedRequest.id, {
                         reason: approvalForm.reason,
                       } as RejectSessionRequestPayload);
-                      alert('Session request rejected.');
+                      showSuccess('Session request rejected.');
                     } else if (approvalAction === 'counter') {
                       if (!approvalForm.proposedTimeSlots?.length) {
-                        alert('Please add at least one proposed time slot');
+                        showError('Please add at least one proposed time slot');
                         return;
                       }
                       await sessionRequestService.counterProposeRequest(selectedRequest.id, {
                         proposedTimeSlots: approvalForm.proposedTimeSlots,
                         message: approvalForm.message,
                       } as CounterProposeSessionRequestPayload);
-                      alert('Counter-proposal sent to student.');
+                      showSuccess('Counter-proposal sent to student.');
                     }
                     setShowApprovalModal(false);
                     setSelectedRequest(null);
@@ -1672,7 +1674,7 @@ const ExpertDashboard: React.FC = () => {
                       : error instanceof Error
                       ? error.message
                       : 'Failed to process request. Please try again.';
-                    alert(errorMessage || 'Failed to process request. Please try again.');
+                    showError(errorMessage || 'Failed to process request. Please try again.');
                   }
                 }}
                 className={`px-6 py-2 text-white rounded-xl transition-colors ${

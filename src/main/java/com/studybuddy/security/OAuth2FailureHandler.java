@@ -50,6 +50,16 @@ public class OAuth2FailureHandler extends SimpleUrlAuthenticationFailureHandler 
             }
         }
 
+        // Sanitize error message to remove invalid characters (CR/LF) for URL
+        // Replace newlines and carriage returns with spaces, and trim
+        if (errorMessage != null) {
+            errorMessage = errorMessage.replaceAll("[\\r\\n]+", " ").trim();
+            // Limit length to prevent URL length issues
+            if (errorMessage.length() > 200) {
+                errorMessage = errorMessage.substring(0, 197) + "...";
+            }
+        }
+
         // Redirect to frontend with error details
         String targetUrl = UriComponentsBuilder.fromUriString(redirectUri)
                 .queryParam("error", errorCode)

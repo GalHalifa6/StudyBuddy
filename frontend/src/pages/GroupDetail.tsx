@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { groupService } from '../api';
 import { StudyGroup, GroupMemberStatus } from '../types';
+import { useToast } from '../context/ToastContext';
 import {
   ArrowLeft,
   Users,
@@ -17,6 +18,7 @@ import {
 const GroupDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const [group, setGroup] = useState<StudyGroup | null>(null);
   const [memberStatus, setMemberStatus] = useState<GroupMemberStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +55,7 @@ const GroupDetail: React.FC = () => {
     if (!group || !id) return;
 
     if (group.visibility === 'private') {
-      alert('This is a private group. Only the creator can invite members.');
+      showError('This is a private group. Only the creator can invite members.');
       return;
     }
 
@@ -61,10 +63,11 @@ const GroupDetail: React.FC = () => {
     try {
       const result = await groupService.joinGroup(parseInt(id));
       if (result.status === 'PENDING') {
-        alert(result.message);
+        showSuccess(result.message);
         fetchGroupData();
       } else {
         // Successfully joined - redirect to chat
+        showSuccess('Successfully joined the group!');
         navigate(`/my-groups?group=${id}`);
       }
     } catch (error: unknown) {
@@ -74,7 +77,7 @@ const GroupDetail: React.FC = () => {
         : error instanceof Error
         ? error.message
         : 'Error joining group';
-      alert(errorMessage || 'Error joining group');
+      showError(errorMessage || 'Error joining group');
     } finally {
       setIsJoining(false);
     }

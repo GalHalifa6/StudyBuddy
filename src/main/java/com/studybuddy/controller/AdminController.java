@@ -28,6 +28,7 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -285,7 +286,8 @@ public class AdminController {
             return ResponseEntity.badRequest()
                     .body(new AuthDto.MessageResponse(e.getMessage(), false));
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest()
+                    .body(new AuthDto.MessageResponse("Failed to soft delete user: " + e.getMessage(), false));
         }
     }
 
@@ -298,55 +300,74 @@ public class AdminController {
             return ResponseEntity.badRequest()
                     .body(new AuthDto.MessageResponse(e.getMessage(), false));
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest()
+                    .body(new AuthDto.MessageResponse("Failed to restore user: " + e.getMessage(), false));
         }
     }
 
     @DeleteMapping("/users/{id}")
     @Transactional
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
-        Optional<User> userOpt = userRepository.findById(id);
-        if (userOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
+        try {
+            Optional<User> userOpt = userRepository.findById(id);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            User user = userOpt.get();
+            
+            // Delete all child records that reference this user to avoid foreign key constraint violations
+            // Order matters: delete records that might have their own dependencies first
+            
+            // 1. Delete email verification tokens (by ID to avoid entity state issues)
+            emailVerificationTokenRepository.deleteByUserId(id);
+            
+            // 2. Delete notifications
+            notificationRepository.deleteByUserId(id);
+            
+            // 3. Delete group member requests (join requests and invites)
+            // Delete where user is the requester/invited user
+            groupMemberRequestRepository.deleteByUserId(id);
+            // Delete where user is the inviter
+            groupMemberRequestRepository.deleteByInvitedById(id);
+            // Delete where user is the responder
+            groupMemberRequestRepository.deleteByRespondedById(id);
+            
+            // 4. Delete question votes
+            questionVoteRepository.deleteByUserId(id);
+            
+            // 5. Delete session participants
+            sessionParticipantRepository.deleteByUserId(id);
+            
+            // 6. Delete expert profile (if exists)
+            expertProfileRepository.deleteByUserId(id);
+            
+            // 6.5. Delete characteristic profile (if exists)
+            characteristicProfileRepository.findByUserId(id).ifPresent(characteristicProfileRepository::delete);
+            
+            // 7. Finally, delete the user
+            // Note: Other relationships like messages, files, createdGroups are handled by cascade delete
+            // Many-to-many relationships (courses, groups) will be automatically removed when user is deleted
+            
+            // Log audit action before deletion
+            User currentAdmin = userRepository.findByUsername(
+                SecurityContextHolder.getContext().getAuthentication().getName())
+                .orElseThrow(() -> new RuntimeException("Admin user not found"));
+            AdminAuditLog auditLog = new AdminAuditLog();
+            auditLog.setAdminUserId(currentAdmin.getId());
+            auditLog.setActionType("USER_DELETE");
+            auditLog.setTargetType("USER");
+            auditLog.setTargetId(id);
+            auditLog.setReason("User deleted via admin panel");
+            auditLogRepository.save(auditLog);
+            
+            userRepository.delete(user);
+            
+            return ResponseEntity.ok(new AuthDto.MessageResponse("User deleted successfully", true));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(new AuthDto.MessageResponse("Failed to delete user: " + e.getMessage(), false));
         }
-        
-        User user = userOpt.get();
-        
-        // Delete all child records that reference this user to avoid foreign key constraint violations
-        // Order matters: delete records that might have their own dependencies first
-        
-        // 1. Delete email verification tokens (by ID to avoid entity state issues)
-        emailVerificationTokenRepository.deleteByUserId(id);
-        
-        // 2. Delete notifications
-        notificationRepository.deleteByUserId(id);
-        
-        // 3. Delete group member requests (join requests and invites)
-        // Delete where user is the requester/invited user
-        groupMemberRequestRepository.deleteByUserId(id);
-        // Delete where user is the inviter
-        groupMemberRequestRepository.deleteByInvitedById(id);
-        // Delete where user is the responder
-        groupMemberRequestRepository.deleteByRespondedById(id);
-        
-        // 4. Delete question votes
-        questionVoteRepository.deleteByUserId(id);
-        
-        // 5. Delete session participants
-        sessionParticipantRepository.deleteByUserId(id);
-        
-        // 6. Delete expert profile (if exists)
-        expertProfileRepository.deleteByUserId(id);
-        
-        // 6.5. Delete characteristic profile (if exists)
-        characteristicProfileRepository.findByUserId(id).ifPresent(characteristicProfileRepository::delete);
-        
-        // 7. Finally, delete the user
-        // Note: Other relationships like messages, files, createdGroups are handled by cascade delete
-        // Many-to-many relationships (courses, groups) will be automatically removed when user is deleted
-        userRepository.delete(user);
-        
-        return ResponseEntity.ok(new AuthDto.MessageResponse("User deleted successfully", true));
     }
 
     @DeleteMapping("/users/{id}/permanent")

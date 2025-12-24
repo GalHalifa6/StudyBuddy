@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import ThemeToggle from './ThemeToggle';
 
 const Layout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -12,11 +11,6 @@ const Layout: React.FC = () => {
         isCollapsed={sidebarCollapsed} 
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
       />
-      
-      {/* Theme toggle in top-right corner */}
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle variant="icon" />
-      </div>
       
       <main
         className={`transition-all duration-300 ${

@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 
 /**
@@ -51,171 +52,410 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Allowed email domains already exist. Skipping domain seeding.");
         }
 
-        // Only initialize demo data if users table is empty
-        if (userRepository.count() > 0) {
-            log.info("Database already contains user data. Skipping demo data initialization.");
+        // Only initialize missing demo data - check each entity individually
+        log.info("🔍 Checking for missing demo data...");
+        
+        // Create Users - only if they don't exist
+        User admin = userRepository.findByUsername("admin").orElse(null);
+        if (admin == null) {
+            log.info("Creating admin user...");
+            admin = createAdmin();
+        } else {
+            log.info("Admin user already exists. Skipping.");
+        }
+        
+        User expert1 = userRepository.findByUsername("dr.cohen").orElse(null);
+        if (expert1 == null) {
+            log.info("Creating expert1...");
+            expert1 = createExpert1();
+        } else {
+            log.info("Expert1 already exists. Skipping.");
+        }
+        
+        User expert2 = userRepository.findByUsername("prof.levi").orElse(null);
+        if (expert2 == null) {
+            log.info("Creating expert2...");
+            expert2 = createExpert2();
+        } else {
+            log.info("Expert2 already exists. Skipping.");
+        }
+        
+        User student1 = userRepository.findByUsername("sarah.student").orElse(null);
+        if (student1 == null) {
+            log.info("Creating student1...");
+            student1 = createStudent1();
+        } else {
+            log.info("Student1 already exists. Skipping.");
+        }
+        
+        User student2 = userRepository.findByUsername("david.learner").orElse(null);
+        if (student2 == null) {
+            log.info("Creating student2...");
+            student2 = createStudent2();
+        } else {
+            log.info("Student2 already exists. Skipping.");
+        }
+        
+        User student3 = userRepository.findByUsername("maya.coder").orElse(null);
+        if (student3 == null) {
+            log.info("Creating student3...");
+            student3 = createStudent3();
+        } else {
+            log.info("Student3 already exists. Skipping.");
+        }
+        
+        // Check if we should skip remaining initialization
+        boolean allUsersExist = admin != null && expert1 != null && expert2 != null && 
+                                student1 != null && student2 != null && student3 != null;
+        
+        if (allUsersExist && courseRepository.count() > 0 && quizQuestionRepository.count() > 0) {
+            log.info("All demo data already exists. Skipping remaining initialization.");
             return;
         }
-
-        log.info("🚀 Initializing demo data for StudyBuddy MVP with Matching System...");
-
-        // Create Users
-        User admin = createAdmin();
-        User expert1 = createExpert1();
-        User expert2 = createExpert2();
-        User student1 = createStudent1();
-        User student2 = createStudent2();
-        User student3 = createStudent3();
+        
+        log.info("🚀 Initializing missing demo data...");
 
         // ==================== MATCHING SYSTEM ====================
         
-        // Step 1: Create 4 Courses
-        log.info("Creating courses...");
-        Course cs101 = createCourse("CS101", "Computer Science 101", "Introduction to programming and algorithms", "Computer Science", "Fall 2024");
-        Course linearAlgebra = createCourse("MATH201", "Linear Algebra", "Vectors, matrices, and linear transformations", "Mathematics", "Fall 2024");
-        Course psychology = createCourse("PSY101", "Introduction to Psychology", "Fundamentals of human behavior and cognition", "Psychology", "Fall 2024");
-        Course economics = createCourse("ECON101", "Macroeconomics", "Economic principles at the macro level", "Economics", "Fall 2024");
+        // Step 1: Create 4 Courses (only if missing)
+        log.info("Checking courses...");
+        Course cs101 = courseRepository.findByCode("CS101").orElse(null);
+        if (cs101 == null) {
+            cs101 = createCourse("CS101", "Computer Science 101", "Introduction to programming and algorithms", "Computer Science", "Fall 2024");
+        }
         
-        // Step 2: Create 20 Quiz Questions
-        log.info("Creating quiz questions...");
-        createQuizQuestions();
+        Course linearAlgebra = courseRepository.findByCode("MATH201").orElse(null);
+        if (linearAlgebra == null) {
+            linearAlgebra = createCourse("MATH201", "Linear Algebra", "Vectors, matrices, and linear transformations", "Mathematics", "Fall 2024");
+        }
         
-        // Step 3: Create 50 Students with profiles
-        log.info("Creating 50 students with characteristic profiles...");
-        List<User> allStudents = createStudentsWithProfiles(cs101, linearAlgebra, psychology, economics);
+        Course psychology = courseRepository.findByCode("PSY101").orElse(null);
+        if (psychology == null) {
+            psychology = createCourse("PSY101", "Introduction to Psychology", "Fundamentals of human behavior and cognition", "Psychology", "Fall 2024");
+        }
         
-        // Step 4: Create 10 Study Groups with intentional deficits
-        log.info("Creating study groups with role deficits...");
-        createStudyGroupsWithDeficits(allStudents, cs101, linearAlgebra, psychology, economics);
+        Course economics = courseRepository.findByCode("ECON101").orElse(null);
+        if (economics == null) {
+            economics = createCourse("ECON101", "Macroeconomics", "Economic principles at the macro level", "Economics", "Fall 2024");
+        }
         
-        // Old demo data for backward compatibility
-        Course calculus = createCourse("MATH101", "Calculus I", "Introduction to differential and integral calculus", "Mathematics", "Fall 2024");
-        Course dataStructures = createCourse("CS201", "Data Structures", "Fundamental data structures and algorithms", "Computer Science", "Fall 2024");
-        Course physics = createCourse("PHYS101", "Physics I", "Mechanics, thermodynamics, and waves", "Physics", "Fall 2024");
-        Course webDev = createCourse("CS301", "Web Development", "Full-stack web development with modern frameworks", "Computer Science", "Fall 2024");
+        // Step 2: Create 20 Quiz Questions (only if missing)
+        if (quizQuestionRepository.count() == 0) {
+            log.info("Creating quiz questions...");
+            createQuizQuestions();
+        } else {
+            log.info("Quiz questions already exist. Skipping.");
+        }
+        
+        // Step 3: Create 50 Students with profiles (only if not many users exist yet)
+        List<User> allStudents = new ArrayList<>();
+        if (userRepository.count() < 20) {
+            log.info("Creating 50 students with characteristic profiles...");
+            allStudents = createStudentsWithProfiles(cs101, linearAlgebra, psychology, economics);
+        } else {
+            log.info("Many users already exist. Skipping bulk student creation.");
+        }
+        
+        // Step 4: Create 10 Study Groups with intentional deficits (only if not many groups exist)
+        if (studyGroupRepository.count() < 10 && !allStudents.isEmpty()) {
+            log.info("Creating study groups with role deficits...");
+            createStudyGroupsWithDeficits(allStudents, cs101, linearAlgebra, psychology, economics);
+        } else {
+            log.info("Study groups already exist. Skipping group creation.");
+        }
+        
+        // Old demo data for backward compatibility (only create if missing)
+        Course calculus = courseRepository.findByCode("MATH101").orElse(null);
+        if (calculus == null) {
+            calculus = createCourse("MATH101", "Calculus I", "Introduction to differential and integral calculus", "Mathematics", "Fall 2024");
+        }
+        
+        Course dataStructures = courseRepository.findByCode("CS201").orElse(null);
+        if (dataStructures == null) {
+            dataStructures = createCourse("CS201", "Data Structures", "Fundamental data structures and algorithms", "Computer Science", "Fall 2024");
+        }
+        
+        Course physics = courseRepository.findByCode("PHYS101").orElse(null);
+        if (physics == null) {
+            physics = createCourse("PHYS101", "Physics I", "Mechanics, thermodynamics, and waves", "Physics", "Fall 2024");
+        }
+        
+        Course webDev = courseRepository.findByCode("CS301").orElse(null);
+        if (webDev == null) {
+            webDev = createCourse("CS301", "Web Development", "Full-stack web development with modern frameworks", "Computer Science", "Fall 2024");
+        }
 
-        // Enroll students in courses
-        enrollStudent(student1, calculus, dataStructures, physics);
-        enrollStudent(student2, calculus, linearAlgebra, webDev);
-        enrollStudent(student3, dataStructures, webDev, physics);
+        // Enroll students in courses (only if not already enrolled)
+        if (student1 != null) {
+            enrollStudent(student1, calculus, dataStructures, physics);
+        }
+        if (student2 != null) {
+            enrollStudent(student2, calculus, linearAlgebra, webDev);
+        }
+        if (student3 != null) {
+            enrollStudent(student3, dataStructures, webDev, physics);
+        }
 
-        // Create Expert Profiles
-        ExpertProfile expertProfile1 = createExpertProfile(expert1, 
-            "Professor", "Tel Aviv University",
-            "PhD in Computer Science with 15+ years of teaching experience. Specialized in algorithms and data structures.",
-            "PhD Computer Science, MSc Mathematics",
-            12,
-            new ArrayList<>(List.of("Algorithms", "Data Structures", "Java", "Python")),
-            new ArrayList<>(List.of("Problem Solving", "Algorithm Design", "Code Review", "System Design"))
-        );
-        expertProfile1.getExpertiseCourses().add(dataStructures);
-        expertProfile1.getExpertiseCourses().add(webDev);
-        expertProfileRepository.save(expertProfile1);
+        // Create Expert Profiles (only if they don't exist)
+        if (expert1 != null && expertProfileRepository.findByUser(expert1).isEmpty()) {
+            log.info("Creating expert profile 1...");
+            ExpertProfile expertProfile1 = createExpertProfile(expert1, 
+                "Professor", "Tel Aviv University",
+                "PhD in Computer Science with 15+ years of teaching experience. Specialized in algorithms and data structures.",
+                "PhD Computer Science, MSc Mathematics",
+                12,
+                new ArrayList<>(List.of("Algorithms", "Data Structures", "Java", "Python")),
+                new ArrayList<>(List.of("Problem Solving", "Algorithm Design", "Code Review", "System Design"))
+            );
+            expertProfile1.getExpertiseCourses().add(dataStructures);
+            expertProfile1.getExpertiseCourses().add(webDev);
+            expertProfileRepository.save(expertProfile1);
+        } else {
+            log.info("Expert profile 1 already exists. Skipping.");
+        }
 
-        ExpertProfile expertProfile2 = createExpertProfile(expert2,
-            "Senior Teaching Assistant", "Technion",
-            "MSc in Applied Mathematics. Passionate about making complex math concepts accessible to everyone.",
-            "MSc Applied Mathematics, BSc Physics",
-            5,
-            new ArrayList<>(List.of("Calculus", "Linear Algebra", "Statistics", "Mathematical Modeling")),
-            new ArrayList<>(List.of("Mathematical Proofs", "Problem Solving", "Exam Preparation", "Tutoring"))
-        );
-        expertProfile2.getExpertiseCourses().add(calculus);
-        expertProfile2.getExpertiseCourses().add(linearAlgebra);
-        expertProfile2.getExpertiseCourses().add(physics);
-        expertProfileRepository.save(expertProfile2);
+        if (expert2 != null && expertProfileRepository.findByUser(expert2).isEmpty()) {
+            log.info("Creating expert profile 2...");
+            ExpertProfile expertProfile2 = createExpertProfile(expert2,
+                "Senior Teaching Assistant", "Technion",
+                "MSc in Applied Mathematics. Passionate about making complex math concepts accessible to everyone.",
+                "MSc Applied Mathematics, BSc Physics",
+                5,
+                new ArrayList<>(List.of("Calculus", "Linear Algebra", "Statistics", "Mathematical Modeling")),
+                new ArrayList<>(List.of("Mathematical Proofs", "Problem Solving", "Exam Preparation", "Tutoring"))
+            );
+            expertProfile2.getExpertiseCourses().add(calculus);
+            expertProfile2.getExpertiseCourses().add(linearAlgebra);
+            expertProfile2.getExpertiseCourses().add(physics);
+            expertProfileRepository.save(expertProfile2);
+        } else {
+            log.info("Expert profile 2 already exists. Skipping.");
+        }
 
-        // Create Study Groups
-        StudyGroup calculusGroup = createStudyGroup("Calculus Study Group", 
-            "Weekly study sessions for Calculus I midterm preparation", 
-            "Derivatives & Integrals", calculus, student1, 8);
-        addMemberToGroup(calculusGroup, student2);
+        // Create Study Groups (only if they don't exist)
+        StudyGroup calculusGroup = null;
+        if (student1 != null && calculus != null) {
+            calculusGroup = studyGroupRepository.findByCreatorId(student1.getId()).stream()
+                .filter(g -> "Calculus Study Group".equals(g.getName()))
+                .findFirst()
+                .orElse(null);
+            if (calculusGroup == null) {
+                log.info("Creating Calculus Study Group...");
+                calculusGroup = createStudyGroup("Calculus Study Group", 
+                    "Weekly study sessions for Calculus I midterm preparation", 
+                    "Derivatives & Integrals", calculus, student1, 8);
+                if (student2 != null) {
+                    addMemberToGroup(calculusGroup, student2);
+                }
+            } else {
+                log.info("Calculus Study Group already exists. Skipping.");
+            }
+        }
 
-        StudyGroup dsGroup = createStudyGroup("Data Structures Masters", 
-            "Practice coding problems and discuss algorithm strategies", 
-            "Trees & Graphs", dataStructures, student1, 6);
-        addMemberToGroup(dsGroup, student3);
+        StudyGroup dsGroup = null;
+        if (student1 != null && dataStructures != null) {
+            dsGroup = studyGroupRepository.findByCreatorId(student1.getId()).stream()
+                .filter(g -> "Data Structures Masters".equals(g.getName()))
+                .findFirst()
+                .orElse(null);
+            if (dsGroup == null) {
+                log.info("Creating Data Structures Masters group...");
+                dsGroup = createStudyGroup("Data Structures Masters", 
+                    "Practice coding problems and discuss algorithm strategies", 
+                    "Trees & Graphs", dataStructures, student1, 6);
+                if (student3 != null) {
+                    addMemberToGroup(dsGroup, student3);
+                }
+            } else {
+                log.info("Data Structures Masters group already exists. Skipping.");
+            }
+        }
 
-        StudyGroup webDevGroup = createStudyGroup("Full Stack Developers", 
-            "Build projects together and share web development tips", 
-            "React & Spring Boot", webDev, student2, 10);
-        addMemberToGroup(webDevGroup, student3);
+        StudyGroup webDevGroup = null;
+        if (student2 != null && webDev != null) {
+            webDevGroup = studyGroupRepository.findByCreatorId(student2.getId()).stream()
+                .filter(g -> "Full Stack Developers".equals(g.getName()))
+                .findFirst()
+                .orElse(null);
+            if (webDevGroup == null) {
+                log.info("Creating Full Stack Developers group...");
+                webDevGroup = createStudyGroup("Full Stack Developers", 
+                    "Build projects together and share web development tips", 
+                    "React & Spring Boot", webDev, student2, 10);
+                if (student3 != null) {
+                    addMemberToGroup(webDevGroup, student3);
+                }
+            } else {
+                log.info("Full Stack Developers group already exists. Skipping.");
+            }
+        }
 
-        StudyGroup physicsGroup = createStudyGroup("Physics Problem Solvers", 
-            "Collaborative physics problem solving sessions", 
-            "Mechanics", physics, student3, 5);
-        addMemberToGroup(physicsGroup, student1);
+        StudyGroup physicsGroup = null;
+        if (student3 != null && physics != null) {
+            physicsGroup = studyGroupRepository.findByCreatorId(student3.getId()).stream()
+                .filter(g -> "Physics Problem Solvers".equals(g.getName()))
+                .findFirst()
+                .orElse(null);
+            if (physicsGroup == null) {
+                log.info("Creating Physics Problem Solvers group...");
+                physicsGroup = createStudyGroup("Physics Problem Solvers", 
+                    "Collaborative physics problem solving sessions", 
+                    "Mechanics", physics, student3, 5);
+                if (student1 != null) {
+                    addMemberToGroup(physicsGroup, student1);
+                }
+            } else {
+                log.info("Physics Problem Solvers group already exists. Skipping.");
+            }
+        }
 
-        // Create Messages in Groups
-        createMessage(calculusGroup, student1, "Hey everyone! Let's prepare for the midterm together. What topics should we focus on first?");
-        createMessage(calculusGroup, student2, "I think we should start with derivatives - that's where most of the exam questions come from!");
-        createMessage(calculusGroup, student1, "Good idea! I found some practice problems we can work through together.");
+        // Create Messages in Groups (only if group exists and has few messages)
+        if (calculusGroup != null && student1 != null) {
+            long messageCount = messageRepository.count();
+            if (messageCount < 50) { // Only create messages if we don't have many yet
+                createMessage(calculusGroup, student1, "Hey everyone! Let's prepare for the midterm together. What topics should we focus on first?");
+                if (student2 != null) {
+                    createMessage(calculusGroup, student2, "I think we should start with derivatives - that's where most of the exam questions come from!");
+                }
+                createMessage(calculusGroup, student1, "Good idea! I found some practice problems we can work through together.");
+            }
+        }
 
-        createMessage(dsGroup, student1, "Just solved the binary tree traversal problem! The trick is using recursion properly.");
-        createMessage(dsGroup, student3, "Can you share your approach? I'm stuck on the iterative solution.");
-        createMessage(dsGroup, student1, "Sure! Let me explain the stack-based approach in our next session.");
+        if (dsGroup != null && student1 != null) {
+            long messageCount = messageRepository.count();
+            if (messageCount < 50) {
+                createMessage(dsGroup, student1, "Just solved the binary tree traversal problem! The trick is using recursion properly.");
+                if (student3 != null) {
+                    createMessage(dsGroup, student3, "Can you share your approach? I'm stuck on the iterative solution.");
+                }
+                createMessage(dsGroup, student1, "Sure! Let me explain the stack-based approach in our next session.");
+            }
+        }
 
-        createMessage(webDevGroup, student2, "I finished setting up the React frontend. Ready to integrate with the backend!");
-        createMessage(webDevGroup, student3, "Great progress! I'll handle the Spring Boot API endpoints.");
+        if (webDevGroup != null && student2 != null) {
+            long messageCount = messageRepository.count();
+            if (messageCount < 50) {
+                createMessage(webDevGroup, student2, "I finished setting up the React frontend. Ready to integrate with the backend!");
+                if (student3 != null) {
+                    createMessage(webDevGroup, student3, "Great progress! I'll handle the Spring Boot API endpoints.");
+                }
+            }
+        }
 
-        // Create Expert Questions
-        ExpertQuestion question1 = createQuestion(student1, expert1, dataStructures, dsGroup,
-            "How to optimize this recursive solution?",
-            "I have a recursive function for calculating Fibonacci numbers but it's too slow for large inputs. How can I optimize it without using iteration?",
-            "public int fib(int n) {\n    if (n <= 1) return n;\n    return fib(n-1) + fib(n-2);\n}",
-            "Java",
-            new ArrayList<>(List.of("recursion", "optimization", "dynamic-programming")),
-            true
-        );
+        // Create Expert Questions (only if they don't exist)
+        ExpertQuestion question1 = null;
+        if (student1 != null && expert1 != null && dataStructures != null) {
+            question1 = expertQuestionRepository.findByStudentIdOrderByCreatedAtDesc(student1.getId()).stream()
+                .filter(q -> "How to optimize this recursive solution?".equals(q.getTitle()))
+                .findFirst()
+                .orElse(null);
+            if (question1 == null) {
+                log.info("Creating expert question 1...");
+                question1 = createQuestion(student1, expert1, dataStructures, dsGroup,
+                    "How to optimize this recursive solution?",
+                    "I have a recursive function for calculating Fibonacci numbers but it's too slow for large inputs. How can I optimize it without using iteration?",
+                    "public int fib(int n) {\n    if (n <= 1) return n;\n    return fib(n-1) + fib(n-2);\n}",
+                    "Java",
+                    new ArrayList<>(List.of("recursion", "optimization", "dynamic-programming")),
+                    true
+                );
+                
+                // Answer the question
+                if (expert1 != null) {
+                    answerQuestion(question1, expert1, 
+                        "Great question! You can use memoization to avoid recalculating the same values. Here's the optimized solution:\n\n" +
+                        "```java\nprivate Map<Integer, Integer> memo = new HashMap<>();\n\n" +
+                        "public int fib(int n) {\n" +
+                        "    if (n <= 1) return n;\n" +
+                        "    if (memo.containsKey(n)) return memo.get(n);\n" +
+                        "    int result = fib(n-1) + fib(n-2);\n" +
+                        "    memo.put(n, result);\n" +
+                        "    return result;\n}\n```\n\n" +
+                        "This reduces the time complexity from O(2^n) to O(n) by storing previously calculated results!"
+                    );
+                }
+            } else {
+                log.info("Expert question 1 already exists. Skipping.");
+            }
+        }
 
-        ExpertQuestion question2 = createQuestion(student2, expert2, calculus, null,
-            "Understanding the Chain Rule",
-            "I'm struggling to understand when and how to apply the chain rule for composite functions. Can you explain with a step-by-step example?",
-            null, null,
-            new ArrayList<>(List.of("calculus", "derivatives", "chain-rule")),
-            true
-        );
+        ExpertQuestion question2 = null;
+        if (student2 != null && expert2 != null && calculus != null) {
+            question2 = expertQuestionRepository.findByStudentIdOrderByCreatedAtDesc(student2.getId()).stream()
+                .filter(q -> "Understanding the Chain Rule".equals(q.getTitle()))
+                .findFirst()
+                .orElse(null);
+            if (question2 == null) {
+                log.info("Creating expert question 2...");
+                question2 = createQuestion(student2, expert2, calculus, null,
+                    "Understanding the Chain Rule",
+                    "I'm struggling to understand when and how to apply the chain rule for composite functions. Can you explain with a step-by-step example?",
+                    null, null,
+                    new ArrayList<>(List.of("calculus", "derivatives", "chain-rule")),
+                    true
+                );
+            } else {
+                log.info("Expert question 2 already exists. Skipping.");
+            }
+        }
 
-        // Answer one question (expert1 answers question1)
-        answerQuestion(question1, expert1, 
-            "Great question! You can use memoization to avoid recalculating the same values. Here's the optimized solution:\n\n" +
-            "```java\nprivate Map<Integer, Integer> memo = new HashMap<>();\n\n" +
-            "public int fib(int n) {\n" +
-            "    if (n <= 1) return n;\n" +
-            "    if (memo.containsKey(n)) return memo.get(n);\n" +
-            "    int result = fib(n-1) + fib(n-2);\n" +
-            "    memo.put(n, result);\n" +
-            "    return result;\n}\n```\n\n" +
-            "This reduces the time complexity from O(2^n) to O(n) by storing previously calculated results!"
-        );
+        // Create Expert Sessions (only if they don't exist)
+        if (expert1 != null && student1 != null && dataStructures != null) {
+            List<ExpertSession> existingSessions = expertSessionRepository.findByExpertIdOrderByScheduledStartTimeDesc(expert1.getId());
+            boolean sessionExists = existingSessions.stream()
+                .anyMatch(s -> "Algorithm Problem Solving Workshop".equals(s.getTitle()));
+            if (!sessionExists) {
+                log.info("Creating expert session 1...");
+                createSession(expert1, student1, dsGroup, dataStructures,
+                    "Algorithm Problem Solving Workshop",
+                    "Deep dive into dynamic programming and graph algorithms",
+                    "1. Review recursion basics\n2. Introduction to memoization\n3. Practice problems",
+                    ExpertSession.SessionType.ONE_ON_ONE,
+                    LocalDateTime.now().plusDays(2).withHour(14).withMinute(0),
+                    LocalDateTime.now().plusDays(2).withHour(15).withMinute(0)
+                );
+            } else {
+                log.info("Expert session 1 already exists. Skipping.");
+            }
+        }
 
-        // Create Expert Sessions
-        createSession(expert1, student1, dsGroup, dataStructures,
-            "Algorithm Problem Solving Workshop",
-            "Deep dive into dynamic programming and graph algorithms",
-            "1. Review recursion basics\n2. Introduction to memoization\n3. Practice problems",
-            ExpertSession.SessionType.ONE_ON_ONE,
-            LocalDateTime.now().plusDays(2).withHour(14).withMinute(0),
-            LocalDateTime.now().plusDays(2).withHour(15).withMinute(0)
-        );
+        if (expert2 != null && student2 != null && calculus != null) {
+            List<ExpertSession> existingSessions = expertSessionRepository.findByExpertIdOrderByScheduledStartTimeDesc(expert2.getId());
+            boolean sessionExists = existingSessions.stream()
+                .anyMatch(s -> "Calculus Midterm Review".equals(s.getTitle()));
+            if (!sessionExists) {
+                log.info("Creating expert session 2...");
+                createSession(expert2, student2, null, calculus,
+                    "Calculus Midterm Review",
+                    "Comprehensive review of derivatives and integrals for the upcoming exam",
+                    "1. Derivative rules review\n2. Integration techniques\n3. Practice exam problems",
+                    ExpertSession.SessionType.ONE_ON_ONE,
+                    LocalDateTime.now().plusDays(3).withHour(10).withMinute(0),
+                    LocalDateTime.now().plusDays(3).withHour(11).withMinute(30)
+                );
+            } else {
+                log.info("Expert session 2 already exists. Skipping.");
+            }
+        }
 
-        createSession(expert2, student2, null, calculus,
-            "Calculus Midterm Review",
-            "Comprehensive review of derivatives and integrals for the upcoming exam",
-            "1. Derivative rules review\n2. Integration techniques\n3. Practice exam problems",
-            ExpertSession.SessionType.ONE_ON_ONE,
-            LocalDateTime.now().plusDays(3).withHour(10).withMinute(0),
-            LocalDateTime.now().plusDays(3).withHour(11).withMinute(30)
-        );
-
-        createSession(expert1, null, webDevGroup, webDev,
-            "React & Spring Boot Integration Workshop",
-            "Learn how to connect your React frontend with Spring Boot backend",
-            "1. REST API design\n2. Axios integration\n3. Authentication flow",
-            ExpertSession.SessionType.GROUP,
-            LocalDateTime.now().plusDays(5).withHour(16).withMinute(0),
-            LocalDateTime.now().plusDays(5).withHour(18).withMinute(0)
-        );
+        if (expert1 != null && webDevGroup != null && webDev != null) {
+            List<ExpertSession> existingSessions = expertSessionRepository.findByExpertIdOrderByScheduledStartTimeDesc(expert1.getId());
+            boolean sessionExists = existingSessions.stream()
+                .anyMatch(s -> "React & Spring Boot Integration Workshop".equals(s.getTitle()));
+            if (!sessionExists) {
+                log.info("Creating expert session 3...");
+                createSession(expert1, null, webDevGroup, webDev,
+                    "React & Spring Boot Integration Workshop",
+                    "Learn how to connect your React frontend with Spring Boot backend",
+                    "1. REST API design\n2. Axios integration\n3. Authentication flow",
+                    ExpertSession.SessionType.GROUP,
+                    LocalDateTime.now().plusDays(5).withHour(16).withMinute(0),
+                    LocalDateTime.now().plusDays(5).withHour(18).withMinute(0)
+                );
+            } else {
+                log.info("Expert session 3 already exists. Skipping.");
+            }
+        }
 
         log.info("✅ Demo data initialization complete!");
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -329,6 +569,8 @@ public class DataInitializer implements CommandLineRunner {
         admin.setRole(Role.ADMIN);
         admin.setIsActive(true);
         admin.setIsEmailVerified(true); // Admin is pre-verified
+        admin.setIsDeleted(false);
+        admin.setOnboardingCompleted(true); // Admin doesn't need onboarding
         admin.setProficiencyLevel("advanced");
         admin.setCollaborationStyle("balanced");
         admin.setTopicsOfInterest(new ArrayList<>());
@@ -345,6 +587,8 @@ public class DataInitializer implements CommandLineRunner {
         expert.setRole(Role.EXPERT);
         expert.setIsActive(true);
         expert.setIsEmailVerified(true); // Demo users are pre-verified
+        expert.setIsDeleted(false);
+        expert.setOnboardingCompleted(true); // Experts don't need onboarding
         expert.setProficiencyLevel("advanced");
         expert.setCollaborationStyle("discussion_heavy");
         expert.setTopicsOfInterest(new ArrayList<>(List.of("Algorithms", "Data Structures", "Software Engineering")));
@@ -361,6 +605,8 @@ public class DataInitializer implements CommandLineRunner {
         expert.setRole(Role.EXPERT);
         expert.setIsActive(true);
         expert.setIsEmailVerified(true); // Demo users are pre-verified
+        expert.setIsDeleted(false);
+        expert.setOnboardingCompleted(true); // Experts don't need onboarding
         expert.setProficiencyLevel("advanced");
         expert.setCollaborationStyle("balanced");
         expert.setTopicsOfInterest(new ArrayList<>(List.of("Mathematics", "Calculus", "Linear Algebra")));
@@ -377,6 +623,8 @@ public class DataInitializer implements CommandLineRunner {
         student.setRole(Role.USER);
         student.setIsActive(true);
         student.setIsEmailVerified(true); // Demo users are pre-verified
+        student.setIsDeleted(false);
+        student.setOnboardingCompleted(false); // Students need onboarding
         student.setProficiencyLevel("intermediate");
         student.setCollaborationStyle("discussion_heavy");
         student.setTopicsOfInterest(new ArrayList<>(List.of("Computer Science", "Mathematics")));
@@ -393,6 +641,8 @@ public class DataInitializer implements CommandLineRunner {
         student.setRole(Role.USER);
         student.setIsActive(true);
         student.setIsEmailVerified(true); // Demo users are pre-verified
+        student.setIsDeleted(false);
+        student.setOnboardingCompleted(false); // Students need onboarding
         student.setProficiencyLevel("beginner");
         student.setCollaborationStyle("quiet_focus");
         student.setTopicsOfInterest(new ArrayList<>(List.of("Web Development", "Mathematics")));
@@ -409,6 +659,8 @@ public class DataInitializer implements CommandLineRunner {
         student.setRole(Role.USER);
         student.setIsActive(true);
         student.setIsEmailVerified(true); // Demo users are pre-verified
+        student.setIsDeleted(false);
+        student.setOnboardingCompleted(false); // Students need onboarding
         student.setProficiencyLevel("advanced");
         student.setCollaborationStyle("balanced");
         student.setTopicsOfInterest(new ArrayList<>(List.of("Programming", "Physics", "Web Development")));
@@ -417,6 +669,12 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private Course createCourse(String code, String name, String description, String faculty, String semester) {
+        // Check if course already exists
+        Optional<Course> existing = courseRepository.findByCode(code);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        
         Course course = new Course();
         course.setCode(code);
         course.setName(name);
@@ -427,10 +685,15 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void enrollStudent(User student, Course... courses) {
+        if (student == null) return;
         for (Course course : courses) {
-            student.getCourses().add(course);
-            course.getStudents().add(student);
-            courseRepository.save(course);
+            if (course == null) continue;
+            // Check if already enrolled
+            if (!student.getCourses().contains(course)) {
+                student.getCourses().add(course);
+                course.getStudents().add(student);
+                courseRepository.save(course);
+            }
         }
         userRepository.save(student);
     }
@@ -734,6 +997,15 @@ public class DataInitializer implements CommandLineRunner {
             String opt3Text, Map<RoleType, Double> opt3Weights,
             String opt4Text, Map<RoleType, Double> opt4Weights) {
         
+        // Check if question with this orderIndex already exists
+        List<QuizQuestion> existingQuestions = quizQuestionRepository.findAll();
+        boolean questionExists = existingQuestions.stream()
+            .anyMatch(q -> q.getOrderIndex() == order && q.getQuestionText().equals(questionText));
+        if (questionExists) {
+            log.debug("Quiz question {} (order {}) already exists. Skipping.", questionText, order);
+            return;
+        }
+        
         QuizQuestion question = QuizQuestion.builder()
                 .questionText(questionText)
                 .orderIndex(order)
@@ -903,6 +1175,13 @@ public class DataInitializer implements CommandLineRunner {
             double communicator, double teamPlayer, double challenger,
             List<Course> allCourses) {
         
+        // Check if student already exists
+        Optional<User> existingStudent = userRepository.findByUsername(username);
+        if (existingStudent.isPresent()) {
+            log.debug("Student {} already exists. Skipping.", username);
+            return existingStudent.get();
+        }
+        
         // Create user
         User student = new User();
         student.setUsername(username);
@@ -912,6 +1191,8 @@ public class DataInitializer implements CommandLineRunner {
         student.setRole(Role.USER);
         student.setIsActive(true);
         student.setIsEmailVerified(true); // Demo users are pre-verified
+        student.setIsDeleted(false);
+        student.setOnboardingCompleted(false); // Students need onboarding
         student.setProficiencyLevel("intermediate");
         student.setCollaborationStyle("balanced");
         student.setTopicsOfInterest(new ArrayList<>(List.of("Technology", "Mathematics", "Psychology")));
@@ -923,30 +1204,36 @@ public class DataInitializer implements CommandLineRunner {
         int numCourses = random.nextInt(3) + 1; // 1-3 courses
         List<Course> shuffledCourses = new ArrayList<>(allCourses);
         java.util.Collections.shuffle(shuffledCourses);
-        for (int i = 0; i < numCourses; i++) {
-            savedStudent.getCourses().add(shuffledCourses.get(i));
+        for (int i = 0; i < numCourses && i < shuffledCourses.size(); i++) {
+            Course course = shuffledCourses.get(i);
+            if (course != null && !savedStudent.getCourses().contains(course)) {
+                savedStudent.getCourses().add(course);
+            }
         }
         savedStudent = userRepository.save(savedStudent);
         
-        // Create characteristic profile
-        CharacteristicProfile profile = CharacteristicProfile.builder()
-                .user(savedStudent)
-                .roleScores(new java.util.HashMap<>())
-                .quizStatus(com.studybuddy.model.QuizStatus.COMPLETED)
-                .totalQuestions(20)
-                .answeredQuestions(20)
-                .reliabilityPercentage(1.0)
-                .build();
-        
-        profile.setRoleScore(RoleType.LEADER, leader);
-        profile.setRoleScore(RoleType.PLANNER, planner);
-        profile.setRoleScore(RoleType.EXPERT, expert);
-        profile.setRoleScore(RoleType.CREATIVE, creative);
-        profile.setRoleScore(RoleType.COMMUNICATOR, communicator);
-        profile.setRoleScore(RoleType.TEAM_PLAYER, teamPlayer);
-        profile.setRoleScore(RoleType.CHALLENGER, challenger);
-        
-        characteristicProfileRepository.save(profile);
+        // Create characteristic profile (only if doesn't exist)
+        CharacteristicProfile existingProfile = characteristicProfileRepository.findByUserId(savedStudent.getId()).orElse(null);
+        if (existingProfile == null) {
+            CharacteristicProfile profile = CharacteristicProfile.builder()
+                    .user(savedStudent)
+                    .roleScores(new java.util.HashMap<>())
+                    .quizStatus(com.studybuddy.model.QuizStatus.COMPLETED)
+                    .totalQuestions(20)
+                    .answeredQuestions(20)
+                    .reliabilityPercentage(1.0)
+                    .build();
+            
+            profile.setRoleScore(RoleType.LEADER, leader);
+            profile.setRoleScore(RoleType.PLANNER, planner);
+            profile.setRoleScore(RoleType.EXPERT, expert);
+            profile.setRoleScore(RoleType.CREATIVE, creative);
+            profile.setRoleScore(RoleType.COMMUNICATOR, communicator);
+            profile.setRoleScore(RoleType.TEAM_PLAYER, teamPlayer);
+            profile.setRoleScore(RoleType.CHALLENGER, challenger);
+            
+            characteristicProfileRepository.save(profile);
+        }
         
         return savedStudent;
     }
@@ -1017,9 +1304,18 @@ public class DataInitializer implements CommandLineRunner {
         
         User creator = members.get(0);
         
+        // Check if group already exists
+        List<StudyGroup> existingGroups = studyGroupRepository.findByCreatorId(creator.getId());
+        boolean groupExists = existingGroups.stream()
+            .anyMatch(g -> name.equals(g.getName()) && course != null && course.equals(g.getCourse()));
+        if (groupExists) {
+            log.debug("Group {} already exists. Skipping.", name);
+            return;
+        }
+        
         // Ensure all members are enrolled in the course
         for (User member : members) {
-            if (!member.getCourses().contains(course)) {
+            if (member != null && course != null && !member.getCourses().contains(course)) {
                 member.getCourses().add(course);
                 userRepository.save(member);
             }
@@ -1030,7 +1326,9 @@ public class DataInitializer implements CommandLineRunner {
         
         // Add remaining members (skip first since creator is already added)
         for (int i = 1; i < members.size(); i++) {
-            addMemberToGroup(group, members.get(i));
+            if (members.get(i) != null) {
+                addMemberToGroup(group, members.get(i));
+            }
         }
         
         log.info("Created group: {} with {} members", name, members.size());

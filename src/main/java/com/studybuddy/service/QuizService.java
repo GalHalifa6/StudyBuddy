@@ -32,23 +32,18 @@ public class QuizService {
     private final QuizAnswerRepository answerRepository;
     
     /**
-     * Get all active quiz questions, excluding already-answered ones for this user.
+     * Get all active quiz questions.
+     * Returns all questions (not filtered by answered status) so users can always see the first question.
+     * The submit endpoint prevents re-answering already answered questions.
      */
     @Transactional(readOnly = true)
     public List<QuizDto.QuestionResponse> getQuiz(User user) {
         List<QuizQuestion> allQuestions = questionRepository.findAllActiveWithOptions();
         
-        // Get questions user has already answered
-        List<com.studybuddy.model.QuizAnswer> answeredQuestions = answerRepository.findByUserId(user.getId());
-        java.util.Set<Long> answeredQuestionIds = answeredQuestions.stream()
-            .map(a -> a.getQuestion().getId())
-            .collect(java.util.stream.Collectors.toSet());
+        log.info("User {} - returning {} active quiz questions", user.getId(), allQuestions.size());
         
-        log.info("User {} has answered {} questions, filtering them out", user.getId(), answeredQuestionIds.size());
-        
-        // Filter out already-answered questions
+        // Return all questions (frontend will filter to show only first question)
         return allQuestions.stream()
-                .filter(q -> !answeredQuestionIds.contains(q.getId()))
                 .map(this::mapToQuestionResponse)
                 .collect(Collectors.toList());
     }
