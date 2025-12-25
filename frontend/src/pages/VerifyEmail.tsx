@@ -99,6 +99,9 @@ const VerifyEmail: React.FC = () => {
                 Register Again
               </button>
             </div>
+            <p className="mt-4 text-sm text-gray-500">
+              Didn't receive the email? Check your spam folder or contact support.
+            </p>
           </>
         )}
       </div>

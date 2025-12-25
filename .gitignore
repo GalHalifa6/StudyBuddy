@@ -53,6 +53,9 @@ frontend/dist/
 frontend/.env.local
 frontend/coverage/
 
+# Mobile
+studybuddy-mobile/node_modules/
+
 # Test Coverage
 target/site/jacoco/
 *.exec

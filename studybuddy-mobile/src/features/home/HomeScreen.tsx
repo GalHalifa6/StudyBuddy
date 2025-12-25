@@ -84,7 +84,7 @@ const HomeScreen: React.FC = () => {
   const quickActions = useMemo(
     () => [
       { label: 'Browse courses', icon: 'book-outline' as const, onPress: () => navigation.navigate('Courses', { screen: 'CoursesHome' }) },
-      { label: 'Find groups', icon: 'people-outline' as const, onPress: () => navigation.navigate('Groups') },
+      { label: 'Find groups', icon: 'people-outline' as const, onPress: () => navigation.navigate('Groups', { screen: 'GroupsHome' }) },
       { label: isExpert ? 'My Sessions' : 'Upcoming sessions', icon: 'calendar-outline' as const, onPress: () => navigation.navigate('Sessions') },
       { label: isExpert ? 'Expert Dashboard' : 'Meet experts', icon: isExpert ? 'stats-chart-outline' as const : 'briefcase-outline' as const, onPress: () => navigation.navigate('Experts') },
     ],
@@ -309,7 +309,7 @@ const HomeScreen: React.FC = () => {
       ) : null}
 
       <View style={styles.section}>
-        <SectionHeader title="Unread messages" styles={styles} actionLabel="Open groups" onAction={() => navigation.navigate('Groups')} />
+        <SectionHeader title="Unread messages" styles={styles} actionLabel="Open groups" onAction={() => navigation.navigate('Groups', { screen: 'GroupsHome' })} />
         <View style={styles.unreadCard}>
           <Text style={styles.unreadSummary}>
             {overview.unreadMessages.total ? `${overview.unreadMessages.total} unread messages` : 'You are all caught up'}

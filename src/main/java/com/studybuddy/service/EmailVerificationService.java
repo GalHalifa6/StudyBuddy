@@ -4,7 +4,10 @@ import com.studybuddy.model.EmailVerificationToken;
 import com.studybuddy.model.User;
 import com.studybuddy.repository.EmailVerificationTokenRepository;
 import com.studybuddy.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,8 @@ import java.util.List;
 @Service
 public class EmailVerificationService {
 
+    private static final Logger logger = LoggerFactory.getLogger(EmailVerificationService.class);
+
     @Autowired
     private EmailVerificationTokenRepository tokenRepository;
 
@@ -31,6 +36,9 @@ public class EmailVerificationService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
     private static final int TOKEN_LENGTH = 32; // bytes
     private static final int TOKEN_VALIDITY_HOURS = 24;
@@ -58,8 +66,25 @@ public class EmailVerificationService {
 
         tokenRepository.save(token);
 
+        // Build verification link for logging
+        String verificationLink = frontendUrl + "/verify-email?token=" + rawToken;
+        
+        // Always log the verification link (especially useful when email fails)
+        logger.info("========================================");
+        logger.info("EMAIL VERIFICATION TOKEN GENERATED");
+        logger.info("User: {} ({})", user.getEmail(), user.getUsername());
+        logger.info("Verification Link: {}", verificationLink);
+        logger.info("Token expires in {} hours", TOKEN_VALIDITY_HOURS);
+        logger.info("========================================");
+
         // Send verification email
-        emailService.sendVerificationEmail(user.getEmail(), rawToken);
+        try {
+            emailService.sendVerificationEmail(user.getEmail(), rawToken);
+        } catch (Exception e) {
+            // Email failed, but link is already logged above
+            logger.error("Email sending failed, but verification link has been logged above");
+            throw e; // Re-throw to let controller handle it
+        }
 
         return rawToken;
     }

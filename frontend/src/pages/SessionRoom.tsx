@@ -594,10 +594,13 @@ const SessionRoom: React.FC = () => {
           key={`jitsi-${session.id}`} // Stable key based on session ID only
           roomName={meetingLink}
           displayName={user?.fullName || user?.username || 'Participant'}
+          userEmail={user?.email}
+          userId={user?.id}
+          isExpert={isSessionExpert} // Expert is the host
           config={{
             startWithAudioMuted: false, // Auto-join with audio enabled
             startWithVideoMuted: false, // Auto-join with video enabled
-            enableWelcomePage: false,
+            enableWelcomePage: false, // Skip welcome page - already authenticated
             enableClosePage: false,
           }}
           className="w-full h-full"

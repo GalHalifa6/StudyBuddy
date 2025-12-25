@@ -217,6 +217,14 @@ const MainTabs: React.FC = () => {
         }} 
       />
       <Tab.Screen 
+        name="Courses" 
+        component={CoursesNavigator} 
+        options={{ 
+          headerShown: false, 
+          tabBarLabel: 'Courses',
+        }} 
+      />
+      <Tab.Screen 
         name="Groups" 
         component={GroupsNavigator} 
         options={{ 

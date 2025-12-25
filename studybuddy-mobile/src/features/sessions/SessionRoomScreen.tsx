@@ -391,10 +391,13 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
           key={`jitsi-${session.id}`} // Stable key based on session ID only
           roomName={meetingLink}
           displayName={user?.fullName || user?.username || 'Participant'}
+          userEmail={user?.email}
+          userId={user?.id}
+          isExpert={isSessionHost} // Expert is the host
           config={{
             startWithAudioMuted: false, // Auto-join with audio enabled
             startWithVideoMuted: false, // Auto-join with video enabled
-            enableWelcomePage: false,
+            enableWelcomePage: false, // Skip welcome page - already authenticated
             enableClosePage: false,
           }}
           style={styles.videoEmbed}

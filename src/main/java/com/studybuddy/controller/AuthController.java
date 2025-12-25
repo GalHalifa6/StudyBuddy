@@ -169,18 +169,42 @@ public class AuthController {
         }
 
         // Send verification email
+        boolean emailSent = false;
+        String emailError = null;
         try {
             emailVerificationService.createAndSendVerificationToken(user);
+            emailSent = true;
             logger.info("Verification email sent to user: {}", user.getEmail());
         } catch (Exception e) {
-            logger.error("Failed to send verification email to {}: {}", user.getEmail(), e.getMessage());
-            // Continue with registration even if email fails
+            logger.error("Failed to send verification email to {}: {}", user.getEmail(), e.getMessage(), e);
+            emailError = e.getMessage();
+            // Log the full stack trace for debugging
+            if (e.getCause() != null) {
+                logger.error("Email send failure cause: {}", e.getCause().getMessage());
+            }
         }
 
-        return ResponseEntity.ok(new AuthDto.MessageResponse(
-                "User registered successfully! Please check your email to verify your account.", 
-                true
-        ));
+        // Return appropriate response based on email status
+        if (emailSent) {
+            return ResponseEntity.ok(new AuthDto.MessageResponse(
+                    "User registered successfully! Please check your email to verify your account.", 
+                    true
+            ));
+        } else {
+            // Registration succeeded but email failed - provide helpful message
+            List<String> warnings = new ArrayList<>();
+            warnings.add("Account created successfully, but verification email could not be sent.");
+            warnings.add("Please use the 'Resend Verification Email' feature or contact support.");
+            if (emailError != null && emailError.contains("SendGrid") || emailError.contains("API")) {
+                warnings.add("Email service may not be configured. Please contact administrator.");
+            }
+            return ResponseEntity.status(HttpStatus.ACCEPTED)
+                    .body(new AuthDto.MessageResponse(
+                            "Account created, but verification email failed. Please use 'Resend Verification Email' or contact support.", 
+                            true,
+                            warnings
+                    ));
+        }
     }
 
     @PostMapping("/login")

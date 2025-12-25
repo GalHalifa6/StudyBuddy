@@ -12,7 +12,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import com.studybuddy.service.EmailService;
 import com.studybuddy.service.EmailVerificationService;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,6 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -75,6 +79,9 @@ class CrossComponentIntegrationTest {
     @Autowired
     private EmailVerificationService emailVerificationService;
 
+    @MockBean
+    private EmailService emailService;
+
     private User user1;
     private User user2;
     private Course testCourse;
@@ -82,6 +89,9 @@ class CrossComponentIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // Mock email service to prevent actual email sending
+        doNothing().when(emailService).sendVerificationEmail(anyString(), anyString());
+
         userRepository.deleteAll();
         courseRepository.deleteAll();
         groupRepository.deleteAll();

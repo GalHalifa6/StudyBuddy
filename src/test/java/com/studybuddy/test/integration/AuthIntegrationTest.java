@@ -7,16 +7,21 @@ import com.studybuddy.model.Role;
 import com.studybuddy.model.User;
 import com.studybuddy.repository.AllowedEmailDomainRepository;
 import com.studybuddy.repository.UserRepository;
+import com.studybuddy.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -46,11 +51,17 @@ class AuthIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @MockBean
+    private EmailService emailService;
+
     private User testUser;
     private AllowedEmailDomain testDomain;
 
     @BeforeEach
     void setUp() {
+        // Mock email service to prevent actual email sending
+        doNothing().when(emailService).sendVerificationEmail(anyString(), anyString());
+
         userRepository.deleteAll();
         domainRepository.deleteAll();
 

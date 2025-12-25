@@ -1,5 +1,6 @@
 package com.studybuddy.service;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -24,8 +25,48 @@ public class EmailService {
     @Value("${spring.mail.from:noreply@studybuddy.com}")
     private String fromEmail;
 
+    @Value("${spring.mail.password:your-sendgrid-api-key}")
+    private String mailPassword;
+
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
+
+    /**
+     * Logs email configuration on startup (without exposing sensitive data)
+     */
+    @PostConstruct
+    public void logEmailConfiguration() {
+        // Check environment variables directly
+        String envApiKey = System.getenv("SENDGRID_API_KEY");
+        String envFromAddress = System.getenv("MAIL_FROM_ADDRESS");
+        String envFrontendUrl = System.getenv("FRONTEND_URL");
+        
+        boolean isConfigured = mailPassword != null && 
+                               !mailPassword.isEmpty() && 
+                               !mailPassword.equals("your-sendgrid-api-key");
+        
+        logger.info("========================================");
+        logger.info("EMAIL SERVICE CONFIGURATION");
+        logger.info("From Address (config): {}", fromEmail);
+        logger.info("From Address (env var): {}", envFromAddress != null ? envFromAddress : "NOT SET");
+        logger.info("Frontend URL (config): {}", frontendUrl);
+        logger.info("Frontend URL (env var): {}", envFrontendUrl != null ? envFrontendUrl : "NOT SET");
+        logger.info("SendGrid API Key (config): {}", isConfigured ? "✅ CONFIGURED" : "❌ NOT CONFIGURED");
+        logger.info("SendGrid API Key (env var): {}", envApiKey != null && !envApiKey.isEmpty() ? "✅ SET" : "❌ NOT SET");
+        
+        if (envApiKey != null && !envApiKey.isEmpty() && !isConfigured) {
+            logger.warn("⚠️  WARNING: Environment variable SENDGRID_API_KEY is set but not being read!");
+            logger.warn("⚠️  Please restart the backend server to load environment variables.");
+        }
+        
+        if (isConfigured) {
+            logger.info("Email sending: ENABLED (emails will be sent via SendGrid)");
+        } else {
+            logger.warn("Email sending: DISABLED (verification links will be logged to console)");
+            logger.warn("To enable: Set SENDGRID_API_KEY environment variable and restart server");
+        }
+        logger.info("========================================");
+    }
 
     /**
      * Sends email verification email to user
@@ -33,17 +74,65 @@ public class EmailService {
      * @param verificationToken The verification token
      */
     public void sendVerificationEmail(String toEmail, String verificationToken) {
+        String verificationLink = frontendUrl + "/verify-email?token=" + verificationToken;
+        
+        // Check if SendGrid is properly configured
+        boolean isDevelopmentMode = mailPassword == null || 
+                                    mailPassword.isEmpty() || 
+                                    mailPassword.equals("your-sendgrid-api-key");
+        
+        // Always log verification link for debugging (even in production)
+        logger.info("========================================");
+        logger.info("EMAIL VERIFICATION REQUEST");
+        logger.info("To: {}", toEmail);
+        logger.info("Verification Link: {}", verificationLink);
+        if (isDevelopmentMode) {
+            logger.warn("⚠️  DEVELOPMENT MODE: Email will not be sent");
+            logger.warn("Copy the link above to verify the account manually");
+        } else {
+            logger.info("📧 Email will be sent via SendGrid");
+        }
+        logger.info("========================================");
+        
         try {
-            String verificationLink = frontendUrl + "/verify-email?token=" + verificationToken;
-            
             String subject = "Verify your StudyBuddy account";
             String htmlContent = buildVerificationEmailHtml(verificationLink);
 
             sendHtmlEmail(toEmail, subject, htmlContent);
-            logger.info("Verification email sent to: {}", toEmail);
+            logger.info("✅ Verification email sent successfully to: {}", toEmail);
         } catch (Exception e) {
-            logger.error("Failed to send verification email to {}: {}", toEmail, e.getMessage());
-            throw new RuntimeException("Failed to send verification email", e);
+            logger.error("❌ Failed to send verification email to {}: {}", toEmail, e.getMessage(), e);
+            
+            // Log detailed error information
+            logger.error("========================================");
+            logger.error("EMAIL SENDING FAILED - DETAILED ERROR");
+            logger.error("Email: {}", toEmail);
+            logger.error("From: {}", fromEmail);
+            logger.error("Error Type: {}", e.getClass().getSimpleName());
+            logger.error("Error Message: {}", e.getMessage());
+            
+            // Check for common SendGrid errors
+            if (e.getMessage() != null) {
+                String errorMsg = e.getMessage().toLowerCase();
+                if (errorMsg.contains("authentication") || errorMsg.contains("535")) {
+                    logger.error("⚠️  AUTHENTICATION ERROR: Check if SENDGRID_API_KEY is correct");
+                } else if (errorMsg.contains("sender") || errorMsg.contains("from")) {
+                    logger.error("⚠️  SENDER ERROR: Check if studybuddy.team@outlook.co.il is verified in SendGrid");
+                } else if (errorMsg.contains("connection") || errorMsg.contains("timeout")) {
+                    logger.error("⚠️  CONNECTION ERROR: Check network/firewall settings");
+                }
+            }
+            
+            if (e.getCause() != null) {
+                logger.error("Root Cause: {}", e.getCause().getMessage());
+            }
+            
+            // Always log the verification link
+            logger.error("Verification link: {}", verificationLink);
+            logger.error("Copy the link above to verify the account manually");
+            logger.error("========================================");
+            
+            throw new RuntimeException("Failed to send verification email: " + e.getMessage(), e);
         }
     }
 

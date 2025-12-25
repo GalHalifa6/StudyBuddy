@@ -5,6 +5,9 @@ import { WebView } from 'react-native-webview';
 interface JitsiMeetEmbedProps {
   roomName: string;
   displayName?: string;
+  userEmail?: string;
+  userId?: number;
+  isExpert?: boolean; // If true, this user is the expert/host
   config?: {
     startWithAudioMuted?: boolean;
     startWithVideoMuted?: boolean;
@@ -21,6 +24,9 @@ interface JitsiMeetEmbedProps {
 export const JitsiMeetEmbed: React.FC<JitsiMeetEmbedProps> = ({
   roomName,
   displayName,
+  userEmail,
+  userId,
+  isExpert = false,
   config = {},
   style,
 }) => {
@@ -31,20 +37,70 @@ export const JitsiMeetEmbed: React.FC<JitsiMeetEmbedProps> = ({
       : roomName;
   }, [roomName]);
 
-  // Build Jitsi Meet URL - simple approach that works reliably
-  // Use the room name directly in the URL path (standard Jitsi format)
-  // Add display name as URL parameter if provided
+  // Build Jitsi Meet URL with configuration options
   const jitsiUrl = useMemo(() => {
     let url = `https://meet.jit.si/${cleanRoomName}`;
+    const params = new URLSearchParams();
     
+    // Pass user info to skip login prompt - this uses the app's authentication
     if (displayName) {
-      const params = new URLSearchParams();
       params.append('userInfo.displayName', displayName);
+    }
+    if (userEmail) {
+      params.append('userInfo.email', userEmail);
+    }
+    if (userId) {
+      // Use userId as a unique identifier
+      params.append('userInfo.id', String(userId));
+    }
+    
+    // Disable welcome/prejoin page - users are already authenticated in the app
+    params.append('config.prejoinPageEnabled', 'false');
+    params.append('config.enableWelcomePage', 'false');
+    
+    // Expert (host) configuration - expert gets moderator privileges
+    if (isExpert) {
+      // Expert joins with audio/video enabled and becomes moderator
+      params.append('config.startWithAudioMuted', 'false');
+      params.append('config.startWithVideoMuted', 'false');
+      // Expert is automatically moderator (first to join or can be set)
+      params.append('config.startAudioOnly', 'false');
+    } else {
+      // Students join with audio/video based on config or defaults
+      if (config.startWithAudioMuted !== undefined) {
+        params.append('config.startWithAudioMuted', String(config.startWithAudioMuted));
+      } else {
+        params.append('config.startWithAudioMuted', 'false');
+      }
+      if (config.startWithVideoMuted !== undefined) {
+        params.append('config.startWithVideoMuted', String(config.startWithVideoMuted));
+      } else {
+        params.append('config.startWithVideoMuted', 'false');
+      }
+    }
+    
+    if (config.enableClosePage === false) {
+      params.append('config.enableClosePage', 'false');
+    }
+
+    // Add interface configuration for better mobile UX
+    params.append('config.hideDisplayName', 'false');
+    params.append('config.hideEmailInSettings', 'true');
+    params.append('interfaceConfig.SHOW_JITSI_WATERMARK', 'false');
+    params.append('interfaceConfig.SHOW_BRAND_WATERMARK', 'false');
+    params.append('interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS', 'false');
+    params.append('config.p2p.enabled', 'true'); // Enable peer-to-peer for better mobile performance
+    
+    // Disable login requirement - we're using app authentication
+    params.append('config.requireDisplayName', 'false');
+    params.append('config.enableUserRolesBasedOnToken', 'false');
+
+    if (params.toString()) {
       url += `?${params.toString()}`;
     }
 
     return url;
-  }, [cleanRoomName, displayName]);
+  }, [cleanRoomName, displayName, userEmail, userId, isExpert, config]);
 
   // Handle navigation requests to keep everything in WebView
   const handleShouldStartLoadWithRequest = (request: any) => {

@@ -132,7 +132,7 @@ const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
     } else if (notif.referenceType === 'GROUP' && notif.referenceId) {
       navigation.navigate('MainTabs', {
         screen: 'Groups',
-        params: { screen: 'GroupDetail', params: { groupId: notif.referenceId } }
+        params: { screen: 'GroupDetails', params: { groupId: notif.referenceId } }
       } as any);
     }
   }, [navigation, markReadMutation]);
