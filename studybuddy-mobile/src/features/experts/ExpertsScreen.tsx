@@ -113,31 +113,40 @@ const StudentExpertsScreen: React.FC = () => {
         </Pressable>
       </LinearGradient>
 
-      <View style={styles.quickActions}>
-        <QuickActionCard
-          icon="help-circle-outline"
-          title="Ask a question"
-          description="Get asynchronous help from our expert community."
+      {/* Quick Actions - 3 boxes in a row like web */}
+      <View style={styles.quickActionsRow}>
+        <Pressable 
+          style={({ pressed }) => [styles.quickActionBox, pressed && styles.quickActionBoxPressed]}
           onPress={() => navigation.navigate('AskQuestion')}
-          palette={colors}
-          styles={styles}
-        />
-        <QuickActionCard
-          icon="earth-outline"
-          title="Public Q&A"
-          description="Browse what others are asking and jump into the conversation."
+        >
+          <View style={[styles.quickActionBoxIcon, { backgroundColor: `${colors.primary}15` }]}>
+            <Ionicons name="help-circle" size={20} color={colors.primary} />
+          </View>
+          <Text style={styles.quickActionBoxTitle}>Ask a question</Text>
+          <Text style={styles.quickActionBoxDesc} numberOfLines={2}>Get help from experts.</Text>
+        </Pressable>
+        
+        <Pressable 
+          style={({ pressed }) => [styles.quickActionBox, pressed && styles.quickActionBoxPressed]}
           onPress={() => navigation.navigate('PublicQuestions')}
-          palette={colors}
-          styles={styles}
-        />
-        <QuickActionCard
-          icon="chatbox-ellipses-outline"
-          title="My questions"
-          description="Review answers and follow-ups across your own threads."
+        >
+          <View style={[styles.quickActionBoxIcon, { backgroundColor: `${colors.secondary}15` }]}>
+            <Ionicons name="earth" size={20} color={colors.secondary} />
+          </View>
+          <Text style={styles.quickActionBoxTitle}>Public Q&A</Text>
+          <Text style={styles.quickActionBoxDesc} numberOfLines={2}>Browse discussions.</Text>
+        </Pressable>
+        
+        <Pressable 
+          style={({ pressed }) => [styles.quickActionBox, pressed && styles.quickActionBoxPressed]}
           onPress={() => navigation.navigate('MyQuestions')}
-          palette={colors}
-          styles={styles}
-        />
+        >
+          <View style={[styles.quickActionBoxIcon, { backgroundColor: `${colors.success}15` }]}>
+            <Ionicons name="chatbox-ellipses" size={20} color={colors.success} />
+          </View>
+          <Text style={styles.quickActionBoxTitle}>My questions</Text>
+          <Text style={styles.quickActionBoxDesc} numberOfLines={2}>Review your threads.</Text>
+        </Pressable>
       </View>
 
       <View style={styles.filters}>
@@ -441,6 +450,45 @@ const createStyles = (colors: Palette) =>
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    quickActionsRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    quickActionBox: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.xl,
+      padding: spacing.md,
+      alignItems: 'center',
+      gap: spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    quickActionBoxPressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.98 }],
+    },
+    quickActionBoxIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xs,
+    },
+    quickActionBoxTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      textAlign: 'center',
+    },
+    quickActionBoxDesc: {
+      fontSize: 10,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 14,
     },
     quickActions: {
       marginTop: spacing.lg,

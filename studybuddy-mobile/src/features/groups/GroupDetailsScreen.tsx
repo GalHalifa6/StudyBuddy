@@ -1,11 +1,13 @@
 import React, { useLayoutEffect, useMemo } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../components/ui/Screen';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { groupApi } from '../../api/groups';
+import { calendarApi, Event as CalendarEvent } from '../../api/calendar';
 import { GroupMemberRequest, StudyGroup } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { useToast } from '../../components/ui/ToastProvider';
@@ -48,6 +50,15 @@ const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
     queryKey: ['groups', 'pending', groupId],
     queryFn: () => groupApi.pendingRequests(groupId),
     enabled: !!status?.isCreator,
+  });
+
+  const {
+    data: groupEvents,
+    isLoading: loadingEvents,
+  } = useQuery({
+    queryKey: ['groups', 'events', groupId],
+    queryFn: () => calendarApi.getUpcomingGroupEvents(groupId),
+    enabled: !!status?.isMember,
   });
 
   useLayoutEffect(() => {
@@ -294,6 +305,30 @@ const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
           </Section>
         ) : null}
 
+        {status?.isMember ? (
+          <Section
+            title="Upcoming Events"
+            loading={loadingEvents}
+            isEmpty={!groupEvents?.length}
+            emptyMessage="No upcoming events scheduled."
+            colors={colors}
+            styles={styles}
+          >
+            <>
+              {(groupEvents || []).slice(0, 3).map((event: CalendarEvent) => (
+                <EventCard key={event.id} event={event} styles={styles} colors={colors} />
+              ))}
+              <TouchableOpacity
+                style={styles.createEventButton}
+                onPress={() => navigation.navigate('CreateEvent', { groupId })}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                <Text style={styles.createEventText}>Create Event</Text>
+              </TouchableOpacity>
+            </>
+          </Section>
+        ) : null}
+
         <Section
           title="House rules"
           isEmpty={!group.topic && !group.description}
@@ -414,6 +449,60 @@ const createStyles = (colors: Palette) =>
     requestButton: {
       minWidth: 120,
     },
+    eventCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderLeftWidth: 3,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: spacing.xs,
+    },
+    eventIconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    eventContent: {
+      flex: 1,
+    },
+    eventTitle: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    eventMeta: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    eventLocation: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    createEventButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.md,
+      marginTop: spacing.sm,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderStyle: 'dashed',
+    },
+    createEventText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.primary,
+    },
   });
 
 type Styles = ReturnType<typeof createStyles>;
@@ -446,5 +535,45 @@ const Badge: React.FC<{ text: string; styles: Styles }> = ({ text, styles }) => 
     <Text style={styles.badgeText}>{text}</Text>
   </View>
 );
+
+const getEventTypeIcon = (type: string): keyof typeof Ionicons.glyphMap => {
+  switch (type) {
+    case 'STUDY_SESSION': return 'book-outline';
+    case 'MEETING': return 'people-outline';
+    case 'DEADLINE': return 'alarm-outline';
+    case 'EXAM': return 'document-text-outline';
+    default: return 'calendar-outline';
+  }
+};
+
+const getEventTypeColor = (type: string): string => {
+  switch (type) {
+    case 'STUDY_SESSION': return '#10B981';
+    case 'MEETING': return '#6366F1';
+    case 'DEADLINE': return '#F59E0B';
+    case 'EXAM': return '#EF4444';
+    default: return '#8B5CF6';
+  }
+};
+
+const EventCard: React.FC<{ event: CalendarEvent; styles: Styles; colors: Palette }> = ({ event, styles, colors }) => {
+  const eventDate = new Date(event.startDateTime);
+  const typeColor = getEventTypeColor(event.eventType);
+  
+  return (
+    <View style={[styles.eventCard, { borderLeftColor: typeColor }]}>
+      <View style={[styles.eventIconContainer, { backgroundColor: typeColor + '20' }]}>
+        <Ionicons name={getEventTypeIcon(event.eventType)} size={18} color={typeColor} />
+      </View>
+      <View style={styles.eventContent}>
+        <Text style={styles.eventTitle}>{event.title}</Text>
+        <Text style={styles.eventMeta}>
+          {eventDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+        </Text>
+        {event.location && <Text style={styles.eventLocation}>{event.location}</Text>}
+      </View>
+    </View>
+  );
+};
 
 export default GroupDetailsScreen;

@@ -1,11 +1,12 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 
 interface JitsiMeetEmbedProps {
   roomName: string;
+  jwtToken?: string;
   displayName?: string;
   userEmail?: string;
   userId?: number;
-  isExpert?: boolean; // If true, this user is the expert/host
+  isExpert?: boolean;
   onParticipantLeft?: () => void;
   onParticipantJoined?: () => void;
   config?: {
@@ -20,109 +21,80 @@ interface JitsiMeetEmbedProps {
 
 /**
  * Jitsi Meet Embed Component for Web
- * Embeds a Jitsi Meet video conference in an iframe
+ * Uses iframe with URL params for reliable video conferencing
  */
 export const JitsiMeetEmbed: React.FC<JitsiMeetEmbedProps> = ({
   roomName,
-  displayName,
+  jwtToken,
+  displayName = 'Participant',
   userEmail,
-  userId,
-  isExpert = false,
-  config = {},
   style,
   className,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
 
-  // Memoize the URL to prevent unnecessary re-renders
+  // Extract the path part used by JaaS (appId/roomName) while keeping slashes
+  const roomPath = useMemo(() => {
+    try {
+      const url = new URL(roomName);
+      if (url.hostname.includes('8x8.vc') || url.hostname.includes('meet.jit.si')) {
+        return url.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+      }
+    } catch (e) {
+      // Not a full URL; continue to sanitize
+    }
+
+    const fromEightByEight = roomName.includes('8x8.vc/') ? roomName.split('8x8.vc/')[1] : roomName;
+    return fromEightByEight.replace(/[^a-zA-Z0-9-_/]/g, '').replace(/^\/+/, '').replace(/\/+$/, '');
+  }, [roomName]);
+
+  // Build Jitsi URL with all config params
   const jitsiUrl = useMemo(() => {
-    // Extract room name from full URL if needed
-    const cleanRoomName = roomName.includes('meet.jit.si/') 
-      ? roomName.split('meet.jit.si/')[1] 
-      : roomName;
+    const safeRoom = roomPath;
 
-    // Build Jitsi Meet URL with configuration options
-    let url = `https://meet.jit.si/${cleanRoomName}`;
-    const params = new URLSearchParams();
-    
-    // Pass user info to skip login prompt - this uses the app's authentication
-    if (displayName) {
-      params.append('userInfo.displayName', displayName);
-    }
-    if (userEmail) {
-      params.append('userInfo.email', userEmail);
-    }
-    if (userId) {
-      // Use userId as a unique identifier
-      params.append('userInfo.id', String(userId));
-    }
-    
-    // Disable welcome/prejoin page - users are already authenticated in the app
-    params.append('config.prejoinPageEnabled', 'false');
-    params.append('config.enableWelcomePage', 'false');
-    
-    // Expert (host) configuration - expert gets moderator privileges
-    if (isExpert) {
-      // Expert joins with audio/video enabled and becomes moderator
-      params.append('config.startWithAudioMuted', 'false');
-      params.append('config.startWithVideoMuted', 'false');
-      // Expert is automatically moderator (first to join or can be set)
-      params.append('config.startAudioOnly', 'false');
-    } else {
-      // Students join with audio/video based on config or defaults
-      if (config.startWithAudioMuted !== undefined) {
-        params.append('config.startWithAudioMuted', String(config.startWithAudioMuted));
-      } else {
-        params.append('config.startWithAudioMuted', 'false');
-      }
-      if (config.startWithVideoMuted !== undefined) {
-        params.append('config.startWithVideoMuted', String(config.startWithVideoMuted));
-      } else {
-        params.append('config.startWithVideoMuted', 'false');
-      }
-    }
-    
-    if (config.enableClosePage === false) {
-      params.append('config.enableClosePage', 'false');
-    }
+    const toolbarButtons = encodeURIComponent(JSON.stringify([
+      'microphone',
+      'camera',
+      'hangup',
+      'fullscreen',
+      'tileview',
+    ]));
 
-    // Add interface configuration for better UX
-    params.append('config.hideDisplayName', 'false');
-    params.append('config.hideEmailInSettings', 'true');
-    params.append('interfaceConfig.SHOW_JITSI_WATERMARK', 'false');
-    params.append('interfaceConfig.SHOW_BRAND_WATERMARK', 'false');
-    params.append('interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS', 'false');
-    
-    // Disable login requirement - we're using app authentication
-    params.append('config.requireDisplayName', 'false');
-    params.append('config.enableUserRolesBasedOnToken', 'false');
+    const configParams = [
+      displayName ? `userInfo.displayName="${encodeURIComponent(displayName)}"` : '',
+      userEmail ? `userInfo.email="${encodeURIComponent(userEmail)}"` : '',
+      'config.prejoinPageEnabled=false',
+      'config.prejoinConfig.enabled=false',
+      'config.enableWelcomePage=false',
+      'config.enableClosePage=false',
+      'config.requireDisplayName=false',
+      'config.enableLobbyChat=false',
+      'config.hideLobbyButton=true',
+      'config.disableDeepLinking=true',
+      'config.enableInsecureRoomNameWarning=false',
+      'config.startWithAudioMuted=false',
+      'config.startWithVideoMuted=false',
+      'config.startAudioOnly=false',
+      'config.disableThirdPartyRequests=true',
+      'config.analytics.disabled=true',
+      'config.doNotStoreRoom=true',
+      `config.toolbarButtons=${toolbarButtons}`,
+      'interfaceConfig.SHOW_JITSI_WATERMARK=false',
+      'interfaceConfig.SHOW_BRAND_WATERMARK=false',
+      'interfaceConfig.SHOW_POWERED_BY=false',
+      'interfaceConfig.MOBILE_APP_PROMO=false',
+      'interfaceConfig.TOOLBAR_ALWAYS_VISIBLE=true',
+    ].filter(Boolean).join('&');
 
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
-
-    return url;
-  }, [roomName, displayName, userEmail, userId, isExpert, config]);
-
-  // Handle iframe load
-  useEffect(() => {
-    setIsLoading(true);
-    setHasError(false);
-  }, [jitsiUrl]);
-
-  const handleLoad = () => {
-    setIsLoading(false);
-    setHasError(false);
-  };
-
-  const handleError = () => {
-    setIsLoading(false);
-    setHasError(true);
-  };
+    const tokenParam = jwtToken ? `?jwt=${jwtToken}` : '';
+    return `https://8x8.vc/${safeRoom}${tokenParam}#${configParams}`;
+  }, [roomPath, displayName, userEmail, jwtToken]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', ...style }} className={className}>
+    <div 
+      style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000', ...style }} 
+      className={className}
+    >
       {isLoading && (
         <div style={{
           position: 'absolute',
@@ -142,64 +114,19 @@ export const JitsiMeetEmbed: React.FC<JitsiMeetEmbedProps> = ({
           </div>
         </div>
       )}
-      {hasError && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#000',
-          zIndex: 10,
-          flexDirection: 'column',
-          gap: '1rem',
-        }}>
-          <div style={{ color: '#ef4444', textAlign: 'center' }}>
-            <div style={{ marginBottom: '0.5rem', fontSize: '1.125rem', fontWeight: 'bold' }}>Failed to load video call</div>
-            <div style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Please check your internet connection and try again</div>
-          </div>
-          <button
-            onClick={() => {
-              setHasError(false);
-              setIsLoading(true);
-              window.location.reload();
-            }}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#5e72e4',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
       <iframe
         src={jitsiUrl}
-        allow="camera; microphone; fullscreen; speaker; display-capture; autoplay"
+        allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
         style={{
           width: '100%',
           height: '100%',
           border: 0,
-          flexShrink: 0,
-          flexGrow: 0,
-          minHeight: 0,
-          maxHeight: '100%',
-          display: 'block',
-          opacity: isLoading || hasError ? 0 : 1,
+          opacity: isLoading ? 0 : 1,
           transition: 'opacity 0.3s ease-in-out',
         }}
         title="Jitsi Meet Video Call"
         allowFullScreen
-        scrolling="no"
-        onLoad={handleLoad}
-        onError={handleError}
+        onLoad={() => setIsLoading(false)}
       />
     </div>
   );

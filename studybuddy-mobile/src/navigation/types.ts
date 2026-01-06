@@ -5,6 +5,8 @@ export type RootStackParamList = {
   Onboarding: undefined;
   AuthStack: undefined;
   Notifications: undefined;
+  UpcomingEvents: undefined;
+  Feed: undefined;
 };
 
 export type CoursesStackParamList = {
@@ -17,6 +19,7 @@ export type GroupsStackParamList = {
   GroupDetails: { groupId: number; title?: string };
   CreateGroup: { courseId?: number } | undefined;
   GroupChat: { groupId: number; groupName?: string };
+  CreateEvent: { groupId: number; groupName?: string };
 };
 
 export type SessionsStackParamList = {
@@ -48,7 +51,7 @@ export type MainTabParamList = {
   Home: undefined;
   Courses: NavigatorScreenParams<CoursesStackParamList> | undefined;
   Groups: NavigatorScreenParams<GroupsStackParamList> | undefined;
-  Messages: undefined;
+  Messages: { conversationId?: number } | undefined;
   Sessions: NavigatorScreenParams<SessionsStackParamList> | undefined;
   Experts: NavigatorScreenParams<ExpertsStackParamList> | undefined;
   Profile: NavigatorScreenParams<ProfileStackParamList> | undefined;

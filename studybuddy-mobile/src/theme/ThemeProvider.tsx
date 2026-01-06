@@ -109,6 +109,7 @@ const darkPalette: Palette = {
 
 interface ThemeContextValue {
   mode: ThemeMode;
+  isDark: boolean;
   colors: Palette;
   toggleTheme: () => void;
   setMode: (mode: ThemeMode) => void;
@@ -190,10 +191,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [mode, setMode]);
 
   const colors = useMemo(() => resolvePalette(mode), [mode]);
+  const isDark = mode === 'dark';
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ mode, colors, toggleTheme, setMode }),
-    [mode, colors, toggleTheme, setMode]
+    () => ({ mode, isDark, colors, toggleTheme, setMode }),
+    [mode, isDark, colors, toggleTheme, setMode]
   );
 
   if (!hydrated) {

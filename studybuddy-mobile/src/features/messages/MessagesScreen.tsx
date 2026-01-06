@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
+import { useNavigation, CompositeNavigationProp, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useQuery } from '@tanstack/react-query';
@@ -41,8 +41,11 @@ interface ChatPreview {
   unreadCount: number;
 }
 
+type MessagesRoute = RouteProp<MainTabParamList, 'Messages'>;
+
 const MessagesScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<MessagesRoute>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -50,6 +53,15 @@ const MessagesScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'groups' | 'direct'>('groups');
   const [groupsTabFilter, setGroupsTabFilter] = useState<'all' | 'unread'>('all');
+  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+
+  // If navigating with a conversationId, switch to direct tab and select conversation
+  useEffect(() => {
+    if (route.params?.conversationId) {
+      setActiveTab('direct');
+      setSelectedConversationId(route.params.conversationId);
+    }
+  }, [route.params?.conversationId]);
 
   const {
     data: myGroups = [],
@@ -294,7 +306,7 @@ const MessagesScreen: React.FC = () => {
       {/* Content based on active tab */}
       {activeTab === 'direct' ? (
         <View style={{ flex: 1 }}>
-          <DirectMessagesScreen embedded />
+          <DirectMessagesScreen embedded selectedConversationId={selectedConversationId} />
         </View>
       ) : (
         <>

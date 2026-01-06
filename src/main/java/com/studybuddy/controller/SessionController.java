@@ -7,7 +7,10 @@ import com.studybuddy.model.*;
 import com.studybuddy.repository.*;
 import com.studybuddy.service.NotificationService;
 import com.studybuddy.service.SessionService;
+import com.studybuddy.service.MeetingService;
+import com.studybuddy.service.JitsiJwtService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
@@ -51,6 +54,12 @@ public class SessionController {
     
     @Autowired
     private com.studybuddy.repository.SessionMessageRepository sessionMessageRepository;
+
+    @Autowired
+    private MeetingService meetingService;
+
+    @Autowired
+    private JitsiJwtService jitsiJwtService;
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -351,6 +360,45 @@ public class SessionController {
             "isRegistered", isRegistered,
             "status", participant != null ? participant.getStatus().name() : "NOT_REGISTERED"
         ));
+    }
+
+    /**
+     * Provide Jitsi JWT + meeting URL for the current user.
+     */
+    @GetMapping("/{sessionId}/jitsi-auth")
+    public ResponseEntity<?> getJitsiAuth(@PathVariable Long sessionId) {
+        User user = getCurrentUser();
+        ExpertSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        boolean isSessionExpert = session.getExpert() != null && Objects.equals(session.getExpert().getId(), user.getId());
+        boolean isParticipant = participantRepository.existsBySessionIdAndUserId(sessionId, user.getId());
+
+        if (!isSessionExpert && !isParticipant) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Not registered for this session"));
+        }
+
+        if (!session.canEnterRoom()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "Session is not active yet"));
+        }
+
+        String roomName = meetingService.buildRoomName(sessionId);
+        String meetingUrl = session.getMeetingLink() != null && !session.getMeetingLink().isEmpty()
+                ? session.getMeetingLink()
+                : meetingService.generateJitsiMeetingLink(sessionId);
+
+        boolean isModerator = isSessionExpert || user.getRole() == Role.ADMIN;
+        String jwt = jitsiJwtService.generateToken(roomName, user, isModerator);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("roomName", roomName);
+        response.put("meetingUrl", meetingUrl);
+        response.put("jwt", jwt);
+        response.put("expiresAt", jitsiJwtService.getExpiryInstant().toString());
+
+        return ResponseEntity.ok(response);
     }
 
     private Map<String, Object> toSessionMap(ExpertSession session) {

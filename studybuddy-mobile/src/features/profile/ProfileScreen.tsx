@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen } from '../../components/ui/Screen';
 import { typography } from '../../theme/typography';
-import { spacing } from '../../theme/spacing';
+import { spacing, borderRadius } from '../../theme/spacing';
 import { Button } from '../../components/ui/Button';
 import { TextField } from '../../components/ui/TextField';
 import { useAuth } from '../../auth/AuthContext';
@@ -80,7 +80,7 @@ const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<ProfileNavigation>();
   const { user, logout, refreshUser } = useAuth();
   const { showToast } = useToast();
-  const { colors } = useAppTheme();
+  const { colors, isDark, toggleTheme } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [showSuccess, setShowSuccess] = useState(false);
   const isExpert = user?.role === 'EXPERT' || user?.role === 'ADMIN';
@@ -297,7 +297,38 @@ const ProfileScreen: React.FC = () => {
         />
       </View>
 
-      <Button label="Sign out" onPress={handleLogout} variant="secondary" />
+      {/* Settings Section */}
+      <View style={styles.settingsCard}>
+        <Text style={styles.sectionTitle}>Settings</Text>
+        
+        {/* Dark Mode Toggle */}
+        <View style={styles.settingRow}>
+          <View style={styles.settingInfo}>
+            <View style={[styles.settingIcon, { backgroundColor: isDark ? colors.primaryLight : colors.primaryLight }]}>
+              <Ionicons 
+                name={isDark ? 'moon' : 'sunny'} 
+                size={18} 
+                color={colors.primary} 
+              />
+            </View>
+            <View>
+              <Text style={styles.settingLabel}>Dark Mode</Text>
+              <Text style={styles.settingDescription}>
+                {isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={isDark}
+            onValueChange={toggleTheme}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor={isDark ? colors.textOnPrimary : colors.surface}
+            ios_backgroundColor={colors.border}
+          />
+        </View>
+      </View>
+
+      <Button label="Sign out" onPress={handleLogout} variant="secondary" icon="log-out-outline" />
     </Screen>
   );
 };
@@ -529,6 +560,42 @@ const createStyles = (colors: Palette) =>
     textArea: {
       minHeight: 110,
       textAlignVertical: 'top',
+    },
+    settingsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.xl,
+      padding: spacing.lg,
+      gap: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    settingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.sm,
+    },
+    settingInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      flex: 1,
+    },
+    settingIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    settingLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    settingDescription: {
+      fontSize: 13,
+      color: colors.textMuted,
     },
   });
 

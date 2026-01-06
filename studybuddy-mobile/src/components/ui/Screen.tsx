@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme, Palette } from '../../theme/ThemeProvider';
 import { spacing } from '../../theme/spacing';
 

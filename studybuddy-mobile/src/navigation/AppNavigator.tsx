@@ -6,6 +6,8 @@ import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
 import OnboardingScreen from '../features/onboarding/OnboardingScreen';
 import NotificationsScreen from '../features/notifications/NotificationsScreen';
+import UpcomingEventsScreen from '../features/calendar/UpcomingEventsScreen';
+import FeedScreen from '../features/feed/FeedScreen';
 import { useAuth } from '../auth/AuthContext';
 import { useAppTheme } from '../theme/ThemeProvider';
 import { RootStackParamList } from './types';
@@ -65,7 +67,35 @@ const AppNavigator: React.FC = () => {
               <Stack.Screen 
                 name="Notifications" 
                 component={NotificationsScreen}
-                options={{ presentation: 'modal' }}
+                options={{ 
+                  presentation: 'modal',
+                  headerShown: true,
+                  headerTitle: 'Notifications',
+                  headerStyle: { backgroundColor: colors.surface },
+                  headerTintColor: colors.textPrimary,
+                }}
+              />
+              <Stack.Screen 
+                name="UpcomingEvents" 
+                component={UpcomingEventsScreen}
+                options={{ 
+                  presentation: 'modal',
+                  headerShown: true,
+                  headerTitle: 'Upcoming Events',
+                  headerStyle: { backgroundColor: colors.surface },
+                  headerTintColor: colors.textPrimary,
+                }}
+              />
+              <Stack.Screen 
+                name="Feed" 
+                component={FeedScreen}
+                options={{ 
+                  presentation: 'modal',
+                  headerShown: true,
+                  headerTitle: 'Activity Feed',
+                  headerStyle: { backgroundColor: colors.surface },
+                  headerTintColor: colors.textPrimary,
+                }}
               />
             </>
           )
