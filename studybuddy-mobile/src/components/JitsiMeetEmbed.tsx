@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
-import { WebView } from 'react-native-webview';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity, Platform, Linking, Alert } from 'react-native';
+import { WebView, WebViewMessageEvent } from 'react-native-webview';
+import { Ionicons } from '@expo/vector-icons';
 
 interface JitsiMeetEmbedProps {
   roomName: string;
@@ -16,11 +17,12 @@ interface JitsiMeetEmbedProps {
     enableClosePage?: boolean;
   };
   style?: any;
+  onHangup?: () => void;
 }
 
 /**
  * Jitsi Meet Embed Component for React Native
- * Uses Jitsi External API for better control over authentication
+ * Provides both in-app WebView (when possible) and external browser fallback
  */
 export const JitsiMeetEmbed: React.FC<JitsiMeetEmbedProps> = ({
   roomName,
@@ -28,155 +30,269 @@ export const JitsiMeetEmbed: React.FC<JitsiMeetEmbedProps> = ({
   displayName = 'Participant',
   userEmail,
   style,
+  onHangup,
 }) => {
-  // Extract room name from full URL if needed and clean it
-  const cleanRoomName = useMemo(() => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [showFallback, setShowFallback] = useState(false);
+  const [loadAttempts, setLoadAttempts] = useState(0);
+  const webViewRef = useRef<WebView>(null);
+
+  // Extract room path from URL (like web version)
+  const roomPath = useMemo(() => {
     try {
       const url = new URL(roomName);
       if (url.hostname.includes('8x8.vc') || url.hostname.includes('meet.jit.si')) {
         return url.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
       }
     } catch (e) {
-      // ignore
+      // Not a full URL; continue to sanitize
     }
 
-    const name = roomName.includes('8x8.vc/') ? roomName.split('8x8.vc/')[1] : roomName;
-    return name.replace(/[^a-zA-Z0-9-_/]/g, '').replace(/^\/+/, '').replace(/\/+$/, '');
+    const fromEightByEight = roomName.includes('8x8.vc/') ? roomName.split('8x8.vc/')[1] : roomName;
+    return fromEightByEight.replace(/[^a-zA-Z0-9-_/]/g, '').replace(/^\/+/, '').replace(/\/+$/, '');
   }, [roomName]);
 
-  // Create HTML that uses Jitsi External API with anonymous authentication
-  const jitsiHtml = useMemo(() => {
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #meet { width: 100%; height: 100%; background: #000; }
-  </style>
-</head>
-<body>
-  <div id="meet"></div>
-  <script src="https://8x8.vc/external_api.js"></script>
-  <script>
-    const domain = '8x8.vc';
-    const options = {
-      roomName: '${cleanRoomName}',
-      width: '100%',
-      height: '100%',
-      parentNode: document.querySelector('#meet'),
-      userInfo: {
-        displayName: '${displayName.replace(/'/g, "\\'")}',
-        email: '${userEmail || ''}'
-      },
-      jwt: '${jwtToken || ''}',
-      configOverwrite: {
-        prejoinPageEnabled: false,
-        prejoinConfig: { enabled: false },
-        startWithAudioMuted: false,
-        startWithVideoMuted: false,
-        enableWelcomePage: false,
-        enableClosePage: false,
-        disableDeepLinking: true,
-        enableLobbyChat: false,
-        hideLobbyButton: true,
-        requireDisplayName: false,
-        enableInsecureRoomNameWarning: false,
-        disableInviteFunctions: true,
-        toolbarButtons: [
-          'microphone', 'camera', 'hangup', 'fullscreen', 'tileview'
-        ],
-        disableThirdPartyRequests: true,
-        analytics: { disabled: true },
-        p2p: { enabled: true },
-        enableNoAudioDetection: false,
-        enableNoisyMicDetection: false,
-        disableRemoteMute: true,
-        remoteVideoMenu: { disableKick: true, disableGrantModerator: true },
-        disableModeratorIndicator: true,
-        startAudioOnly: false,
-        lobby: { autoKnock: true, enableChat: false },
-        notifications: [],
-        disablePolls: true,
-        doNotStoreRoom: true
-      },
-      interfaceConfigOverwrite: {
-        SHOW_JITSI_WATERMARK: false,
-        SHOW_BRAND_WATERMARK: false,
-        SHOW_POWERED_BY: false,
-        MOBILE_APP_PROMO: false,
-        DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-        HIDE_INVITE_MORE_HEADER: true,
-        DISABLE_FOCUS_INDICATOR: true,
-        DISABLE_DOMINANT_SPEAKER_INDICATOR: true,
-        TOOLBAR_ALWAYS_VISIBLE: true,
-        DEFAULT_BACKGROUND: '#000000',
-        DISABLE_VIDEO_BACKGROUND: true,
-        GENERATE_ROOMNAMES_ON_WELCOME_PAGE: false,
-        DISPLAY_WELCOME_FOOTER: false,
-        DISPLAY_WELCOME_PAGE_ADDITIONAL_CARD: false,
-        DISPLAY_WELCOME_PAGE_CONTENT: false,
-        DISPLAY_WELCOME_PAGE_TOOLBAR_ADDITIONAL_CONTENT: false,
-        RECENT_LIST_ENABLED: false,
-        VIDEO_QUALITY_LABEL_DISABLED: true,
-        CONNECTION_INDICATOR_DISABLED: true
-      }
-    };
-    
+  // Build Jitsi URL with config params (same as web version)
+  const jitsiUrl = useMemo(() => {
+    const safeRoom = roomPath;
+
+    const toolbarButtons = encodeURIComponent(JSON.stringify([
+      'microphone',
+      'camera',
+      'hangup',
+      'fullscreen',
+      'tileview',
+      'chat',
+    ]));
+
+    const configParams = [
+      displayName ? `userInfo.displayName="${encodeURIComponent(displayName)}"` : '',
+      userEmail ? `userInfo.email="${encodeURIComponent(userEmail)}"` : '',
+      'config.prejoinPageEnabled=false',
+      'config.prejoinConfig.enabled=false',
+      'config.enableWelcomePage=false',
+      'config.enableClosePage=false',
+      'config.requireDisplayName=false',
+      'config.enableLobbyChat=false',
+      'config.hideLobbyButton=true',
+      'config.disableDeepLinking=true',
+      'config.enableInsecureRoomNameWarning=false',
+      'config.startWithAudioMuted=false',
+      'config.startWithVideoMuted=false',
+      'config.startAudioOnly=false',
+      'config.disableThirdPartyRequests=true',
+      'config.analytics.disabled=true',
+      'config.doNotStoreRoom=true',
+      'config.disableInviteFunctions=true',
+      'config.p2p.enabled=true',
+      'config.resolution=720',
+      `config.toolbarButtons=${toolbarButtons}`,
+      'interfaceConfig.SHOW_JITSI_WATERMARK=false',
+      'interfaceConfig.SHOW_BRAND_WATERMARK=false',
+      'interfaceConfig.SHOW_POWERED_BY=false',
+      'interfaceConfig.MOBILE_APP_PROMO=false',
+      'interfaceConfig.TOOLBAR_ALWAYS_VISIBLE=true',
+      'interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS=true',
+      'interfaceConfig.HIDE_INVITE_MORE_HEADER=true',
+    ].filter(Boolean).join('&');
+
+    const tokenParam = jwtToken ? `?jwt=${jwtToken}` : '';
+    return `https://8x8.vc/${safeRoom}${tokenParam}#${configParams}`;
+  }, [roomPath, displayName, userEmail, jwtToken]);
+
+  // Open in external browser
+  const openInBrowser = useCallback(async () => {
     try {
-      const api = new JitsiMeetExternalAPI(domain, options);
+      const canOpen = await Linking.canOpenURL(jitsiUrl);
+      if (canOpen) {
+        await Linking.openURL(jitsiUrl);
+      } else {
+        Alert.alert('Error', 'Cannot open browser');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to open video call');
+    }
+  }, [jitsiUrl]);
+
+  const handleLoadEnd = useCallback(() => {
+    setIsLoading(false);
+  }, []);
+
+  const handleError = useCallback(() => {
+    setIsLoading(false);
+    setLoadAttempts(prev => prev + 1);
+    if (loadAttempts >= 1) {
+      // After 2 failed attempts, show fallback option
+      setShowFallback(true);
+    } else {
+      setHasError(true);
+    }
+  }, [loadAttempts]);
+
+  const handleRetry = useCallback(() => {
+    setHasError(false);
+    setIsLoading(true);
+    webViewRef.current?.reload();
+  }, []);
+
+  // Auto-show fallback after timeout if video doesn't load
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        setShowFallback(true);
+      }
+    }, 15000); // 15 second timeout
+    
+    return () => clearTimeout(timeout);
+  }, [isLoading]);
+
+  // Inject script to handle hangup detection
+  const injectedJS = `
+    (function() {
+      // Listen for page navigation that might indicate hangup
+      window.addEventListener('beforeunload', function() {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'hangup' }));
+      });
       
-      // Auto-join even if in lobby
-      api.addEventListener('participantRoleChanged', (event) => {
-        if (event.role === 'moderator') {
-          api.executeCommand('toggleLobby', false);
+      // Notify when video loaded
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'loaded' }));
+        }, 2000);
+      });
+      
+      // Try to detect when the meeting ends
+      const observer = new MutationObserver(function(mutations) {
+        const hangupScreen = document.querySelector('[data-testid="hangup-screen"]') || 
+                            document.querySelector('.meeting-ended') ||
+                            document.body.textContent.includes('The meeting has been ended');
+        if (hangupScreen) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'meeting-ended' }));
         }
       });
       
-      // Handle errors
-      api.addEventListener('errorOccurred', (error) => {
-        console.log('Jitsi error:', error);
-      });
-      
-      // Notify when ready
-      api.addEventListener('videoConferenceJoined', () => {
-        console.log('Successfully joined conference');
-      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      true;
+    })();
+  `;
+
+  const handleMessage = useCallback((event: WebViewMessageEvent) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'hangup' || data.type === 'meeting-ended') {
+        onHangup?.();
+      } else if (data.type === 'loaded') {
+        setIsLoading(false);
+      }
     } catch (e) {
-      console.error('Failed to initialize Jitsi:', e);
-      document.body.innerHTML = '<div style="color:white;text-align:center;padding:20px;">Failed to load video. Please try again.</div>';
+      // Ignore parse errors
     }
-  </script>
-</body>
-</html>`;
-  }, [cleanRoomName, displayName, userEmail]);
+  }, [onHangup]);
+
+  // Show fallback UI with option to open in browser
+  if (showFallback || hasError) {
+    return (
+      <View style={[styles.container, styles.fallbackContainer, style]}>
+        <View style={styles.fallbackContent}>
+          <View style={styles.fallbackIconContainer}>
+            <Ionicons name="videocam" size={32} color="#8B5CF6" />
+          </View>
+          <Text style={styles.fallbackTitle}>Video Session Active</Text>
+          <Text style={styles.fallbackText}>
+            {hasError 
+              ? 'Video failed to load in-app. For the best experience, open the video call in your browser.'
+              : 'For better camera & microphone access, we recommend joining via your browser.'}
+          </Text>
+          
+          <TouchableOpacity style={styles.browserButton} onPress={openInBrowser}>
+            <Ionicons name="open-outline" size={20} color="#fff" />
+            <Text style={styles.browserButtonText}>Open in Browser</Text>
+          </TouchableOpacity>
+          
+          {!hasError && (
+            <TouchableOpacity 
+              style={styles.continueButton} 
+              onPress={() => setShowFallback(false)}
+            >
+              <Text style={styles.continueButtonText}>Continue in App</Text>
+            </TouchableOpacity>
+          )}
+          
+          {hasError && (
+            <TouchableOpacity style={styles.retryLink} onPress={handleRetry}>
+              <Text style={styles.retryLinkText}>Try loading in app again</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, style]}>
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#8B5CF6" />
+          <Text style={styles.loadingText}>Connecting to video...</Text>
+          <Text style={styles.loadingSubtext}>Please allow camera & mic when prompted</Text>
+          
+          {/* Show option to open in browser while loading */}
+          <TouchableOpacity 
+            style={styles.loadingBrowserButton} 
+            onPress={openInBrowser}
+          >
+            <Ionicons name="open-outline" size={16} color="#8B5CF6" />
+            <Text style={styles.loadingBrowserText}>Open in Browser instead</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <WebView
-        source={{ html: jitsiHtml }}
-        style={styles.webview}
-        allowsInlineMediaPlayback={true}
-        mediaPlaybackRequiresUserAction={false}
+        ref={webViewRef}
+        source={{ uri: jitsiUrl }}
+        style={[styles.webview, { opacity: isLoading ? 0.3 : 1 }]}
+        onLoadEnd={handleLoadEnd}
+        onError={handleError}
+        onHttpError={handleError}
+        onMessage={handleMessage}
+        injectedJavaScript={injectedJS}
+        // Essential WebView settings
         javaScriptEnabled={true}
         domStorageEnabled={true}
-        startInLoadingState={true}
+        allowsInlineMediaPlayback={true}
+        mediaPlaybackRequiresUserAction={false}
+        // Media permissions
+        mediaCapturePermissionGrantType="grant"
+        allowsProtectedMedia={true}
+        // File and URL access
         allowFileAccess={true}
         allowUniversalAccessFromFileURLs={true}
         mixedContentMode="always"
-        mediaCapturePermissionGrantType="grant"
-        onError={(syntheticEvent) => {
-          const { nativeEvent } = syntheticEvent;
-          console.warn('WebView error: ', nativeEvent);
+        // iOS specific
+        allowsAirPlayForMediaPlayback={true}
+        // Android specific
+        geolocationEnabled={false}
+        setSupportMultipleWindows={false}
+        // Don't cache to avoid stale meetings
+        cacheEnabled={false}
+        // User agent to appear as mobile browser for Jitsi mobile UI
+        userAgent={Platform.select({
+          ios: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+          android: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+          default: undefined,
+        })}
+        // Handle permission requests (Android)
+        onPermissionRequest={(event) => {
+          event.nativeEvent?.grant?.();
         }}
-        renderLoading={() => (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#5e72e4" />
-          </View>
-        )}
       />
+      
+      {/* Floating browser button */}
+      {!isLoading && (
+        <TouchableOpacity style={styles.floatingButton} onPress={openInBrowser}>
+          <Ionicons name="open-outline" size={18} color="#fff" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -190,15 +306,121 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    zIndex: 10,
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 16,
+    marginTop: 16,
+    fontWeight: '500',
+  },
+  loadingSubtext: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginTop: 8,
+  },
+  loadingBrowserButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#8B5CF6',
+    borderRadius: 8,
+    gap: 8,
+  },
+  loadingBrowserText: {
+    color: '#8B5CF6',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  fallbackContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  fallbackContent: {
+    alignItems: 'center',
+    maxWidth: 300,
+  },
+  fallbackIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  fallbackTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  fallbackText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  browserButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  browserButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  continueButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  continueButtonText: {
+    color: '#8B5CF6',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  retryLink: {
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  retryLinkText: {
+    color: '#6b7280',
+    fontSize: 13,
+    textDecorationLine: 'underline',
+  },
+  floatingButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(139, 92, 246, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
 

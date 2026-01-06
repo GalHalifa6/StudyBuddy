@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, GestureResponderEvent, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme, Palette } from '../../theme/ThemeProvider';
 import { spacing, borderRadius } from '../../theme/spacing';
 
@@ -11,7 +12,7 @@ interface ButtonProps {
   loading?: boolean;
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
-  icon?: React.ReactNode;
+  icon?: React.ReactNode | keyof typeof Ionicons.glyphMap;
   style?: ViewStyle;
 }
 
@@ -41,29 +42,45 @@ export const Button: React.FC<ButtonProps> = ({
     lg: styles.labelLg,
   };
 
-  const renderContent = () => (
-    <View style={styles.contentRow}>
-      {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? colors.textOnPrimary : colors.textPrimary} size="small" />
-      ) : (
-        <>
-          {icon}
-          <Text
-            style={[
-              styles.label,
-              labelSizeStyles[size],
-              variant === 'primary' && styles.labelPrimary,
-              variant === 'secondary' && styles.labelSecondary,
-              variant === 'ghost' && styles.labelGhost,
-              variant === 'danger' && styles.labelDanger,
-            ]}
-          >
-            {label}
-          </Text>
-        </>
-      )}
-    </View>
-  );
+  const renderContent = () => {
+    // Determine icon color based on variant
+    const iconColor = variant === 'primary' ? colors.textOnPrimary : 
+                      variant === 'danger' ? colors.error : 
+                      variant === 'ghost' ? colors.primary : colors.textPrimary;
+    
+    // Render icon - handle both string (Ionicons name) and React.ReactNode
+    const renderIcon = () => {
+      if (!icon) return null;
+      if (typeof icon === 'string') {
+        return <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={size === 'sm' ? 16 : size === 'lg' ? 22 : 18} color={iconColor} />;
+      }
+      return icon;
+    };
+
+    return (
+      <View style={styles.contentRow}>
+        {loading ? (
+          <ActivityIndicator color={variant === 'primary' ? colors.textOnPrimary : colors.textPrimary} size="small" />
+        ) : (
+          <>
+            {renderIcon()}
+            <Text
+              style={[
+                styles.label,
+                labelSizeStyles[size],
+                variant === 'primary' && styles.labelPrimary,
+                variant === 'secondary' && styles.labelSecondary,
+                variant === 'ghost' && styles.labelGhost,
+                variant === 'danger' && styles.labelDanger,
+              ]}
+            >
+              {label}
+            </Text>
+          </>
+        )}
+      </View>
+    );
+  };
 
   if (variant === 'primary') {
     return (

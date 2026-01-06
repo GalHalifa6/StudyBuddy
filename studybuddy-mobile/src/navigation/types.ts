@@ -7,6 +7,7 @@ export type RootStackParamList = {
   Notifications: undefined;
   UpcomingEvents: undefined;
   Feed: undefined;
+  CreateEventModal: { groupId: number; groupName?: string };
 };
 
 export type CoursesStackParamList = {

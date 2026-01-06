@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -57,7 +57,13 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       }
     } catch (error: any) {
       const message = error?.response?.data?.message ?? 'Registration failed. Please try again.';
-      showToast(message, 'error');
+      Alert.alert(
+        'Registration Failed',
+        message.includes('exists') || message.includes('taken')
+          ? 'This username or email is already registered. Please try a different one or log in.'
+          : message,
+        [{ text: 'OK', style: 'default' }]
+      );
     } finally {
       setLoading(false);
     }

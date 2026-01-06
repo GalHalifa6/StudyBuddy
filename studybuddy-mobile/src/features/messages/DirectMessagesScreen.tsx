@@ -53,9 +53,12 @@ const DirectMessagesScreen: React.FC<DirectMessagesScreenProps> = ({ selectedCon
     isLoading: loadingConversations,
     isRefetching: refetchingConversations,
     refetch: refetchConversations,
+    isError: conversationsError,
   } = useQuery({
     queryKey: ['directMessages', 'conversations'],
     queryFn: directMessageApi.getConversations,
+    retry: 2,
+    staleTime: 30000, // 30 seconds
   });
 
   const {
@@ -144,12 +147,35 @@ const DirectMessagesScreen: React.FC<DirectMessagesScreenProps> = ({ selectedCon
 
   // Show conversation list if no conversation is selected
   if (!selectedConversation) {
-    if (loadingConversations) {
+    if (loadingConversations && !conversationsError) {
       return (
         <Container {...containerProps}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading conversations...</Text>
+          </View>
+        </Container>
+      );
+    }
+
+    // Show error state if conversations failed to load
+    if (conversationsError) {
+      return (
+        <Container {...containerProps}>
+          <View style={styles.emptyState}>
+            <View style={[styles.emptyIconWrap, { backgroundColor: colors.surfaceAlt }]}>
+              <Ionicons name="alert-circle-outline" size={48} color={colors.error || colors.textMuted} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Failed to load conversations</Text>
+            <Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>
+              Check your connection and try again
+            </Text>
+            <Pressable 
+              onPress={() => refetchConversations()} 
+              style={{ marginTop: spacing.md, padding: spacing.sm }}
+            >
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
+            </Pressable>
           </View>
         </Container>
       );

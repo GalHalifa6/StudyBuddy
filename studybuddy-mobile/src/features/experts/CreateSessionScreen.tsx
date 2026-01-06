@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useForm } from 'react-hook-form';
 import {
+  Alert,
   Modal,
   Platform,
   ScrollView,
@@ -87,27 +88,36 @@ const CreateSessionScreen: React.FC<Props> = ({ navigation }) => {
       queryClient.invalidateQueries({ queryKey: ['experts', 'my-sessions'] });
       navigation.goBack();
     },
-    onError: error => showToast(mapApiError(error).message, 'error'),
+    onError: error => {
+      const errorMessage = mapApiError(error).message;
+      Alert.alert(
+        'Unable to Create Session',
+        errorMessage.includes('conflict') 
+          ? 'You already have a session scheduled at this time. Please choose a different time slot.'
+          : errorMessage,
+        [{ text: 'OK', style: 'default' }]
+      );
+    },
   });
 
   const onSubmit = handleSubmit(values => {
     if (!values.title.trim()) {
-      showToast('Give your session a title', 'error');
+      Alert.alert('Missing Title', 'Please give your session a title.');
       return;
     }
     if (!values.startTime || !values.endTime) {
-      showToast('Select both start and end times', 'error');
+      Alert.alert('Missing Time', 'Please select both start and end times.');
       return;
     }
 
     const now = new Date();
     if (values.startTime.getTime() <= now.getTime()) {
-      showToast('Start time should be in the future', 'error');
+      Alert.alert('Invalid Time', 'Start time must be in the future.');
       return;
     }
 
     if (values.endTime.getTime() <= values.startTime.getTime()) {
-      showToast('End time must be after the start time', 'error');
+      Alert.alert('Invalid Time', 'End time must be after the start time.');
       return;
     }
 
@@ -287,6 +297,7 @@ const CreateSessionScreen: React.FC<Props> = ({ navigation }) => {
                     mode="datetime"
                     display="inline"
                     minuteInterval={MINUTE_INTERVAL}
+                    minimumDate={iosPickerState.field === 'startTime' ? new Date() : (startValue ?? new Date())}
                     onChange={handleIosChange}
                     style={styles.picker}
                   />

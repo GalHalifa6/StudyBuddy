@@ -11,6 +11,7 @@ interface AuthContextValue {
   status: AuthStatus;
   user: User | null;
   login: (payload: LoginRequest) => Promise<void>;
+  loginWithToken: (token: string) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<MessageResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -72,6 +73,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  /**
+   * Login with an existing JWT token (used for OAuth callbacks)
+   */
+  const loginWithToken = async (token: string) => {
+    setStatus('loading');
+    try {
+      await setStoredToken(token);
+      const profile = await authApi.me();
+      setUser(profile);
+      setStatus('authenticated');
+    } catch (error) {
+      await setStoredToken(null);
+      setUser(null);
+      setStatus('unauthenticated');
+      throw error;
+    }
+  };
+
   const register = async (payload: RegisterRequest) => {
     const response = await authApi.register(payload);
     return response;
@@ -105,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const value = useMemo(
-    () => ({ status, user, login, register, logout, refreshUser }),
+    () => ({ status, user, login, loginWithToken, register, logout, refreshUser }),
     [status, user]
   );
 
