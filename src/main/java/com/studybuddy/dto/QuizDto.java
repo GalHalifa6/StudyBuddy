@@ -114,4 +114,59 @@ public class QuizDto {
         @NotEmpty(message = "Role weights are required")
         private Map<RoleType, Double> roleWeights;
     }
+    
+    // ==================== ADMIN DTOs ====================
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class QuestionAdminResponse {
+        private Long questionId;
+        private String questionText;
+        private Integer orderIndex;
+        private Boolean active;
+        private List<OptionAdminResponse> options;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OptionAdminResponse {
+        private Long optionId;
+        private String optionText;
+        private Integer orderIndex;
+        private Map<RoleType, Double> roleWeights; // Admin can see role weights
+    }
+    
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateQuestionRequest {
+        @NotBlank(message = "Question text is required")
+        private String questionText;
+        
+        @NotNull
+        private Integer orderIndex;
+        
+        private Boolean active;
+        
+        // Optional: if provided, will update all options
+        private List<UpdateOptionRequest> options;
+    }
+    
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateOptionRequest {
+        @NotBlank(message = "Option text is required")
+        private String optionText;
+        
+        @NotNull
+        private Integer orderIndex;
+        
+        @NotEmpty(message = "Role weights are required")
+        private Map<RoleType, Double> roleWeights;
+    }
 }

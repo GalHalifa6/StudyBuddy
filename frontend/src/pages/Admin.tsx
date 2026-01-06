@@ -52,7 +52,9 @@ import {
   Ban,
   Clock,
   FileText,
+  HelpCircle,
 } from 'lucide-react';
+import QuizManagement from '../components/admin/QuizManagement';
 
 const Admin: React.FC = () => {
   const { isAdmin, user: currentUser } = useAuth();
@@ -68,7 +70,7 @@ const Admin: React.FC = () => {
     }
     return defaultMessage;
   };
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'courses' | 'groups'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'courses' | 'groups' | 'quiz'>('overview');
   const [users, setUsers] = useState<User[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [groups, setGroups] = useState<StudyGroup[]>([]);
@@ -994,6 +996,7 @@ const Admin: React.FC = () => {
               { id: 'users', label: 'Users', icon: Users },
               { id: 'courses', label: 'Courses', icon: GraduationCap },
               { id: 'groups', label: 'Groups', icon: BookOpen },
+              { id: 'quiz', label: 'Quiz Questions', icon: HelpCircle },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1591,6 +1594,10 @@ const Admin: React.FC = () => {
                 </table>
               </div>
             </div>
+          )}
+
+          {activeTab === 'quiz' && (
+            <QuizManagement />
           )}
         </div>
       </div>
