@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +16,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../../navigation/AuthStack';
 import { useAppTheme, Palette } from '../../../theme/ThemeProvider';
 import { Logo } from '../../../components/Logo';
-import { API_BASE_URL } from '../../../api/env';
 
 const schema = z.object({
   username: z.string().min(3, 'Username is required'),
@@ -25,20 +24,12 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-// Get OAuth URL (matches web frontend)
-const getOAuthAuthUrl = (provider: string = 'google'): string => {
-  // Remove /api suffix for OAuth endpoint
-  const baseUrl = API_BASE_URL.replace(/\/api$/, '');
-  return `${baseUrl}/oauth2/authorization/${provider}`;
-};
-
 const LoginScreen: React.FC<NativeStackScreenProps<AuthStackParamList, 'Login'>> = ({ navigation }) => {
   const { login } = useAuth();
   const { showToast } = useToast();
   const { colors, isDark } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const {
     control,
@@ -53,27 +44,21 @@ const LoginScreen: React.FC<NativeStackScreenProps<AuthStackParamList, 'Login'>>
       showToast('Welcome back!', 'success');
     } catch (error: any) {
       const message = error?.response?.data?.message ?? 'Login failed. Please try again.';
-      showToast(message, 'error');
+      Alert.alert(
+        'Login Failed',
+        message.includes('Invalid') 
+          ? 'The username or password you entered is incorrect. Please try again.'
+          : message,
+        [{ text: 'OK', style: 'default' }]
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    try {
-      const oauthUrl = getOAuthAuthUrl('google');
-      const supported = await Linking.canOpenURL(oauthUrl);
-      if (supported) {
-        await Linking.openURL(oauthUrl);
-      } else {
-        showToast('Unable to open Google login', 'error');
-      }
-    } catch (error) {
-      showToast('Google login failed', 'error');
-    } finally {
-      setGoogleLoading(false);
-    }
+  const handleGoogleLogin = () => {
+    // Navigate to WebView-based OAuth screen
+    navigation.navigate('GoogleOAuth');
   };
 
   return (
@@ -94,7 +79,6 @@ const LoginScreen: React.FC<NativeStackScreenProps<AuthStackParamList, 'Login'>>
         <Pressable
           style={({ pressed }) => [styles.googleButton, pressed && styles.googleButtonPressed]}
           onPress={handleGoogleLogin}
-          disabled={googleLoading}
         >
           <View style={styles.googleIconContainer}>
             {/* Google Icon SVG as View */}
@@ -102,9 +86,7 @@ const LoginScreen: React.FC<NativeStackScreenProps<AuthStackParamList, 'Login'>>
               <Text style={styles.googleIconText}>G</Text>
             </View>
           </View>
-          <Text style={styles.googleButtonText}>
-            {googleLoading ? 'Opening...' : 'Continue with Google'}
-          </Text>
+          <Text style={styles.googleButtonText}>Continue with Google</Text>
         </Pressable>
 
         {/* Divider */}
@@ -138,7 +120,6 @@ const LoginScreen: React.FC<NativeStackScreenProps<AuthStackParamList, 'Login'>>
             onPress={handleSubmit(onSubmit)} 
             loading={loading} 
             disabled={loading}
-            icon="log-in-outline"
           />
         </View>
 

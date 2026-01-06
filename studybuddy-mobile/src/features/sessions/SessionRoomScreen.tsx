@@ -449,21 +449,40 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
     }
 
     let cancelled = false;
-    sessionApi
-      .jitsiAuth(sessionId)
-      .then((data) => {
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    const fetchJitsiAuth = async () => {
+      try {
+        const data = await sessionApi.jitsiAuth(sessionId);
         if (!cancelled) {
           setJitsiAuth(data);
         }
-      })
-      .catch((error) => {
-        console.warn('Failed to fetch Jitsi auth', error);
-      });
+      } catch (error) {
+        console.warn('Failed to fetch Jitsi auth (attempt ' + (retryCount + 1) + ')', error);
+        retryCount++;
+        if (!cancelled && retryCount < maxRetries) {
+          // Retry after 2 seconds
+          setTimeout(fetchJitsiAuth, 2000);
+        } else if (!cancelled) {
+          // Fall back to using session's meeting link without JWT
+          showToast('Could not authenticate video - using fallback', 'info');
+          setJitsiAuth({
+            roomName: session?.meetingLink || `studybuddy-${sessionId}`,
+            meetingUrl: session?.meetingLink || `https://meet.jit.si/studybuddy-${sessionId}`,
+            jwt: '',
+            expiresAt: new Date(Date.now() + 3600000).toISOString(),
+          });
+        }
+      }
+    };
+    
+    fetchJitsiAuth();
 
     return () => {
       cancelled = true;
     };
-  }, [sessionId, sessionStatus]);
+  }, [sessionId, sessionStatus, session?.meetingLink, showToast]);
 
   // Format elapsed time
   const formatElapsed = (seconds: number) => {
@@ -481,30 +500,43 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
   const videoComponent = useMemo(() => {
     if (sessionStatus !== 'active' || !session?.id) return null;
     
-    // Prefer server-provided Jitsi auth/link; fall back to stored link
-    const meetingLink = jitsiAuth?.meetingUrl || session?.meetingLink || `https://8x8.vc/studybuddy/${session.id}`;
+    // Wait for Jitsi auth to be fetched before showing video
+    // This ensures we have a valid JWT for authentication
+    if (!jitsiAuth?.jwt && !jitsiAuth?.meetingUrl) {
+      return (
+        <View style={styles.videoContainer}>
+          <View style={styles.videoLoading}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.videoLoadingText}>Connecting to video...</Text>
+          </View>
+        </View>
+      );
+    }
+    
+    // Use the meeting URL from Jitsi auth, or fall back to session link
+    const meetingLink = jitsiAuth.meetingUrl || session?.meetingLink || `https://8x8.vc/studybuddy/${session.id}`;
     
     return (
       <View style={styles.videoContainer}>
         <JitsiMeetEmbed
-          key={`jitsi-${session.id}`} // Stable key based on session ID only
+          key={`jitsi-${session.id}-${jitsiAuth.jwt ? 'auth' : 'noauth'}`}
           roomName={meetingLink}
-          jwtToken={jitsiAuth?.jwt}
+          jwtToken={jitsiAuth.jwt}
           displayName={user?.fullName || user?.username || 'Participant'}
           userEmail={user?.email}
           userId={user?.id}
-          isExpert={isSessionHost} // Expert is the host
+          isExpert={isSessionHost}
           config={{
-            startWithAudioMuted: false, // Auto-join with audio enabled
-            startWithVideoMuted: false, // Auto-join with video enabled
-            enableWelcomePage: false, // Skip welcome page - already authenticated
+            startWithAudioMuted: false,
+            startWithVideoMuted: false,
+            enableWelcomePage: false,
             enableClosePage: false,
           }}
           style={styles.videoEmbed}
         />
       </View>
     );
-  }, [sessionStatus, session?.id, session?.meetingLink, user?.fullName, user?.username, styles.videoContainer, styles.videoEmbed, jitsiAuth]);
+  }, [sessionStatus, session?.id, session?.meetingLink, user?.fullName, user?.username, user?.email, user?.id, isSessionHost, styles.videoContainer, styles.videoEmbed, styles.videoLoading, styles.videoLoadingText, colors.primary, jitsiAuth]);
 
   const handleSendMessage = useCallback(() => {
     if (!newMessage.trim()) return;
@@ -743,10 +775,11 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
 
   // Handle opening external meeting link (Jitsi or other platform)
   const handleOpenMeetingLink = async () => {
-    if (session?.meetingLink) {
+    // Use jitsiAuth URL if available, otherwise fall back to session's meetingLink
+    const url = jitsiAuth?.meetingUrl || session?.meetingLink;
+    if (url) {
       try {
         // For Jitsi, open in browser/app; for other platforms, use their native app if available
-        const url = session.meetingLink;
         const canOpen = await Linking.canOpenURL(url);
         if (canOpen) {
           await Linking.openURL(url);
@@ -1257,8 +1290,8 @@ const SessionRoomScreen: React.FC<Props> = ({ route, navigation }) => {
       {/* Content Area */}
       <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
       >
         {/* Chat Panel */}
         {activePanel === 'chat' && (
@@ -1532,8 +1565,7 @@ Your notes are saved automatically."
             />
           </View>
         )}
-        </KeyboardAvoidingView>
-      )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -1678,6 +1710,17 @@ const createStyles = (colors: Palette) =>
       minHeight: 300,
       maxHeight: 300,
       flexShrink: 0, // Prevent shrinking when messages grow
+    },
+    videoLoading: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#000',
+    },
+    videoLoadingText: {
+      color: '#fff',
+      marginTop: spacing.md,
+      fontSize: 14,
     },
     videoEmbed: {
       flex: 1,
@@ -1826,21 +1869,25 @@ const createStyles = (colors: Palette) =>
     inputArea: {
       flexDirection: 'row',
       alignItems: 'flex-end',
-      padding: spacing.md,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: Platform.OS === 'ios' ? spacing.lg : spacing.md,
       backgroundColor: colors.surface,
       borderTopWidth: 1,
       borderTopColor: colors.border,
       gap: spacing.sm,
+      minHeight: 60,
     },
     input: {
       flex: 1,
       backgroundColor: colors.surfaceAlt,
       borderRadius: borderRadius.lg,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      paddingVertical: Platform.OS === 'ios' ? spacing.sm + 2 : spacing.sm,
       fontSize: 14,
       color: colors.textPrimary,
       maxHeight: 100,
+      minHeight: 44,
     },
     sendButton: {
       width: 44,

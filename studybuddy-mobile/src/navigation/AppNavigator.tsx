@@ -7,6 +7,7 @@ import MainTabs from './MainTabs';
 import OnboardingScreen from '../features/onboarding/OnboardingScreen';
 import NotificationsScreen from '../features/notifications/NotificationsScreen';
 import UpcomingEventsScreen from '../features/calendar/UpcomingEventsScreen';
+import CreateEventModalScreen from '../features/calendar/CreateEventModalScreen';
 import FeedScreen from '../features/feed/FeedScreen';
 import { useAuth } from '../auth/AuthContext';
 import { useAppTheme } from '../theme/ThemeProvider';
@@ -93,6 +94,17 @@ const AppNavigator: React.FC = () => {
                   presentation: 'modal',
                   headerShown: true,
                   headerTitle: 'Activity Feed',
+                  headerStyle: { backgroundColor: colors.surface },
+                  headerTintColor: colors.textPrimary,
+                }}
+              />
+              <Stack.Screen 
+                name="CreateEventModal" 
+                component={CreateEventModalScreen}
+                options={{ 
+                  presentation: 'modal',
+                  headerShown: true,
+                  headerTitle: 'Create Event',
                   headerStyle: { backgroundColor: colors.surface },
                   headerTintColor: colors.textPrimary,
                 }}

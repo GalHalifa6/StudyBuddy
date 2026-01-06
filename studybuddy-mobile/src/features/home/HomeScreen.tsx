@@ -525,26 +525,26 @@ const FeedItemCard: React.FC<FeedItemCardProps> = ({ item, styles, colors, navig
       </View>
       <View style={styles.feedItemContent}>
         <Text style={styles.feedItemTitle} numberOfLines={1}>
-          {item.itemType === 'UPCOMING_SESSION' ? item.sessionTitle :
-           item.itemType === 'GROUP_ACTIVITY' ? item.groupName :
-           item.itemType === 'GROUP_MATCH' ? item.groupName : 'Update'}
+          {item.itemType === 'UPCOMING_SESSION' ? (item.sessionTitle || 'Session') :
+           item.itemType === 'GROUP_ACTIVITY' ? (item.groupName || 'Group') :
+           item.itemType === 'GROUP_MATCH' ? (item.groupName || 'Group') : 'Update'}
         </Text>
         <Text style={styles.feedItemSubtitle} numberOfLines={1}>
-          {item.itemType === 'UPCOMING_SESSION' ? `${item.courseName || ''} • with ${item.expertName || 'Expert'}` :
-           item.itemType === 'GROUP_ACTIVITY' ? item.activityMessage :
-           item.itemType === 'GROUP_MATCH' ? item.matchReason : ''}
+          {item.itemType === 'UPCOMING_SESSION' ? `${item.courseName || 'Course'} • with ${item.expertName || 'Expert'}` :
+           item.itemType === 'GROUP_ACTIVITY' ? (item.activityMessage || 'New activity') :
+           item.itemType === 'GROUP_MATCH' ? (item.matchReason || 'Recommended for you') : 'View details'}
         </Text>
         {item.itemType === 'GROUP_MATCH' && item.matchPercentage ? (
           <View style={styles.feedMatchBadge}>
             <Ionicons name="sparkles" size={12} color={colors.success} />
-            <Text style={styles.feedMatchText}>{item.matchPercentage}% match</Text>
+            <Text style={styles.feedMatchText}>{`${item.matchPercentage}% match`}</Text>
           </View>
         ) : null}
       </View>
       {item.itemType === 'UPCOMING_SESSION' && item.availableSpots !== undefined ? (
         <View style={styles.feedItemBadge}>
           <Ionicons name="people" size={14} color={colors.primary} />
-          <Text style={styles.feedItemBadgeText}>{item.availableSpots}</Text>
+          <Text style={styles.feedItemBadgeText}>{String(item.availableSpots)}</Text>
         </View>
       ) : (
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />

@@ -670,7 +670,7 @@ const GroupsScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </>
         )}
-      </ScrollView>>
+      </ScrollView>
     </Screen>
   );
 };

@@ -50,8 +50,30 @@ const GroupChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const flatListRef = useRef<FlatList<Message> | null>(null);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: groupName ?? 'Group chat' });
-  }, [groupName, navigation]);
+    navigation.setOptions({
+      title: groupName ?? 'Group chat',
+      headerLeft: () => (
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={{ marginRight: spacing.md, padding: spacing.xs }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate('GroupDetails', { groupId })}
+          style={{ marginLeft: spacing.md, padding: spacing.xs }}
+          accessibilityRole="button"
+          accessibilityLabel="Group details"
+        >
+          <Ionicons name="information-circle-outline" size={24} color={colors.textPrimary} />
+        </Pressable>
+      ),
+    });
+  }, [groupName, navigation, groupId, colors.textPrimary]);
 
   const {
     data: messages = [],
@@ -286,8 +308,8 @@ const GroupChatScreen: React.FC<Props> = ({ navigation, route }) => {
     <Screen scrollable={false} style={styles.screen}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+        behavior={Platform.select({ ios: 'padding', android: 'height' })}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 95 : 20}
       >
         <View style={styles.flex}>
           {isLoading ? (

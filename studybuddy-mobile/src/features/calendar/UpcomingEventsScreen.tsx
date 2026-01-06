@@ -8,9 +8,10 @@ import {
   Text,
   View,
   Alert,
+  Modal,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../../components/ui/Screen';
@@ -18,9 +19,12 @@ import { Button } from '../../components/ui/Button';
 import { spacing, borderRadius } from '../../theme/spacing';
 import { useAppTheme, Palette } from '../../theme/ThemeProvider';
 import { calendarApi, Event, EventType } from '../../api/calendar';
+import { groupApi } from '../../api/groups';
 import { useToast } from '../../components/ui/ToastProvider';
 import { mapApiError } from '../../api/errors';
-import { MainTabParamList } from '../../navigation/types';
+import { RootStackParamList } from '../../navigation/types';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type Styles = ReturnType<typeof createStyles>;
 
@@ -50,12 +54,15 @@ interface UpcomingEventsScreenProps {
   navigation?: any;
 }
 
-const UpcomingEventsScreen: React.FC<UpcomingEventsScreenProps> = ({ navigation }) => {
+const UpcomingEventsScreen: React.FC<UpcomingEventsScreenProps> = ({ navigation: propNavigation }) => {
+  const rootNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [selectedType, setSelectedType] = useState<EventType | null>(null);
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const [fabScale] = useState(new Animated.Value(1));
 
   const {
     data: events = [],
@@ -65,6 +72,12 @@ const UpcomingEventsScreen: React.FC<UpcomingEventsScreenProps> = ({ navigation 
   } = useQuery({
     queryKey: ['calendar', 'myUpcoming'],
     queryFn: calendarApi.getMyUpcomingEvents,
+  });
+
+  // Fetch user's groups for the group picker
+  const { data: myGroups = [] } = useQuery({
+    queryKey: ['groups', 'my-groups'],
+    queryFn: groupApi.myGroups,
   });
 
   const deleteMutation = useMutation({
@@ -92,6 +105,53 @@ const UpcomingEventsScreen: React.FC<UpcomingEventsScreenProps> = ({ navigation 
       ]
     );
   }, [deleteMutation]);
+
+  const handleFabPressIn = useCallback(() => {
+    Animated.spring(fabScale, {
+      toValue: 0.9,
+      useNativeDriver: true,
+    }).start();
+  }, [fabScale]);
+
+  const handleFabPressOut = useCallback(() => {
+    Animated.spring(fabScale, {
+      toValue: 1,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  }, [fabScale]);
+
+  const handleCreateEvent = useCallback(() => {
+    if (myGroups.length === 0) {
+      Alert.alert(
+        'No Groups',
+        'You need to join a group before creating an event. Would you like to browse groups?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Browse Groups', onPress: () => propNavigation?.navigate?.('Groups') },
+        ]
+      );
+      return;
+    }
+    if (myGroups.length === 1) {
+      // Only one group, go directly to create event
+      rootNavigation.navigate('CreateEventModal', { 
+        groupId: myGroups[0].id, 
+        groupName: myGroups[0].name 
+      });
+    } else {
+      // Multiple groups, show picker
+      setShowGroupPicker(true);
+    }
+  }, [myGroups, rootNavigation, propNavigation]);
+
+  const handleSelectGroup = useCallback((group: { id: number; name: string }) => {
+    setShowGroupPicker(false);
+    rootNavigation.navigate('CreateEventModal', { 
+      groupId: group.id, 
+      groupName: group.name 
+    });
+  }, [rootNavigation]);
 
   const filteredEvents = useMemo(() => {
     if (!selectedType) return events;
@@ -234,13 +294,24 @@ const UpcomingEventsScreen: React.FC<UpcomingEventsScreenProps> = ({ navigation 
             </View>
             <Text style={styles.emptyTitle}>No upcoming events</Text>
             <Text style={styles.emptyMessage}>
-              Events from your study groups will appear here. Join a group to get started!
+              {myGroups.length > 0 
+                ? "You don't have any upcoming events yet. Create one for your group!"
+                : "Events from your study groups will appear here. Join a group to get started!"}
             </Text>
-            <Button
-              label="Browse Groups"
-              onPress={() => navigation?.navigate?.('Groups')}
-              variant="primary"
-            />
+            <View style={styles.emptyButtonsRow}>
+              {myGroups.length > 0 && (
+                <Button
+                  label="Create Event"
+                  onPress={handleCreateEvent}
+                  variant="primary"
+                />
+              )}
+              <Button
+                label="Browse Groups"
+                onPress={() => propNavigation?.navigate?.('Groups')}
+                variant={myGroups.length > 0 ? 'ghost' : 'primary'}
+              />
+            </View>
           </View>
         ) : (
           <View style={styles.eventsContainer}>
@@ -326,6 +397,77 @@ const UpcomingEventsScreen: React.FC<UpcomingEventsScreenProps> = ({ navigation 
           </View>
         )}
       </ScrollView>
+
+      {/* Floating Action Button */}
+      <Animated.View style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}>
+        <Pressable
+          onPress={handleCreateEvent}
+          onPressIn={handleFabPressIn}
+          onPressOut={handleFabPressOut}
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.accent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.fab}
+          >
+            <Ionicons name="add" size={28} color="#FFFFFF" />
+          </LinearGradient>
+        </Pressable>
+      </Animated.View>
+
+      {/* Group Picker Modal */}
+      <Modal
+        visible={showGroupPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowGroupPicker(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowGroupPicker(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Select a Group</Text>
+            <Text style={styles.modalSubtitle}>Choose which group to create the event for</Text>
+            
+            <ScrollView 
+              style={styles.groupList}
+              showsVerticalScrollIndicator={false}
+            >
+              {myGroups.map((group) => (
+                <Pressable
+                  key={group.id}
+                  style={({ pressed }) => [
+                    styles.groupOption,
+                    pressed && styles.groupOptionPressed,
+                  ]}
+                  onPress={() => handleSelectGroup(group)}
+                >
+                  <View style={styles.groupIconWrap}>
+                    <Ionicons name="people" size={24} color={colors.primary} />
+                  </View>
+                  <View style={styles.groupInfo}>
+                    <Text style={styles.groupName}>{group.name}</Text>
+                    {group.course?.name && (
+                      <Text style={styles.groupCourse}>{group.course.name}</Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <Pressable 
+              style={styles.cancelButton}
+              onPress={() => setShowGroupPicker(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 };
@@ -457,6 +599,12 @@ const createStyles = (colors: Palette) =>
       paddingHorizontal: spacing.lg,
       marginBottom: spacing.md,
     },
+    emptyButtonsRow: {
+      flexDirection: 'column',
+      gap: spacing.sm,
+      width: '100%',
+      paddingHorizontal: spacing.lg,
+    },
     eventsContainer: {
       paddingHorizontal: spacing.md,
       gap: spacing.md,
@@ -575,6 +723,109 @@ const createStyles = (colors: Palette) =>
       fontWeight: '600',
       textTransform: 'uppercase',
       letterSpacing: 0.5,
+    },
+    // FAB Styles
+    fabContainer: {
+      position: 'absolute',
+      bottom: spacing.xl,
+      right: spacing.lg,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    fab: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: borderRadius.xxl,
+      borderTopRightRadius: borderRadius.xxl,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xxl,
+      paddingHorizontal: spacing.lg,
+      maxHeight: '70%',
+    },
+    modalHandle: {
+      width: 40,
+      height: 4,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+      alignSelf: 'center',
+      marginBottom: spacing.lg,
+    },
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      textAlign: 'center',
+    },
+    modalSubtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: spacing.xs,
+      marginBottom: spacing.lg,
+    },
+    groupList: {
+      maxHeight: 300,
+    },
+    groupOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.md,
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: borderRadius.lg,
+      marginBottom: spacing.sm,
+      gap: spacing.md,
+    },
+    groupOptionPressed: {
+      opacity: 0.7,
+      transform: [{ scale: 0.98 }],
+    },
+    groupIconWrap: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    groupInfo: {
+      flex: 1,
+    },
+    groupName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    groupCourse: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    cancelButton: {
+      marginTop: spacing.lg,
+      padding: spacing.md,
+      borderRadius: borderRadius.lg,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+    },
+    cancelButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textSecondary,
     },
   });
 

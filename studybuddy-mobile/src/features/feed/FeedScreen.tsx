@@ -241,13 +241,13 @@ const getFeedItemMessage = (item: FeedItem): string => {
     case 'QUIZ_REMINDER':
       return item.quizMessage || 'Take the personality quiz for better group matches';
     case 'GROUP_ACTIVITY':
-      return item.activityMessage || `${item.actorName} posted in the group`;
+      return item.activityMessage || `${item.actorName || 'Someone'} posted in the group`;
     case 'UPCOMING_SESSION':
-      return `${item.courseName || 'Session'} with ${item.expertName || 'an expert'}${item.availableSpots ? ` • ${item.availableSpots} spots left` : ''}`;
+      return `${item.courseName || 'Session'} with ${item.expertName || 'an expert'}${item.availableSpots !== undefined ? ` • ${item.availableSpots} spots left` : ''}`;
     case 'GROUP_MATCH':
-      return `${item.matchPercentage}% match • ${item.matchReason || 'Recommended for you'}`;
+      return `${item.matchPercentage || 0}% match • ${item.matchReason || 'Recommended for you'}`;
     default:
-      return '';
+      return 'View details';
   }
 };
 

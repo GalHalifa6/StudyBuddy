@@ -68,9 +68,12 @@ const MessagesScreen: React.FC = () => {
     isLoading,
     isRefetching,
     refetch,
+    isError: groupsError,
   } = useQuery({
     queryKey: ['groups', 'mine'],
     queryFn: groupApi.myGroups,
+    retry: 2,
+    staleTime: 30000, // 30 seconds
   });
 
   // Fetch chat previews for each group
@@ -246,12 +249,34 @@ const MessagesScreen: React.FC = () => {
     );
   }, [colors, styles, formatTime, truncateMessage, handleChatPress]);
 
-  if (isLoading || loadingPreviews) {
+  // Only show loading when actually fetching groups OR when groups exist and we're loading their previews
+  if (isLoading || (myGroups.length > 0 && loadingPreviews)) {
     return (
       <Screen>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading chats...</Text>
+        </View>
+      </Screen>
+    );
+  }
+
+  // Show error state if groups failed to load
+  if (groupsError) {
+    return (
+      <Screen>
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
+          </View>
+          <Text style={styles.emptyTitle}>Failed to load chats</Text>
+          <Text style={styles.emptyMessage}>Check your connection and try again</Text>
+          <Pressable 
+            onPress={() => refetch()} 
+            style={{ marginTop: spacing.md, padding: spacing.sm }}
+          >
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
+          </Pressable>
         </View>
       </Screen>
     );

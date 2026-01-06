@@ -194,25 +194,32 @@ const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const renderRequest = ({ item }: { item: GroupMemberRequest }) => (
     <View style={styles.requestCard}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.memberName}>{item.user.fullName ?? item.user.username}</Text>
-        {item.message ? <Text style={styles.memberMeta}>{item.message}</Text> : null}
-        <Text style={styles.memberMeta}>Requested {new Date(item.createdAt).toLocaleDateString()}</Text>
+      {/* Avatar placeholder */}
+      <View style={styles.requestAvatar}>
+        <Ionicons name="person" size={24} color={colors.textMuted} />
       </View>
+      {/* User info */}
+      <View style={styles.requestInfo}>
+        <Text style={styles.memberName}>{item.user.fullName || item.user.username || 'User'}</Text>
+        {item.message ? <Text style={styles.memberMeta} numberOfLines={2}>{item.message}</Text> : null}
+        <Text style={styles.requestDate}>Requested {new Date(item.createdAt).toLocaleDateString()}</Text>
+      </View>
+      {/* Action buttons - vertical layout */}
       <View style={styles.requestActions}>
-        <Button
-          label="Approve"
-          style={styles.requestButton}
+        <TouchableOpacity
+          style={[styles.requestActionBtn, styles.requestApproveBtn]}
           onPress={() => acceptRequestMutation.mutate(item.id)}
           disabled={acceptRequestMutation.isPending}
-        />
-        <Button
-          label="Decline"
-          variant="secondary"
-          style={styles.requestButton}
+        >
+          <Ionicons name="checkmark" size={18} color="#FFF" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.requestActionBtn, styles.requestDeclineBtn]}
           onPress={() => rejectRequestMutation.mutate(item.id)}
           disabled={rejectRequestMutation.isPending}
-        />
+        >
+          <Ionicons name="close" size={18} color={colors.error} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -306,27 +313,29 @@ const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
         ) : null}
 
         {status?.isMember ? (
-          <Section
-            title="Upcoming Events"
-            loading={loadingEvents}
-            isEmpty={!groupEvents?.length}
-            emptyMessage="No upcoming events scheduled."
-            colors={colors}
-            styles={styles}
-          >
-            <>
-              {(groupEvents || []).slice(0, 3).map((event: CalendarEvent) => (
-                <EventCard key={event.id} event={event} styles={styles} colors={colors} />
-              ))}
-              <TouchableOpacity
-                style={styles.createEventButton}
-                onPress={() => navigation.navigate('CreateEvent', { groupId })}
-              >
-                <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-                <Text style={styles.createEventText}>Create Event</Text>
-              </TouchableOpacity>
-            </>
-          </Section>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Upcoming Events</Text>
+            {loadingEvents ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <>
+                {groupEvents && groupEvents.length > 0 ? (
+                  (groupEvents || []).slice(0, 3).map((event: CalendarEvent) => (
+                    <EventCard key={event.id} event={event} styles={styles} colors={colors} />
+                  ))
+                ) : (
+                  <Text style={styles.helper}>No upcoming events scheduled.</Text>
+                )}
+                <TouchableOpacity
+                  style={styles.createEventButton}
+                  onPress={() => navigation.navigate('CreateEvent', { groupId, groupName: group.name })}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                  <Text style={styles.createEventText}>Create Event</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         ) : null}
 
         <Section
@@ -435,19 +444,48 @@ const createStyles = (colors: Palette) =>
     requestCard: {
       flexDirection: 'row',
       gap: spacing.md,
-      padding: spacing.lg,
+      padding: spacing.md,
       backgroundColor: colors.surface,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: colors.border,
       alignItems: 'center',
     },
-    requestActions: {
-      flexDirection: 'row',
-      gap: spacing.sm,
+    requestAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    requestButton: {
-      minWidth: 120,
+    requestInfo: {
+      flex: 1,
+      gap: 2,
+    },
+    requestDate: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+    requestActions: {
+      flexDirection: 'column',
+      gap: spacing.xs,
+    },
+    requestActionBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    requestApproveBtn: {
+      backgroundColor: colors.success,
+    },
+    requestDeclineBtn: {
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     eventCard: {
       flexDirection: 'row',
