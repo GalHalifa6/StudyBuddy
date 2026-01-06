@@ -9,6 +9,7 @@ import GroupsScreen from '../features/groups/GroupsScreen';
 import GroupDetailsScreen from '../features/groups/GroupDetailsScreen';
 import CreateGroupScreen from '../features/groups/CreateGroupScreen';
 import GroupChatScreen from '../features/groups/GroupChatScreen';
+import CreateEventScreen from '../features/groups/CreateEventScreen';
 import MessagesScreen from '../features/messages/MessagesScreen';
 import SessionsScreen from '../features/sessions/SessionsScreen';
 import SessionDetailsScreen from '../features/sessions/SessionDetailsScreen';
@@ -88,6 +89,11 @@ const GroupsNavigator = () => {
         name="GroupChat"
         component={GroupChatScreen}
         options={({ route }) => ({ title: route.params?.groupName ?? 'Group Chat' })}
+      />
+      <GroupsStack.Screen
+        name="CreateEvent"
+        component={CreateEventScreen}
+        options={{ title: 'Create Event' }}
       />
     </GroupsStack.Navigator>
   );

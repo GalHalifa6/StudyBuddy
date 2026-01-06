@@ -1,6 +1,13 @@
 import api from './client';
 import { SessionActionResponse, SessionDetails, SessionParticipant, SessionSummary } from './types';
 
+export interface JitsiAuthResponse {
+  roomName: string;
+  meetingUrl: string;
+  jwt: string;
+  expiresAt: string;
+}
+
 type BrowseFilters = {
   type?: string;
   courseId?: number;
@@ -65,6 +72,11 @@ export const sessionApi = {
 
   getMessages: async (sessionId: number): Promise<SessionChatMessage[]> => {
     const { data } = await api.get<SessionChatMessage[]>(`/sessions/${sessionId}/messages`);
+    return data;
+  },
+
+  jitsiAuth: async (sessionId: number): Promise<JitsiAuthResponse> => {
+    const { data } = await api.get<JitsiAuthResponse>(`/sessions/${sessionId}/jitsi-auth`);
     return data;
   },
 };

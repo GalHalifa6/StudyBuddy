@@ -254,6 +254,55 @@ export interface GroupMemberRequest {
   respondedBy?: User;
 }
 
+// Group matching types
+export interface GroupMatch {
+  groupId: number;
+  groupName: string;
+  description?: string;
+  topic?: string;
+  visibility: string;
+  courseId?: number;
+  courseName?: string;
+  courseCode?: string;
+  currentSize: number;
+  maxSize: number;
+  matchPercentage: number;
+  matchReason: string;
+  isMember: boolean;
+  hasPendingRequest: boolean;
+  currentVariance?: number;
+  projectedVariance?: number;
+  createdAt?: string;
+}
+
+// Event types
+export type EventType = 
+  | 'STUDY_SESSION' 
+  | 'MEETING' 
+  | 'EXAM' 
+  | 'ASSIGNMENT_DUE' 
+  | 'PROJECT_DEADLINE' 
+  | 'PRESENTATION' 
+  | 'REVIEW_SESSION' 
+  | 'OTHER';
+
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  description?: string;
+  eventType: EventType;
+  startDateTime: string;
+  endDateTime?: string;
+  location?: string;
+  meetingLink?: string;
+  creatorId: number;
+  creatorName: string;
+  groupId: number;
+  groupName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FileUpload {
   id: number;
   filename: string;

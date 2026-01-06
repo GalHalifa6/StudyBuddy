@@ -13,6 +13,7 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../../navigation/AuthStack';
 import { useAppTheme, Palette } from '../../../theme/ThemeProvider';
+import { Logo } from '../../../components/Logo';
 
 const schema = z
   .object({
@@ -33,7 +34,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const { register } = useAuth();
   const { showToast } = useToast();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
 
@@ -63,8 +64,13 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    <Screen>
+    <Screen scrollable>
       <View style={styles.container}>
+        {/* Logo Section */}
+        <View style={styles.logoSection}>
+          <Logo size="lg" showText={false} dark={isDark} />
+        </View>
+
         <View style={styles.header}>
           <Text style={styles.title}>Create your account</Text>
           <Text style={styles.subtitle}>Join the StudyBuddy community and find your learning crew.</Text>
@@ -101,12 +107,22 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             secure
             error={errors.confirmPassword?.message}
           />
-          <Button label="Create Account" onPress={handleSubmit(onSubmit)} loading={loading} disabled={loading} />
+          <Button 
+            label="Create Account" 
+            onPress={handleSubmit(onSubmit)} 
+            loading={loading} 
+            disabled={loading}
+            icon="person-add-outline"
+          />
         </View>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Login')} accessibilityRole="button">
-          <Text style={styles.link}>Already have an account? Sign in</Text>
-        </TouchableOpacity>
+        <View style={styles.footer}>
+          <TouchableOpacity onPress={() => navigation.navigate('Login')} accessibilityRole="button">
+            <Text style={styles.link}>
+              Already have an account? <Text style={styles.linkAccent}>Sign in</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Screen>
   );
@@ -116,29 +132,42 @@ const createStyles = (colors: Palette) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      justifyContent: 'space-between',
+      paddingVertical: spacing.lg,
+    },
+    logoSection: {
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
     },
     header: {
-      gap: spacing.sm,
+      alignItems: 'center',
+      gap: spacing.xs,
+      marginBottom: spacing.lg,
     },
     title: {
-      fontSize: 32,
+      fontSize: 28,
       fontWeight: '700',
       color: colors.textPrimary,
     },
     subtitle: {
       fontSize: typography.body,
       color: colors.textSecondary,
+      textAlign: 'center',
     },
     form: {
       gap: spacing.md,
-      paddingTop: spacing.lg,
+      paddingTop: spacing.sm,
+    },
+    footer: {
+      marginTop: spacing.xl,
+      alignItems: 'center',
     },
     link: {
       textAlign: 'center',
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    linkAccent: {
       color: colors.primary,
-      fontSize: 16,
-      marginTop: spacing.lg,
       fontWeight: '600',
     },
   });

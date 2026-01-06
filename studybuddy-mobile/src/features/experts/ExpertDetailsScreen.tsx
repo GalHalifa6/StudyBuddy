@@ -153,10 +153,10 @@ const ExpertDetailsScreen: React.FC = () => {
             onPress={async () => {
               try {
                 const conversation = await directMessageApi.createOrGetConversation(expertId);
-                // Navigate to messages tab with the conversation
-                // For now, we'll show a toast and the user can navigate to messages manually
-                showToast('Conversation created! Check your messages.', 'success');
+                // Invalidate queries first
                 queryClient.invalidateQueries({ queryKey: ['directMessages'] });
+                // Navigate to messages tab with the conversation
+                navigation.getParent()?.navigate('Messages', { conversationId: conversation.id });
               } catch (error) {
                 showToast(mapApiError(error).message, 'error');
               }

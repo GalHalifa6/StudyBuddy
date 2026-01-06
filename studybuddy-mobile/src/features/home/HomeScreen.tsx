@@ -21,6 +21,7 @@ import { spacing, borderRadius } from '../../theme/spacing';
 import { useAppTheme, Palette } from '../../theme/ThemeProvider';
 import { dashboardApi } from '../../api/dashboard';
 import { notificationsApi } from '../../api/notifications';
+import { feedApi, FeedItem } from '../../api/feed';
 import { mapApiError } from '../../api/errors';
 import { useAuth } from '../../auth/AuthContext';
 import type {
@@ -80,15 +81,23 @@ const HomeScreen: React.FC = () => {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
+  // Fetch personalized feed
+  const { data: feedData } = useQuery({
+    queryKey: ['feed', 'student'],
+    queryFn: feedApi.getStudentFeed,
+  });
+
   const metricItems = useMemo(() => buildMetricItems(overview?.metrics), [overview]);
   const quickActions = useMemo(
     () => [
-      { label: 'Browse courses', icon: 'book-outline' as const, onPress: () => navigation.navigate('Courses', { screen: 'CoursesHome' }) },
-      { label: 'Find groups', icon: 'people-outline' as const, onPress: () => navigation.navigate('Groups', { screen: 'GroupsHome' }) },
-      { label: isExpert ? 'My Sessions' : 'Upcoming sessions', icon: 'calendar-outline' as const, onPress: () => navigation.navigate('Sessions') },
-      { label: isExpert ? 'Expert Dashboard' : 'Meet experts', icon: isExpert ? 'stats-chart-outline' as const : 'briefcase-outline' as const, onPress: () => navigation.navigate('Experts') },
+      { label: 'Browse courses', icon: 'book-outline' as const, color: colors.primary, onPress: () => navigation.navigate('Courses', { screen: 'CoursesHome' }) },
+      { label: 'Find groups', icon: 'people-outline' as const, color: colors.secondary, onPress: () => navigation.navigate('Groups', { screen: 'GroupsHome' }) },
+      { label: isExpert ? 'My Sessions' : 'Live sessions', icon: 'videocam-outline' as const, color: colors.success, onPress: () => navigation.navigate('Sessions') },
+      { label: isExpert ? 'Expert Dashboard' : 'Expert help', icon: isExpert ? 'stats-chart-outline' as const : 'school-outline' as const, color: colors.accent, onPress: () => navigation.navigate('Experts') },
+      { label: 'Direct messages', icon: 'chatbubble-ellipses-outline' as const, color: '#F59E0B', onPress: () => navigation.navigate('Messages') },
+      { label: 'My calendar', icon: 'calendar-outline' as const, color: '#10B981', onPress: () => navigation.navigate('UpcomingEvents' as any) },
     ],
-    [navigation, isExpert]
+    [navigation, isExpert, colors]
   );
 
   if (isLoading && !overview) {
@@ -190,26 +199,72 @@ const HomeScreen: React.FC = () => {
         </View>
       </LinearGradient>
 
+      {/* Your Feed Section - Like Web UI */}
+      {feedData && (feedData.feedItems.length > 0 || !feedData.userProfile.hasProfile) ? (
+        <View style={styles.section}>
+          <View style={styles.feedHeader}>
+            <Text style={styles.sectionTitle}>Your Feed</Text>
+            <View style={styles.aiPoweredBadge}>
+              <Ionicons name="sparkles" size={12} color={colors.primary} />
+              <Text style={styles.aiPoweredText}>AI Powered</Text>
+            </View>
+          </View>
+          <Text style={styles.feedSubtitle}>Personalized updates and recommendations just for you.</Text>
+          
+          {/* Quiz/Profile Reminder - Orange Card */}
+          {!feedData.userProfile.hasProfile ? (
+            <LinearGradient
+              colors={['#F97316', '#FB923C']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.feedQuizCard}
+            >
+              <View style={styles.feedQuizContent}>
+                <View style={styles.feedQuizIcon}>
+                  <Ionicons name="sparkles" size={20} color="#FFF" />
+                </View>
+                <View style={styles.feedQuizText}>
+                  <Text style={styles.feedQuizTitle}>Complete Your Profile</Text>
+                  <Text style={styles.feedQuizMessage}>{feedData.userProfile.message}</Text>
+                </View>
+              </View>
+              <Pressable 
+                style={styles.feedQuizButton}
+                onPress={() => navigation.navigate('Profile' as any)}
+              >
+                <Text style={styles.feedQuizButtonText}>Take the quiz</Text>
+                <Ionicons name="arrow-forward" size={16} color="#F97316" />
+              </Pressable>
+            </LinearGradient>
+          ) : null}
+
+          {/* Feed Items */}
+          {feedData.feedItems.slice(0, 3).map((item, index) => (
+            <FeedItemCard 
+              key={`${item.itemType}-${index}`} 
+              item={item} 
+              styles={styles} 
+              colors={colors}
+              navigation={navigation}
+            />
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.section}>
         <SectionHeader title="Quick actions" styles={styles} />
         <View style={styles.quickActionsGrid}>
           {quickActions.map(action => (
             <Pressable
               key={action.label}
-              style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
+              style={({ pressed }) => [styles.quickActionCard, pressed && styles.quickActionPressed]}
               onPress={action.onPress}
               accessibilityRole="button"
             >
-              <LinearGradient
-                colors={[colors.surfaceAlt, colors.surface]}
-                style={styles.quickActionGradient}
-              >
-                <View style={styles.quickActionIcon}>
-                  <Ionicons name={action.icon} size={22} color={colors.primary} />
-                </View>
-                <Text style={styles.quickActionLabel}>{action.label}</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-              </LinearGradient>
+              <View style={[styles.quickActionIconNew, { backgroundColor: `${action.color}15` }]}>
+                <Ionicons name={action.icon} size={24} color={action.color} />
+              </View>
+              <Text style={styles.quickActionLabel} numberOfLines={1}>{action.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -426,6 +481,78 @@ const HighlightStat: React.FC<HighlightStatProps> = ({ icon, label, palette, sty
   </View>
 );
 
+// Feed Item Card Component - matches web UI
+type FeedItemCardProps = {
+  item: FeedItem;
+  styles: Styles;
+  colors: Palette;
+  navigation: Navigation;
+};
+
+const FeedItemCard: React.FC<FeedItemCardProps> = ({ item, styles, colors, navigation }) => {
+  const getIcon = (): keyof typeof Ionicons.glyphMap => {
+    switch (item.itemType) {
+      case 'UPCOMING_SESSION': return 'calendar';
+      case 'GROUP_ACTIVITY': return 'chatbubble';
+      case 'GROUP_MATCH': return 'sparkles';
+      default: return 'notifications';
+    }
+  };
+
+  const getIconColor = () => {
+    switch (item.itemType) {
+      case 'UPCOMING_SESSION': return colors.primary;
+      case 'GROUP_ACTIVITY': return colors.secondary;
+      case 'GROUP_MATCH': return colors.success;
+      default: return colors.textMuted;
+    }
+  };
+
+  const handlePress = () => {
+    if (item.itemType === 'UPCOMING_SESSION' && item.sessionId) {
+      navigation.navigate('Sessions', { screen: 'SessionDetails', params: { sessionId: item.sessionId } });
+    } else if (item.itemType === 'GROUP_ACTIVITY' && item.groupId) {
+      navigation.navigate('Groups', { screen: 'GroupDetails', params: { groupId: item.groupId } });
+    } else if (item.itemType === 'GROUP_MATCH' && item.groupId) {
+      navigation.navigate('Groups', { screen: 'GroupDetails', params: { groupId: item.groupId } });
+    }
+  };
+
+  return (
+    <Pressable style={styles.feedItemCard} onPress={handlePress}>
+      <View style={[styles.feedItemIcon, { backgroundColor: `${getIconColor()}15` }]}>
+        <Ionicons name={getIcon()} size={18} color={getIconColor()} />
+      </View>
+      <View style={styles.feedItemContent}>
+        <Text style={styles.feedItemTitle} numberOfLines={1}>
+          {item.itemType === 'UPCOMING_SESSION' ? item.sessionTitle :
+           item.itemType === 'GROUP_ACTIVITY' ? item.groupName :
+           item.itemType === 'GROUP_MATCH' ? item.groupName : 'Update'}
+        </Text>
+        <Text style={styles.feedItemSubtitle} numberOfLines={1}>
+          {item.itemType === 'UPCOMING_SESSION' ? `${item.courseName || ''} • with ${item.expertName || 'Expert'}` :
+           item.itemType === 'GROUP_ACTIVITY' ? item.activityMessage :
+           item.itemType === 'GROUP_MATCH' ? item.matchReason : ''}
+        </Text>
+        {item.itemType === 'GROUP_MATCH' && item.matchPercentage ? (
+          <View style={styles.feedMatchBadge}>
+            <Ionicons name="sparkles" size={12} color={colors.success} />
+            <Text style={styles.feedMatchText}>{item.matchPercentage}% match</Text>
+          </View>
+        ) : null}
+      </View>
+      {item.itemType === 'UPCOMING_SESSION' && item.availableSpots !== undefined ? (
+        <View style={styles.feedItemBadge}>
+          <Ionicons name="people" size={14} color={colors.primary} />
+          <Text style={styles.feedItemBadgeText}>{item.availableSpots}</Text>
+        </View>
+      ) : (
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      )}
+    </Pressable>
+  );
+};
+
 const SectionHeader: React.FC<{ title: string; actionLabel?: string; onAction?: () => void; styles: Styles }> = ({
   title,
   actionLabel,
@@ -589,7 +716,147 @@ const createStyles = (colors: Palette) =>
       fontWeight: '600',
       color: colors.primary,
     },
+    // Feed Section Styles
+    feedHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    aiPoweredBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: borderRadius.full,
+    },
+    aiPoweredText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    feedSubtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: -spacing.xs,
+    },
+    feedQuizCard: {
+      borderRadius: borderRadius.xl,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    feedQuizContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+    },
+    feedQuizIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    feedQuizText: {
+      flex: 1,
+    },
+    feedQuizTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+    feedQuizMessage: {
+      fontSize: 13,
+      color: 'rgba(255,255,255,0.9)',
+      marginTop: 2,
+    },
+    feedQuizButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: '#FFFFFF',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.lg,
+      alignSelf: 'flex-start',
+    },
+    feedQuizButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#F97316',
+    },
+    feedItemCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.xl,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    feedItemIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    feedItemContent: {
+      flex: 1,
+      gap: 2,
+    },
+    feedItemTitle: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    feedItemSubtitle: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    feedMatchBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+    },
+    feedMatchText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.success,
+    },
+    feedItemBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: borderRadius.full,
+    },
+    feedItemBadgeText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.primary,
+    },
     quickActionsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    quickActionCard: {
+      width: '31%',
+      aspectRatio: 1,
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.xl,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.sm,
       gap: spacing.sm,
     },
     quickAction: {
@@ -598,7 +865,7 @@ const createStyles = (colors: Palette) =>
     },
     quickActionPressed: {
       opacity: 0.9,
-      transform: [{ scale: 0.98 }],
+      transform: [{ scale: 0.96 }],
     },
     quickActionGradient: {
       flexDirection: 'row',
@@ -619,11 +886,18 @@ const createStyles = (colors: Palette) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
+    quickActionIconNew: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     quickActionLabel: {
-      flex: 1,
-      fontSize: 16,
+      fontSize: 12,
       fontWeight: '600',
       color: colors.textPrimary,
+      textAlign: 'center',
     },
     metricsGrid: {
       flexDirection: 'row',

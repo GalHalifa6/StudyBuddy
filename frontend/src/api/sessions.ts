@@ -44,6 +44,13 @@ export interface UserSearchResult {
   role: string;
 }
 
+export interface JitsiAuthResponse {
+  roomName: string;
+  meetingUrl: string;
+  jwt: string;
+  expiresAt: string;
+}
+
 // Session API Service for students
 export const sessionService = {
   // Browse all available sessions
@@ -93,6 +100,12 @@ export const sessionService = {
   // Get session participants
   getSessionParticipants: async (sessionId: number): Promise<SessionParticipant[]> => {
     const response = await api.get(`/sessions/${sessionId}/participants`);
+    return response.data;
+  },
+
+  // Fetch Jitsi JWT + meeting URL
+  getJitsiAuth: async (sessionId: number): Promise<JitsiAuthResponse> => {
+    const response = await api.get(`/sessions/${sessionId}/jitsi-auth`);
     return response.data;
   },
 };

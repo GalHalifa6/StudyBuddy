@@ -32,6 +32,7 @@ const CoursesScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'mycourses'>('mycourses');
   const debouncedSearch = useDebouncedValue(search.trim(), 350);
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -151,6 +152,36 @@ const CoursesScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </LinearGradient>
 
+      {/* Tab Toggle */}
+      <View style={styles.tabContainer}>
+        <Pressable
+          style={[styles.tab, activeTab === 'catalog' && styles.tabActive]}
+          onPress={() => setActiveTab('catalog')}
+        >
+          <Ionicons 
+            name="library-outline" 
+            size={16} 
+            color={activeTab === 'catalog' ? colors.textOnPrimary : colors.textSecondary} 
+          />
+          <Text style={[styles.tabText, activeTab === 'catalog' && styles.tabTextActive]}>
+            Catalog
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tab, activeTab === 'mycourses' && styles.tabActive]}
+          onPress={() => setActiveTab('mycourses')}
+        >
+          <Ionicons 
+            name="checkmark-circle-outline" 
+            size={16} 
+            color={activeTab === 'mycourses' ? colors.textOnPrimary : colors.textSecondary} 
+          />
+          <Text style={[styles.tabText, activeTab === 'mycourses' && styles.tabTextActive]}>
+            My courses
+          </Text>
+        </Pressable>
+      </View>
+
       <View style={styles.section}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
@@ -172,61 +203,67 @@ const CoursesScreen: React.FC<Props> = ({ navigation }) => {
         {searching ? <ActivityIndicator color={colors.primary} style={styles.searchSpinner} /> : null}
       </View>
 
-      <View style={styles.section}>
-        <SectionHeader
-          title="My courses"
-          action={!myEmpty ? undefined : { label: 'Browse catalog', onPress: () => setSearch('') }}
-          styles={styles}
-        />
-        {loadingMyCourses ? (
-          <SkeletonList itemCount={2} styles={styles} />
-        ) : myEmpty ? (
-          <EmptyState
-            title="You are not enrolled yet"
-            message="Enroll in a course to get personalized group recommendations and expert support."
-            actionLabel="Start browsing"
-            onAction={() => setSearch('')}
+      {activeTab === 'mycourses' ? (
+        <View style={styles.section}>
+          <SectionHeader
+            title="My courses"
+            action={!myEmpty ? { label: 'Refresh', onPress: refetchMyCourses } : undefined}
             styles={styles}
           />
-        ) : (
-          <FlatList
-            data={myCourses}
-            keyExtractor={item => item.id.toString()}
-            renderItem={renderCourseItem}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            scrollEnabled={false}
-          />
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <SectionHeader
-          title={debouncedSearch.length >= MIN_SEARCH_CHARS ? 'Search results' : 'Browse catalog'}
-          action={{ label: 'Refresh', onPress: handleRefresh }}
-          styles={styles}
-        />
-        {loadingAllCourses && debouncedSearch.length < MIN_SEARCH_CHARS ? (
-          <SkeletonList itemCount={3} styles={styles} />
-        ) : browseEmpty ? (
-          <EmptyState
-            title={debouncedSearch.length ? 'No courses found' : 'Catalog unavailable'}
-            message={
-              debouncedSearch.length
-                ? 'Try a different search term or check spelling.'
-                : 'We could not load the catalog right now. Pull to retry in a moment.'
-            }
+          {loadingMyCourses ? (
+            <SkeletonList itemCount={2} styles={styles} />
+          ) : myEmpty ? (
+            <EmptyState
+              title="You are not enrolled yet"
+              message="Enroll in a course to get personalized group recommendations and expert support."
+              actionLabel="Browse catalog"
+              onAction={() => setActiveTab('catalog')}
+              styles={styles}
+            />
+          ) : (
+            <FlatList
+              data={myCourses?.filter(c => 
+                !debouncedSearch || 
+                c.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                c.code?.toLowerCase().includes(debouncedSearch.toLowerCase())
+              )}
+              keyExtractor={item => item.id.toString()}
+              renderItem={renderCourseItem}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              scrollEnabled={false}
+            />
+          )}
+        </View>
+      ) : (
+        <View style={styles.section}>
+          <SectionHeader
+            title={debouncedSearch.length >= MIN_SEARCH_CHARS ? 'Search results' : 'Browse catalog'}
+            action={{ label: 'Refresh', onPress: handleRefresh }}
             styles={styles}
           />
-        ) : (
-          <FlatList
-            data={browseCourses}
-            keyExtractor={item => item.id.toString()}
-            renderItem={renderCourseItem}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            scrollEnabled={false}
-          />
-        )}
-      </View>
+          {loadingAllCourses && debouncedSearch.length < MIN_SEARCH_CHARS ? (
+            <SkeletonList itemCount={3} styles={styles} />
+          ) : browseEmpty ? (
+            <EmptyState
+              title={debouncedSearch.length ? 'No courses found' : 'Catalog unavailable'}
+              message={
+                debouncedSearch.length
+                  ? 'Try a different search term or check spelling.'
+                  : 'We could not load the catalog right now. Pull to retry in a moment.'
+              }
+              styles={styles}
+            />
+          ) : (
+            <FlatList
+              data={browseCourses}
+              keyExtractor={item => item.id.toString()}
+              renderItem={renderCourseItem}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              scrollEnabled={false}
+            />
+          )}
+        </View>
+      )}
     </Screen>
   );
 };
@@ -351,9 +388,37 @@ const createStyles = (colors: Palette) =>
       borderRadius: borderRadius.xxl,
       padding: spacing.lg,
       gap: spacing.sm,
-      marginBottom: spacing.lg,
+      marginBottom: spacing.md,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    tabContainer: {
+      flexDirection: 'row',
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: borderRadius.xl,
+      padding: 4,
+      marginBottom: spacing.md,
+    },
+    tab: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.lg,
+    },
+    tabActive: {
+      backgroundColor: colors.primary,
+    },
+    tabText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    tabTextActive: {
+      color: colors.textOnPrimary,
     },
     heroBadge: {
       flexDirection: 'row',

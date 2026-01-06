@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { expertService, studentExpertService, ExpertSession } from '../api/experts';
-import { sessionService } from '../api/sessions';
+import { sessionService, JitsiAuthResponse } from '../api/sessions';
 import { resolveApiUrl } from '@/config/env';
 import { useSessionWebSocket, SessionMessage, WhiteboardDrawData } from '../hooks/useSessionWebSocket';
 import { JitsiMeetEmbed } from '../components/JitsiMeetEmbed';
@@ -120,6 +120,9 @@ const SessionRoom: React.FC = () => {
   // Participants
   const [participants, setParticipants] = useState<Participant[]>([]);
   const attemptedAutoJoin = useRef(false);
+
+  // Jitsi auth token
+  const [jitsiAuth, setJitsiAuth] = useState<JitsiAuthResponse | null>(null);
   
   // Confetti state
   const [showConfetti, setShowConfetti] = useState(false);
@@ -347,6 +350,29 @@ const SessionRoom: React.FC = () => {
     return () => clearInterval(interval);
   }, [sessionStatus]);
 
+  // Fetch Jitsi auth (JWT + meeting URL) when session is active
+  useEffect(() => {
+    if (!sessionId || sessionStatus !== 'active') {
+      setJitsiAuth(null);
+      return;
+    }
+
+    let cancelled = false;
+    sessionService.getJitsiAuth(parseInt(sessionId))
+      .then((data) => {
+        if (!cancelled) {
+          setJitsiAuth(data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch Jitsi auth', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, sessionStatus]);
+
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -570,8 +596,8 @@ const SessionRoom: React.FC = () => {
   const videoComponent = useMemo(() => {
     if (sessionStatus !== 'active' || !session?.id) return null;
     
-    // Generate meeting link if missing - use stable link based on session ID
-    const meetingLink = session?.meetingLink || `https://meet.jit.si/studybuddy-${session.id}`;
+    // Prefer server-provided Jitsi auth/link; fall back to stored link
+    const meetingLink = jitsiAuth?.meetingUrl || session?.meetingLink || `https://8x8.vc/studybuddy/${session.id}`;
     
     return (
       <div 
@@ -593,6 +619,7 @@ const SessionRoom: React.FC = () => {
         <JitsiMeetEmbed
           key={`jitsi-${session.id}`} // Stable key based on session ID only
           roomName={meetingLink}
+          jwtToken={jitsiAuth?.jwt}
           displayName={user?.fullName || user?.username || 'Participant'}
           userEmail={user?.email}
           userId={user?.id}
@@ -607,7 +634,7 @@ const SessionRoom: React.FC = () => {
         />
       </div>
     );
-  }, [sessionStatus, session?.id, session?.meetingLink, user?.fullName, user?.username]);
+  }, [sessionStatus, session?.id, session?.meetingLink, user?.fullName, user?.username, jitsiAuth]);
 
   // Real-time whiteboard drawing
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {

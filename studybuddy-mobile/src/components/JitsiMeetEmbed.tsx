@@ -1,13 +1,14 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 interface JitsiMeetEmbedProps {
   roomName: string;
+  jwtToken?: string;
   displayName?: string;
   userEmail?: string;
   userId?: number;
-  isExpert?: boolean; // If true, this user is the expert/host
+  isExpert?: boolean;
   config?: {
     startWithAudioMuted?: boolean;
     startWithVideoMuted?: boolean;
@@ -19,131 +20,156 @@ interface JitsiMeetEmbedProps {
 
 /**
  * Jitsi Meet Embed Component for React Native
- * Embeds a Jitsi Meet video conference in a WebView
+ * Uses Jitsi External API for better control over authentication
  */
 export const JitsiMeetEmbed: React.FC<JitsiMeetEmbedProps> = ({
   roomName,
-  displayName,
+  jwtToken,
+  displayName = 'Participant',
   userEmail,
-  userId,
-  isExpert = false,
-  config = {},
   style,
 }) => {
-  // Extract room name from full URL if needed
+  // Extract room name from full URL if needed and clean it
   const cleanRoomName = useMemo(() => {
-    return roomName.includes('meet.jit.si/') 
-      ? roomName.split('meet.jit.si/')[1] 
-      : roomName;
+    try {
+      const url = new URL(roomName);
+      if (url.hostname.includes('8x8.vc') || url.hostname.includes('meet.jit.si')) {
+        return url.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    const name = roomName.includes('8x8.vc/') ? roomName.split('8x8.vc/')[1] : roomName;
+    return name.replace(/[^a-zA-Z0-9-_/]/g, '').replace(/^\/+/, '').replace(/\/+$/, '');
   }, [roomName]);
 
-  // Build Jitsi Meet URL with configuration options
-  const jitsiUrl = useMemo(() => {
-    let url = `https://meet.jit.si/${cleanRoomName}`;
-    const params = new URLSearchParams();
-    
-    // Pass user info to skip login prompt - this uses the app's authentication
-    if (displayName) {
-      params.append('userInfo.displayName', displayName);
-    }
-    if (userEmail) {
-      params.append('userInfo.email', userEmail);
-    }
-    if (userId) {
-      // Use userId as a unique identifier
-      params.append('userInfo.id', String(userId));
-    }
-    
-    // Disable welcome/prejoin page - users are already authenticated in the app
-    params.append('config.prejoinPageEnabled', 'false');
-    params.append('config.enableWelcomePage', 'false');
-    
-    // Expert (host) configuration - expert gets moderator privileges
-    if (isExpert) {
-      // Expert joins with audio/video enabled and becomes moderator
-      params.append('config.startWithAudioMuted', 'false');
-      params.append('config.startWithVideoMuted', 'false');
-      // Expert is automatically moderator (first to join or can be set)
-      params.append('config.startAudioOnly', 'false');
-    } else {
-      // Students join with audio/video based on config or defaults
-      if (config.startWithAudioMuted !== undefined) {
-        params.append('config.startWithAudioMuted', String(config.startWithAudioMuted));
-      } else {
-        params.append('config.startWithAudioMuted', 'false');
+  // Create HTML that uses Jitsi External API with anonymous authentication
+  const jitsiHtml = useMemo(() => {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #meet { width: 100%; height: 100%; background: #000; }
+  </style>
+</head>
+<body>
+  <div id="meet"></div>
+  <script src="https://8x8.vc/external_api.js"></script>
+  <script>
+    const domain = '8x8.vc';
+    const options = {
+      roomName: '${cleanRoomName}',
+      width: '100%',
+      height: '100%',
+      parentNode: document.querySelector('#meet'),
+      userInfo: {
+        displayName: '${displayName.replace(/'/g, "\\'")}',
+        email: '${userEmail || ''}'
+      },
+      jwt: '${jwtToken || ''}',
+      configOverwrite: {
+        prejoinPageEnabled: false,
+        prejoinConfig: { enabled: false },
+        startWithAudioMuted: false,
+        startWithVideoMuted: false,
+        enableWelcomePage: false,
+        enableClosePage: false,
+        disableDeepLinking: true,
+        enableLobbyChat: false,
+        hideLobbyButton: true,
+        requireDisplayName: false,
+        enableInsecureRoomNameWarning: false,
+        disableInviteFunctions: true,
+        toolbarButtons: [
+          'microphone', 'camera', 'hangup', 'fullscreen', 'tileview'
+        ],
+        disableThirdPartyRequests: true,
+        analytics: { disabled: true },
+        p2p: { enabled: true },
+        enableNoAudioDetection: false,
+        enableNoisyMicDetection: false,
+        disableRemoteMute: true,
+        remoteVideoMenu: { disableKick: true, disableGrantModerator: true },
+        disableModeratorIndicator: true,
+        startAudioOnly: false,
+        lobby: { autoKnock: true, enableChat: false },
+        notifications: [],
+        disablePolls: true,
+        doNotStoreRoom: true
+      },
+      interfaceConfigOverwrite: {
+        SHOW_JITSI_WATERMARK: false,
+        SHOW_BRAND_WATERMARK: false,
+        SHOW_POWERED_BY: false,
+        MOBILE_APP_PROMO: false,
+        DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+        HIDE_INVITE_MORE_HEADER: true,
+        DISABLE_FOCUS_INDICATOR: true,
+        DISABLE_DOMINANT_SPEAKER_INDICATOR: true,
+        TOOLBAR_ALWAYS_VISIBLE: true,
+        DEFAULT_BACKGROUND: '#000000',
+        DISABLE_VIDEO_BACKGROUND: true,
+        GENERATE_ROOMNAMES_ON_WELCOME_PAGE: false,
+        DISPLAY_WELCOME_FOOTER: false,
+        DISPLAY_WELCOME_PAGE_ADDITIONAL_CARD: false,
+        DISPLAY_WELCOME_PAGE_CONTENT: false,
+        DISPLAY_WELCOME_PAGE_TOOLBAR_ADDITIONAL_CONTENT: false,
+        RECENT_LIST_ENABLED: false,
+        VIDEO_QUALITY_LABEL_DISABLED: true,
+        CONNECTION_INDICATOR_DISABLED: true
       }
-      if (config.startWithVideoMuted !== undefined) {
-        params.append('config.startWithVideoMuted', String(config.startWithVideoMuted));
-      } else {
-        params.append('config.startWithVideoMuted', 'false');
-      }
-    }
+    };
     
-    if (config.enableClosePage === false) {
-      params.append('config.enableClosePage', 'false');
+    try {
+      const api = new JitsiMeetExternalAPI(domain, options);
+      
+      // Auto-join even if in lobby
+      api.addEventListener('participantRoleChanged', (event) => {
+        if (event.role === 'moderator') {
+          api.executeCommand('toggleLobby', false);
+        }
+      });
+      
+      // Handle errors
+      api.addEventListener('errorOccurred', (error) => {
+        console.log('Jitsi error:', error);
+      });
+      
+      // Notify when ready
+      api.addEventListener('videoConferenceJoined', () => {
+        console.log('Successfully joined conference');
+      });
+    } catch (e) {
+      console.error('Failed to initialize Jitsi:', e);
+      document.body.innerHTML = '<div style="color:white;text-align:center;padding:20px;">Failed to load video. Please try again.</div>';
     }
-
-    // Add interface configuration for better mobile UX
-    params.append('config.hideDisplayName', 'false');
-    params.append('config.hideEmailInSettings', 'true');
-    params.append('interfaceConfig.SHOW_JITSI_WATERMARK', 'false');
-    params.append('interfaceConfig.SHOW_BRAND_WATERMARK', 'false');
-    params.append('interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS', 'false');
-    params.append('config.p2p.enabled', 'true'); // Enable peer-to-peer for better mobile performance
-    
-    // Disable login requirement - we're using app authentication
-    params.append('config.requireDisplayName', 'false');
-    params.append('config.enableUserRolesBasedOnToken', 'false');
-
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
-
-    return url;
-  }, [cleanRoomName, displayName, userEmail, userId, isExpert, config]);
-
-  // Handle navigation requests to keep everything in WebView
-  const handleShouldStartLoadWithRequest = (request: any) => {
-    // Only allow Jitsi domains and block redirects to external apps
-    const url = request.url || '';
-    if (url.includes('meet.jit.si') || url.includes('jitsi') || url.startsWith('https://')) {
-      return true; // Allow loading
-    }
-    return false; // Block external redirects
-  };
+  </script>
+</body>
+</html>`;
+  }, [cleanRoomName, displayName, userEmail]);
 
   return (
     <View style={[styles.container, style]}>
       <WebView
-        source={{ uri: jitsiUrl }}
+        source={{ html: jitsiHtml }}
         style={styles.webview}
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
         javaScriptEnabled={true}
         domStorageEnabled={true}
         startInLoadingState={true}
-        scalesPageToFit={true}
         allowFileAccess={true}
         allowUniversalAccessFromFileURLs={true}
         mixedContentMode="always"
-        // @ts-ignore - iOS specific prop
-        allowsProtectedMedia={true}
-        // Prevent opening links in external browser/app
-        onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-        // Custom user agent to help with mobile compatibility
-        userAgent={Platform.OS === 'ios' 
-          ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
-          : 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
-        }
-        // Handle errors gracefully
+        mediaCapturePermissionGrantType="grant"
         onError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.warn('WebView error: ', nativeEvent);
-        }}
-        // Handle HTTP errors
-        onHttpError={(syntheticEvent) => {
-          const { nativeEvent } = syntheticEvent;
-          console.warn('WebView HTTP error: ', nativeEvent);
         }}
         renderLoading={() => (
           <View style={styles.loadingContainer}>
