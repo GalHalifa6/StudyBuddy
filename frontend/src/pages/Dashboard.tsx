@@ -15,7 +15,8 @@ import {
   Video,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { dashboardService, groupService, feedService } from '../api';
+import { useToast } from '../context/ToastContext';
+import { dashboardService, groupService, feedService, sessionService } from '../api';
 import { FeedResponse } from '../api/feed';
 import {
   DashboardOverview,
@@ -26,10 +27,15 @@ import {
 
 const Dashboard: React.FC = () => {
   const { user, isAdmin, isExpert } = useAuth();
+  const { showToast } = useToast();
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [feedData, setFeedData] = useState<FeedResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [feedOffset, setFeedOffset] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreFeed, setHasMoreFeed] = useState(true);
+  const [registeringSessionIds, setRegisteringSessionIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,7 +46,7 @@ const Dashboard: React.FC = () => {
         const [groupsResult, overviewResult, feedResult] = await Promise.allSettled([
           groupService.getMyGroups(),
           dashboardService.getOverview(),
-          feedService.getStudentFeed(),
+          feedService.getStudentFeed(0),
         ]);
         
         if (groupsResult.status === 'fulfilled') {
@@ -60,6 +66,8 @@ const Dashboard: React.FC = () => {
         if (feedResult.status === 'fulfilled') {
           console.log('Feed data:', feedResult.value);
           setFeedData(feedResult.value);
+          // Check if we got less than 4 items (page size), meaning no more items
+          setHasMoreFeed(feedResult.value.feedItems.length === 4);
         } else {
           console.error('Failed to load feed:', feedResult.reason);
         }
@@ -76,6 +84,56 @@ const Dashboard: React.FC = () => {
 
     fetchData();
   }, []);
+
+  const loadMoreFeed = async () => {
+    if (isLoadingMore || !hasMoreFeed) return;
+    
+    try {
+      setIsLoadingMore(true);
+      const newOffset = feedOffset + 4;
+      const moreFeed = await feedService.getStudentFeed(newOffset);
+      
+      if (moreFeed.feedItems.length > 0) {
+        setFeedData(prev => ({
+          ...moreFeed,
+          feedItems: [...(prev?.feedItems || []), ...moreFeed.feedItems]
+        }));
+        setFeedOffset(newOffset);
+        setHasMoreFeed(moreFeed.feedItems.length === 4);
+      } else {
+        setHasMoreFeed(false);
+      }
+    } catch (error) {
+      console.error('Failed to load more feed items:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleRegisterSession = async (sessionId: number) => {
+    if (registeringSessionIds.has(sessionId)) return;
+    
+    try {
+      setRegisteringSessionIds(prev => new Set(prev).add(sessionId));
+      await sessionService.joinSession(sessionId);
+      showToast('Successfully registered for session!', 'success');
+      
+      // Refresh feed to update the card
+      const refreshedFeed = await feedService.getStudentFeed(0);
+      setFeedData(refreshedFeed);
+      setFeedOffset(0);
+      setHasMoreFeed(refreshedFeed.feedItems.length === 4);
+    } catch (error) {
+      console.error('Failed to register for session:', error);
+      showToast('Failed to register for session', 'error');
+    } finally {
+      setRegisteringSessionIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sessionId);
+        return newSet;
+      });
+    }
+  };
 
   const stats = useMemo(() => {
     const metrics = overview?.metrics ?? ({} as Record<string, number>);
@@ -341,7 +399,138 @@ const Dashboard: React.FC = () => {
                     );
                   }
                   
-                  // GROUP_ACTIVITY
+                  // UPCOMING_EVENT
+                  if (item.itemType === 'UPCOMING_EVENT') {
+                    return (
+                      <div key={`event-${index}`} className="border border-teal-200 dark:border-teal-900 rounded-xl p-4 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/40 dark:to-cyan-950/40 hover:shadow-md transition">
+                        <div className="flex items-start gap-3">
+                          <div className="bg-teal-100 dark:bg-teal-900/60 text-teal-600 dark:text-teal-200 p-2 rounded-lg">
+                            <Calendar className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.eventTitle}</h4>
+                            <p className="text-xs text-teal-600 dark:text-teal-300">{item.groupName}</p>
+                            {item.eventDescription && (
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{item.eventDescription}</p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-600 dark:text-gray-400">
+                              <Clock className="h-3 w-3" />
+                              {new Date(item.eventStartTime!).toLocaleDateString()} at {new Date(item.eventStartTime!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            {(item.eventLocation || item.eventMeetingLink) && (
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                📍 {item.eventLocation || 'Online'}
+                              </p>
+                            )}
+                            <div className="flex justify-end mt-3">
+                              <Link
+                                to={`/groups/${item.groupId}`}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 dark:text-teal-400"
+                              >
+                                View details
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // REGISTERED_SESSION
+                  if (item.itemType === 'REGISTERED_SESSION') {
+                    return (
+                      <div key={`registered-${index}`} className="border border-green-200 dark:border-green-900 rounded-xl p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 hover:shadow-md transition">
+                        <div className="flex items-start gap-3">
+                          <div className="bg-green-100 dark:bg-green-900/60 text-green-600 dark:text-green-200 p-2 rounded-lg">
+                            <Video className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.sessionTitle}</h4>
+                              <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full font-medium">Registered</span>
+                            </div>
+                            {item.courseName && (
+                              <p className="text-xs text-green-600 dark:text-green-300">{item.courseName}</p>
+                            )}
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              with {item.expertName} • {new Date(item.scheduledAt!).toLocaleDateString()} at {new Date(item.scheduledAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            <div className="flex items-center justify-between mt-3">
+                              {item.availableSpots !== undefined && (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium bg-white/60 dark:bg-gray-900/60 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full">
+                                  <Users className="h-3 w-3" />
+                                  {item.currentSize || 0}/{(item.currentSize || 0) + item.availableSpots} participants
+                                </span>
+                              )}
+                              <Link
+                                to={`/session/${item.sessionId}`}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition text-sm font-medium ml-auto"
+                              >
+                                <Video className="h-3.5 w-3.5" />
+                                Open session room
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // RECOMMENDED_SESSION
+                  if (item.itemType === 'RECOMMENDED_SESSION') {
+                    const isRegistering = registeringSessionIds.has(item.sessionId!);
+                    return (
+                      <div key={`recommended-${index}`} className="border border-cyan-200 dark:border-cyan-900 rounded-xl p-4 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-950/40 dark:to-blue-950/40 hover:shadow-md transition">
+                        <div className="flex items-start gap-3">
+                          <div className="bg-cyan-100 dark:bg-cyan-900/60 text-cyan-600 dark:text-cyan-200 p-2 rounded-lg">
+                            <Sparkles className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.sessionTitle}</h4>
+                              {item.topicMatchPercentage && item.topicMatchPercentage > 0 && (
+                                <span className="text-xs bg-cyan-600 text-white px-2 py-0.5 rounded-full font-medium">
+                                  {item.topicMatchPercentage}% match
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-cyan-600 dark:text-cyan-300">{item.courseName}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              with {item.expertName} • {new Date(item.scheduledAt!).toLocaleDateString()}
+                            </p>
+                            {item.availableSpots && (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium bg-white/60 dark:bg-gray-900/60 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full mt-2">
+                                <Users className="h-3 w-3" />
+                                {item.availableSpots} spots left
+                              </span>
+                            )}
+                            <div className="flex justify-end mt-3">
+                              <button
+                                onClick={() => handleRegisterSession(item.sessionId!)}
+                                disabled={isRegistering}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isRegistering ? (
+                                  <>
+                                    <div className="h-3.5 w-3.5 border-2 border-cyan-600 dark:border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                                    Registering...
+                                  </>
+                                ) : (
+                                  <>
+                                    Register
+                                    <ArrowRight className="h-3.5 w-3.5" />
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // GROUP_ACTIVITY (legacy - being phased out)
                   if (item.itemType === 'GROUP_ACTIVITY') {
                     return (
                       <div key={`activity-${index}`} className="border border-blue-200 dark:border-blue-900 rounded-xl p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/40 dark:to-cyan-950/40 hover:shadow-md transition">
@@ -404,7 +593,10 @@ const Dashboard: React.FC = () => {
                   if (item.itemType === 'GROUP_MATCH') {
                     return (
                       <div key={`match-${index}`} className="border border-indigo-200 dark:border-indigo-900 rounded-xl p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/40 dark:to-purple-950/40 hover:shadow-md transition">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-200 p-2 rounded-lg">
+                            <Users className="h-4 w-4" />
+                          </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.groupName}</h4>
@@ -435,62 +627,32 @@ const Dashboard: React.FC = () => {
                   
                   return null;
                 })}
+                
+                {hasMoreFeed && (
+                  <button
+                    onClick={loadMoreFeed}
+                    disabled={isLoadingMore}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/40 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-900 rounded-xl hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/60 dark:hover:to-purple-900/60 transition text-indigo-600 dark:text-indigo-300 font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <div className="h-4 w-4 border-2 border-indigo-600 dark:border-indigo-300 border-t-transparent rounded-full animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        Load more
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
 
         <div className="space-y-6">
-          {nextSession && (
-            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-emerald-100 dark:border-emerald-900/60 p-6 shadow-md shadow-emerald-100/40 dark:shadow-emerald-950/30">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-200 p-3 rounded-xl">
-                  <Calendar className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="text-sm text-emerald-600 dark:text-emerald-300 font-medium mb-1">Next session</p>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    {nextSession.title || `Upcoming ${formatSessionType(nextSession.sessionType)}`}
-                  </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {formatSessionType(nextSession.sessionType)} with {nextSession.expert?.fullName ?? 'your expert mentor'}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{formatDateRange(nextSession)}</p>
-                </div>
-              </div>
-              <div className="bg-emerald-50 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <div className="bg-white dark:bg-emerald-950 text-emerald-600 dark:text-emerald-200 p-2 rounded-lg">
-                    <Video className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-200">{nextSession.course?.name ?? nextSession.title ?? 'Live study session'}</p>
-                    <p className="text-xs text-emerald-600 dark:text-emerald-300/80 mt-1">
-                      {nextSession.course?.code
-                        ? `${nextSession.course.code} • ${formatSessionType(nextSession.sessionType)}`
-                        : 'We will share prep materials ahead of the call.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    Reminder scheduled 30 minutes ahead
-                  </span>
-                </div>
-                <Link
-                  to={`/session/${nextSession.id}`}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 transition"
-                >
-                  Open session room
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </div>
-          )}
-
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-md shadow-gray-200/60 dark:shadow-gray-950/40">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Quick actions</h2>

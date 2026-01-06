@@ -24,7 +24,6 @@ import ExpertDashboard from './pages/ExpertDashboard';
 import ExpertsBrowse from './pages/ExpertHub';
 import SessionsBrowse from './pages/SessionsBrowse';
 import SessionRoom from './pages/SessionRoom';
-import Onboarding from './pages/Onboarding';
 import SessionRequests from './pages/SessionRequests';
 import QuizOnboarding from './pages/QuizOnboarding';
 import Help from './pages/Help';
@@ -73,15 +72,6 @@ function App() {
               <Route path="/upcoming-events" element={<UpcomingEvents />} />
               <Route path="/my-groups" element={<MyGroups />} />
             </Route>
-
-            <Route
-              path="/onboarding"
-              element={
-                <ProtectedRoute>
-                  <Onboarding />
-                </ProtectedRoute>
-              }
-            />
 
             <Route
               path="/quiz-onboarding"

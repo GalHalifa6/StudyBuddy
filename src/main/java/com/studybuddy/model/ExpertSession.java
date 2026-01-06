@@ -147,6 +147,11 @@ public class ExpertSession {
     @Column
     private Long parentSessionId; // Reference to first session in recurring series
 
+    // Session Topics - many-to-many relationship
+    @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @Builder.Default
+    private List<SessionTopic> sessionTopics = new ArrayList<>();
+
     // Reminder sent
     @Column(nullable = false)
     @Builder.Default

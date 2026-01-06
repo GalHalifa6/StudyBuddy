@@ -861,6 +861,7 @@ public class DataInitializer implements CommandLineRunner {
             "Provide expert analysis and data", Map.of(RoleType.EXPERT, 1.0, RoleType.PLANNER, 0.3),
             "Suggest innovative approaches", Map.of(RoleType.CREATIVE, 1.0, RoleType.COMMUNICATOR, 0.4)
         );
+
         
         createQuestion(3, "My strength in a team is:",
             "Keeping everyone organized and on schedule", Map.of(RoleType.PLANNER, 1.0, RoleType.LEADER, 0.3),

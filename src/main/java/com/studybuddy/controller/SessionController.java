@@ -48,6 +48,12 @@ public class SessionController {
 
     @Autowired
     private SessionService sessionService;
+
+    @Autowired
+    private UserTopicRepository userTopicRepository;
+
+    @Autowired
+    private SessionTopicRepository sessionTopicRepository;
     
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
@@ -65,6 +71,77 @@ public class SessionController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+    
+    /**
+     * Get ALL sessions in the system (for admin/staff view)
+     * No filtering by enrollment or topics
+     */
+    @GetMapping("/all")
+    public ResponseEntity<List<Map<String, Object>>> getAllSessions(
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) String search) {
+        
+        LocalDateTime now = LocalDateTime.now();
+        User currentUser = getCurrentUser();
+        
+        List<ExpertSession> sessions;
+        
+        // Get all upcoming sessions regardless of enrollment
+        if (courseId != null) {
+            sessions = sessionRepository.findByCourseIdAndScheduledEndTimeAfterOrderByScheduledStartTimeAsc(courseId, now);
+        } else {
+            sessions = sessionRepository.findByScheduledEndTimeAfterOrderByScheduledStartTimeAsc(now);
+        }
+        
+        // Minimal filtering - only show scheduled/active sessions that aren't cancelled
+        sessions = sessions.stream()
+            .filter(s -> s.getStatus() == ExpertSession.SessionStatus.SCHEDULED || 
+                        s.getStatus() == ExpertSession.SessionStatus.IN_PROGRESS)
+            .filter(s -> !Boolean.TRUE.equals(s.getIsCancelled()))
+            .collect(Collectors.toList());
+        
+        // Apply type filter if specified
+        if (type != null && !type.isEmpty()) {
+            sessions = sessions.stream()
+                .filter(s -> s.getSessionType().name().equalsIgnoreCase(type))
+                .collect(Collectors.toList());
+        }
+        
+        // Apply search filter
+        if (search != null && !search.isEmpty()) {
+            String searchLower = search.toLowerCase();
+            sessions = sessions.stream()
+                .filter(s -> s.getTitle().toLowerCase().contains(searchLower) ||
+                            (s.getDescription() != null && s.getDescription().toLowerCase().contains(searchLower)) ||
+                            (s.getExpert() != null && s.getExpert().getFullName() != null && 
+                             s.getExpert().getFullName().toLowerCase().contains(searchLower)))
+                .collect(Collectors.toList());
+        }
+        
+        // Add expert info to response
+        List<Map<String, Object>> result = sessions.stream()
+            .map(s -> {
+                Map<String, Object> map = toSessionMap(s);
+                // Add isJoined status for current user
+                boolean isJoined = participantRepository.existsBySessionIdAndUserId(s.getId(), currentUser.getId());
+                map.put("isJoined", isJoined);
+                // Add expert profile info if available
+                if (s.getExpert() != null) {
+                    ExpertProfile profile = expertProfileRepository.findByUser(s.getExpert()).orElse(null);
+                    if (profile != null) {
+                        Map<String, Object> expertInfo = (Map<String, Object>) map.get("expert");
+                        expertInfo.put("title", profile.getTitle());
+                        expertInfo.put("averageRating", profile.getAverageRating());
+                        expertInfo.put("isVerified", profile.getIsVerified());
+                    }
+                }
+                return map;
+            })
+            .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(result);
     }
     
     /**
@@ -86,6 +163,12 @@ public class SessionController {
             : currentUser.getCourses().stream()
                 .map(Course::getId)
                 .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        
+        // Get user's topics for filtering
+        List<UserTopic> userTopics = userTopicRepository.findByUserId(currentUser.getId());
+        Set<Long> userTopicIds = userTopics.stream()
+                .map(ut -> ut.getTopic().getId())
                 .collect(Collectors.toSet());
         
         List<ExpertSession> sessions;
@@ -113,6 +196,21 @@ public class SessionController {
                 return s.getCurrentParticipants() < s.getMaxParticipants();
             })
             .filter(s -> s.getScheduledStartTime().isBefore(twoWeeksFromNow))
+            // Filter by topic intersection if user has topics
+            .filter(s -> {
+                if (userTopicIds.isEmpty()) {
+                    return true; // Show all sessions if user hasn't selected topics yet
+                }
+                // Check if session has any topics that match user's topics
+                if (s.getSessionTopics() == null || s.getSessionTopics().isEmpty()) {
+                    return false; // Don't show sessions without topics if user has topics
+                }
+                Set<Long> sessionTopicIds = s.getSessionTopics().stream()
+                        .map(st -> st.getTopic().getId())
+                        .collect(Collectors.toSet());
+                // Session must have at least one topic in common with user
+                return sessionTopicIds.stream().anyMatch(userTopicIds::contains);
+            })
             .collect(Collectors.toList());
         
         // Apply type filter if specified

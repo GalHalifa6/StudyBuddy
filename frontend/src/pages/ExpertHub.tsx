@@ -77,6 +77,13 @@ const ExpertsBrowse: React.FC = () => {
     isUrgent: false,
   });
 
+  // Review modal
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    review: '',
+  });
+
   // Stats for header
   const [stats, setStats] = useState({
     totalExperts: 0,
@@ -94,7 +101,7 @@ const ExpertsBrowse: React.FC = () => {
     try {
       const [expertsData, sessionsData, mySessionsData, coursesData, publicQuestionsData] = await Promise.all([
         studentExpertService.getAllExperts(),
-        sessionService.browseSessions(),
+        sessionService.getAllSessions(), // Changed to show ALL sessions in the system
         sessionService.getMyUpcomingSessions().catch(() => []),
         courseService.getAllCourses(),
         questionService.getPublicQuestions(),
@@ -196,6 +203,25 @@ const ExpertsBrowse: React.FC = () => {
     } catch (error) {
       console.error('Failed to ask question:', error);
       alert('Failed to submit question.');
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!selectedExpert || !reviewForm.review.trim() || reviewForm.rating < 1 || reviewForm.rating > 5) return;
+    try {
+      await studentExpertService.submitReview(selectedExpert.userId, {
+        rating: reviewForm.rating,
+        review: reviewForm.review,
+      });
+      setShowReviewModal(false);
+      setReviewForm({ rating: 5, review: '' });
+      alert('Review submitted successfully!');
+      // Reload reviews
+      const reviews = await studentExpertService.getExpertReviews(selectedExpert.userId);
+      setExpertReviews(reviews);
+    } catch (error) {
+      console.error('Failed to submit review:', error);
+      alert('Failed to submit review.');
     }
   };
 
@@ -911,6 +937,19 @@ const ExpertsBrowse: React.FC = () => {
 
               {expertModalTab === 'reviews' && (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Reviews</h4>
+                    <button
+                      onClick={() => {
+                        setShowReviewModal(true);
+                        setShowExpertModal(false);
+                      }}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center gap-2"
+                    >
+                      <Star className="w-4 h-4" />
+                      Write Review
+                    </button>
+                  </div>
                   {expertReviews.length === 0 ? (
                     <p className="text-center text-gray-500 dark:text-gray-400 py-8">
                       No reviews yet
@@ -1028,6 +1067,88 @@ const ExpertsBrowse: React.FC = () => {
                 >
                   <Send className="w-5 h-5" />
                   Submit Question
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Write Review Modal */}
+      {showReviewModal && selectedExpert && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card w-full max-w-2xl animate-slide-up">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Write Review for {selectedExpert.fullName}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowReviewModal(false);
+                  setShowExpertModal(true);
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Rating *
+                </label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                      className="transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`w-10 h-10 ${
+                          star <= reviewForm.rating
+                            ? 'text-yellow-500 fill-yellow-500'
+                            : 'text-gray-300 dark:text-gray-600'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-white">
+                    {reviewForm.rating} / 5
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Your Review *
+                </label>
+                <textarea
+                  value={reviewForm.review}
+                  onChange={(e) => setReviewForm({ ...reviewForm, review: e.target.value })}
+                  className="input min-h-[150px]"
+                  placeholder="Share your experience with this expert..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowReviewModal(false);
+                    setShowExpertModal(true);
+                  }}
+                  className="flex-1 px-6 py-3 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitReview}
+                  disabled={!reviewForm.review.trim()}
+                  className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Send className="w-5 h-5" />
+                  Submit Review
                 </button>
               </div>
             </div>

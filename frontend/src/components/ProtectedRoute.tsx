@@ -64,31 +64,21 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   const isQuizRoute = location.pathname === '/quiz-onboarding';
-  const isOnboardingRoute = location.pathname === '/onboarding';
 
   // Admins and experts never need quiz
   const needsQuizOnboarding = !isAdmin && user?.role === 'USER' && requiresQuiz;
-  const needsRegularOnboarding = Boolean(user?.role === 'USER' && user?.onboardingCompleted !== true);
 
   // Redirect to quiz if needed (but not if already on quiz route)
   if (needsQuizOnboarding && !isQuizRoute && !isOnboardingRoute) {
     return <Navigate to="/quiz-onboarding" replace />;
   }
 
-  // Redirect to regular onboarding if needed (but not if already there or on quiz)
-  if (needsRegularOnboarding && !isOnboardingRoute && !isQuizRoute) {
-    return <Navigate to="/onboarding" replace />;
-  }
 
   // If on quiz route but doesn't need it, redirect to dashboard
   if (isQuizRoute && !needsQuizOnboarding && !quizLoading) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // If on onboarding route but doesn't need it, redirect to dashboard
-  if (isOnboardingRoute && !needsRegularOnboarding) {
-    return <Navigate to="/dashboard" replace />;
-  }
 
   return <>{children}</>;
 };

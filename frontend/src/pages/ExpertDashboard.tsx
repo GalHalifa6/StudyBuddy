@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { courseService } from '../api';
+import { courseService, topicsService } from '../api';
 import { Course } from '../types';
+import type { TopicsByCategoryResponse } from '../api/topics';
 import {
   expertService,
   ExpertProfile,
@@ -107,7 +108,12 @@ const ExpertDashboard: React.FC = () => {
     recurrencePattern: '',
     courseId: undefined,
     studentId: undefined,
+    topicIds: [],
   });
+
+  // Topic selection state
+  const [allTopics, setAllTopics] = useState<TopicsByCategoryResponse | null>(null);
+  const [selectedTopicIds, setSelectedTopicIds] = useState<number[]>([]);
 
   // Student search for one-on-one sessions
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -119,6 +125,7 @@ const ExpertDashboard: React.FC = () => {
     loadData();
     loadCourses();
     loadSessionRequests();
+    loadTopics();
     
     // Auto-refresh data every 30 seconds to catch new reviews/questions
     const refreshInterval = setInterval(() => {
@@ -152,6 +159,15 @@ const ExpertDashboard: React.FC = () => {
       setCourses(coursesData);
     } catch (error) {
       console.error('Failed to load courses:', error);
+    }
+  };
+
+  const loadTopics = async () => {
+    try {
+      const data = await topicsService.getTopicsByCategory();
+      setAllTopics(data);
+    } catch (error) {
+      console.error('Failed to load topics:', error);
     }
   };
 
@@ -261,6 +277,7 @@ const ExpertDashboard: React.FC = () => {
         scheduledStartTime: new Date(sessionForm.scheduledStartTime).toISOString(),
         scheduledEndTime: new Date(sessionForm.scheduledEndTime).toISOString(),
         studentId: selectedStudent?.id,
+        topicIds: selectedTopicIds,
       };
       
       console.log('Creating session with data:', sessionData);
@@ -280,8 +297,10 @@ const ExpertDashboard: React.FC = () => {
         recurrencePattern: '',
         courseId: undefined,
         studentId: undefined,
+        topicIds: [],
       });
       setSelectedStudent(null);
+      setSelectedTopicIds([]);
       setStudentSearchQuery('');
       setStudentSearchResults([]);
       loadData();
@@ -1390,6 +1409,54 @@ const ExpertDashboard: React.FC = () => {
                   placeholder="https://zoom.us/j/..."
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
+              </div>
+              
+              {/* Topic Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Session Topics
+                  <span className="text-xs text-gray-500 ml-2">Help students find relevant sessions</span>
+                </label>
+                {allTopics ? (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      {[...allTopics.education, ...allTopics.casual, ...allTopics.hobby].map((topic) => (
+                        <button
+                          key={topic.id}
+                          type="button"
+                          onClick={() => {
+                            if (selectedTopicIds.includes(topic.id)) {
+                              setSelectedTopicIds(selectedTopicIds.filter(id => id !== topic.id));
+                            } else {
+                              setSelectedTopicIds([...selectedTopicIds, topic.id]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
+                            selectedTopicIds.includes(topic.id)
+                              ? topic.category === 'EDUCATION'
+                                ? 'bg-blue-500 text-white border-blue-600'
+                                : topic.category === 'CASUAL'
+                                ? 'bg-green-500 text-white border-green-600'
+                                : 'bg-purple-500 text-white border-purple-600'
+                              : topic.category === 'EDUCATION'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                              : topic.category === 'CASUAL'
+                              ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                              : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                          }`}
+                          title={topic.description}
+                        >
+                          {topic.name}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Selected {selectedTopicIds.length} topic{selectedTopicIds.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Loading topics...</p>
+                )}
               </div>
               
               {/* Recurring Session Options */}

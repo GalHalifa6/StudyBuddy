@@ -13,4 +13,5 @@ export { default as feedService } from './feed';
 export { default as quizService } from './quiz';
 export { matchingService } from './matching';
 export { calendarService } from './calendar';
+export { topicsService } from './topics';
 
