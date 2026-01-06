@@ -1,8 +1,10 @@
 package com.studybuddy.test.integration;
 
-import com.studybuddy.model.*;
-import com.studybuddy.repository.*;
-import com.studybuddy.service.NotificationService;
+import com.studybuddy.user.model.User;
+import com.studybuddy.notification.model.Notification;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.notification.repository.NotificationRepository;
+import com.studybuddy.notification.service.NotificationService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

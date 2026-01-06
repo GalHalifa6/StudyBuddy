@@ -1,12 +1,19 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.ExpertController;
-import com.studybuddy.controller.StudentExpertController;
-import com.studybuddy.dto.ExpertDto;
-import com.studybuddy.model.*;
-import com.studybuddy.repository.*;
-import com.studybuddy.service.MeetingService;
-import com.studybuddy.service.NotificationService;
+import com.studybuddy.expert.controller.ExpertController;
+import com.studybuddy.expert.controller.StudentExpertController;
+import com.studybuddy.expert.dto.ExpertDto;
+import com.studybuddy.user.model.User;
+import com.studybuddy.course.model.Course;
+import com.studybuddy.expert.model.ExpertProfile;
+import com.studybuddy.expert.model.ExpertSession;
+import com.studybuddy.expert.model.SessionRequest;
+import com.studybuddy.expert.repository.SessionRequestRepository;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.course.repository.CourseRepository;
+import com.studybuddy.expert.repository.ExpertSessionRepository;
+import com.studybuddy.meeting.service.MeetingService;
+import com.studybuddy.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

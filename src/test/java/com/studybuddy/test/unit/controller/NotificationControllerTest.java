@@ -1,10 +1,10 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.NotificationController;
-import com.studybuddy.model.Notification;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.UserRepository;
-import com.studybuddy.service.NotificationService;
+import com.studybuddy.notification.controller.NotificationController;
+import com.studybuddy.notification.model.Notification;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

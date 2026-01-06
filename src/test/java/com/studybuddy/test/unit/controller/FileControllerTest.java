@@ -1,12 +1,12 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.FileController;
-import com.studybuddy.model.FileUpload;
-import com.studybuddy.model.StudyGroup;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.FileUploadRepository;
-import com.studybuddy.repository.StudyGroupRepository;
-import com.studybuddy.repository.UserRepository;
+import com.studybuddy.file.controller.FileController;
+import com.studybuddy.file.model.FileUpload;
+import com.studybuddy.group.model.StudyGroup;
+import com.studybuddy.user.model.User;
+import com.studybuddy.file.repository.FileUploadRepository;
+import com.studybuddy.group.repository.StudyGroupRepository;
+import com.studybuddy.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -1,13 +1,13 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.AuthController;
-import com.studybuddy.dto.AuthDto;
-import com.studybuddy.model.Role;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.UserRepository;
+import com.studybuddy.auth.controller.AuthController;
+import com.studybuddy.auth.dto.AuthDto;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.repository.UserRepository;
 import com.studybuddy.security.JwtUtils;
-import com.studybuddy.service.EmailDomainService;
-import com.studybuddy.service.EmailVerificationService;
+import com.studybuddy.email.service.EmailDomainService;
+import com.studybuddy.email.service.EmailVerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

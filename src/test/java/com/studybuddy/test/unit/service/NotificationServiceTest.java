@@ -1,9 +1,9 @@
 package com.studybuddy.test.unit.service;
 
-import com.studybuddy.model.Notification;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.NotificationRepository;
-import com.studybuddy.service.NotificationService;
+import com.studybuddy.notification.model.Notification;
+import com.studybuddy.user.model.User;
+import com.studybuddy.notification.repository.NotificationRepository;
+import com.studybuddy.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

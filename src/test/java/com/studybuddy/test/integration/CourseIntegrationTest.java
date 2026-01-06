@@ -1,10 +1,12 @@
 package com.studybuddy.test.integration;
 
-import com.studybuddy.model.Course;
-import com.studybuddy.model.Role;
-import com.studybuddy.model.StudyGroup;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.*;
+import com.studybuddy.course.model.Course;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.group.model.StudyGroup;
+import com.studybuddy.user.model.User;
+import com.studybuddy.course.repository.CourseRepository;
+import com.studybuddy.group.repository.StudyGroupRepository;
+import com.studybuddy.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

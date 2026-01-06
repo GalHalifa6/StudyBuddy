@@ -1,11 +1,11 @@
 package com.studybuddy.security;
 
-import com.studybuddy.model.Role;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.UserRepository;
-import com.studybuddy.service.EmailDomainService;
-import com.studybuddy.service.GoogleAccountLinkingService;
-import com.studybuddy.service.OidcUserProcessingService;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.email.service.EmailDomainService;
+import com.studybuddy.auth.service.GoogleAccountLinkingService;
+import com.studybuddy.auth.service.OidcUserProcessingService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
