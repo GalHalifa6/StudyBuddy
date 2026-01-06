@@ -149,6 +149,7 @@ public class ExpertDto {
         private String meetingPlatform;
         private Boolean isRecurring;
         private String recurrencePattern;
+        private List<Long> topicIds; // Topics for this session
     }
 
     @Data
@@ -180,6 +181,7 @@ public class ExpertDto {
         private Boolean canJoin;
         private Boolean isUpcoming;
         private LocalDateTime createdAt;
+        private List<TopicDto.TopicInfo> topics; // Session topics
     }
 
     @Data

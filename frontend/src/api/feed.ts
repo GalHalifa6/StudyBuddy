@@ -13,7 +13,7 @@ export interface RoleScores {
 }
 
 export interface FeedItem {
-  itemType: 'QUIZ_REMINDER' | 'GROUP_ACTIVITY' | 'UPCOMING_SESSION' | 'GROUP_MATCH';
+  itemType: 'QUIZ_REMINDER' | 'UPCOMING_EVENT' | 'REGISTERED_SESSION' | 'RECOMMENDED_SESSION' | 'GROUP_MATCH';
   priority: number;
   timestamp: string;
   
@@ -22,26 +22,35 @@ export interface FeedItem {
   questionsAnswered?: number;
   totalQuestions?: number;
   
-  // Group activity fields
+  // Event fields
+  eventId?: number;
+  eventTitle?: string;
+  eventType?: string;
+  eventDescription?: string;
+  eventLocation?: string;
+  eventMeetingLink?: string;
+  eventStartTime?: string;
+  eventEndTime?: string;
+  
+  // Group fields (for events and group matches)
   groupId?: number;
   groupName?: string;
-  activityType?: 'MESSAGE' | 'FILE';
-  activityMessage?: string;
-  actorName?: string;
-  
-  // Session fields
-  sessionId?: number;
-  sessionTitle?: string;
-  expertName?: string;
   courseName?: string;
-  scheduledAt?: string;
-  availableSpots?: number;
   
   // Group match fields
   matchPercentage?: number;
   matchReason?: string;
   currentSize?: number;
   maxSize?: number;
+  
+  // Session fields (both registered and recommended)
+  sessionId?: number;
+  sessionTitle?: string;
+  expertName?: string;
+  scheduledAt?: string;
+  availableSpots?: number;
+  isRegistered?: boolean; // true for registered sessions, false for recommendations
+  topicMatchPercentage?: number; // for recommended sessions
 }
 
 export interface ProfileSummary {
@@ -66,9 +75,12 @@ export interface FeedResponse {
 /**
  * Get student feed with personalized recommendations.
  * GET /api/feed/student
+ * @param offset - Pagination offset (default: 0)
  */
-export const getStudentFeed = async (): Promise<FeedResponse> => {
-  const response = await axios.get<FeedResponse>('/feed/student');
+export const getStudentFeed = async (offset: number = 0): Promise<FeedResponse> => {
+  const response = await axios.get<FeedResponse>('/feed/student', {
+    params: { offset }
+  });
   return response.data;
 };
 

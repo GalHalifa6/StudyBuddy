@@ -33,6 +33,10 @@ import {
   Plus,
   MapPin,
   Clock,
+  Pin,
+  PinOff,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 interface ChatPreview {
@@ -87,6 +91,12 @@ const MyGroups: React.FC = () => {
   const subscribedGroupsRef = useRef<Set<number>>(new Set());
   const subscriptionsRef = useRef<Map<number, { unsubscribe: () => void }>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
+  const messageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  
+  // Pinned messages state
+  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [showPinnedBanner, setShowPinnedBanner] = useState(true);
+  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
 
   // WebSocket handler for real-time messages - use ref to avoid recreating subscriptions
   const handleNewMessageRef = useRef((message: Message) => {
@@ -320,6 +330,10 @@ const MyGroups: React.FC = () => {
       const msgs = await messageService.getGroupMessages(groupId);
       setMessages(msgs);
       setTimeout(() => scrollToBottom(), 100);
+      
+      // Load pinned messages
+      const pinned = await messageService.getPinnedMessages(groupId);
+      setPinnedMessages(pinned);
     } catch (error) {
       console.error('Error loading messages:', error);
     }
@@ -503,6 +517,38 @@ const MyGroups: React.FC = () => {
     } catch (error) {
       console.error('Error downloading file:', error);
       alert('Failed to download file');
+    }
+  };
+
+  const handleTogglePin = async (messageId: number) => {
+    try {
+      await messageService.togglePin(messageId);
+      // Reload pinned messages
+      if (selectedGroupId) {
+        const pinned = await messageService.getPinnedMessages(selectedGroupId);
+        setPinnedMessages(pinned);
+        // Update messages list to reflect pin status
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === messageId ? { ...msg, isPinned: !msg.isPinned } : msg
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling pin:', error);
+      alert('Failed to pin/unpin message');
+    }
+  };
+
+  const scrollToMessage = (messageId: number) => {
+    const messageElement = messageRefs.current.get(messageId);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Highlight the message briefly
+      messageElement.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20');
+      setTimeout(() => {
+        messageElement.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20');
+      }, 2000);
     }
   };
 
@@ -819,6 +865,49 @@ const MyGroups: React.FC = () => {
           {/* Tab Content */}
           {activeTab === 'chat' && (
             <>
+              {/* Pinned Messages Banner */}
+              {pinnedMessages.length > 0 && showPinnedBanner && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                      <Pin className="w-4 h-4" />
+                      <span className="text-sm font-semibold">Pinned Messages ({pinnedMessages.length})</span>
+                    </div>
+                    <button
+                      onClick={() => setShowPinnedBanner(!showPinnedBanner)}
+                      className="p-1 hover:bg-amber-200 dark:hover:bg-amber-800 rounded transition-colors"
+                    >
+                      {showPinnedBanner ? (
+                        <ChevronUp className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {pinnedMessages.map((msg) => (
+                      <button
+                        key={msg.id}
+                        onClick={() => scrollToMessage(msg.id)}
+                        className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      >
+                        <div className="flex items-start gap-2">
+                          <Pin className="w-3 h-3 text-amber-600 dark:text-amber-400 mt-1 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-gray-900 dark:text-white truncate">
+                              {msg.sender?.fullName || msg.sender?.username}
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                              {msg.content || (msg.attachedFile ? `📎 ${msg.attachedFile.filename}` : 'Event')}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white dark:bg-gray-900">
                 {messages.length === 0 ? (
@@ -836,14 +925,33 @@ const MyGroups: React.FC = () => {
                     return (
                       <div
                         key={message.id}
-                        className={`flex items-end gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
+                        ref={(el) => {
+                          if (el) messageRefs.current.set(message.id, el);
+                        }}
+                        className={`flex items-end gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} group relative transition-colors`}
+                        onMouseEnter={() => setHoveredMessageId(message.id)}
+                        onMouseLeave={() => setHoveredMessageId(null)}
                       >
                         {!isOwn && (
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
                             {showAvatar ? (message.sender?.fullName || message.sender?.username || '?').substring(0, 2).toUpperCase() : ''}
                           </div>
                         )}
-                        <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                        <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col gap-1 relative`}>
+                          {/* Pin button */}
+                          {hoveredMessageId === message.id && (
+                            <button
+                              onClick={() => handleTogglePin(message.id)}
+                              className={`absolute -top-6 ${isOwn ? 'right-0' : 'left-0'} p-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-all opacity-0 group-hover:opacity-100 shadow-md`}
+                              title={message.isPinned ? 'Unpin message' : 'Pin message'}
+                            >
+                              {message.isPinned ? (
+                                <PinOff className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                              ) : (
+                                <Pin className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                              )}
+                            </button>
+                          )}
                           {!isOwn && showAvatar && (
                             <span className="text-xs text-gray-600 dark:text-gray-400 px-3">
                               {message.sender?.fullName || message.sender?.username}
@@ -854,7 +962,7 @@ const MyGroups: React.FC = () => {
                               isOwn
                                 ? 'bg-indigo-600 text-white rounded-br-none'
                                 : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
-                            } ${message.attachedFile ? 'p-2' : 'px-4 py-2'}`}
+                            } ${message.attachedFile ? 'p-2' : 'px-4 py-2'} ${message.isPinned ? 'ring-2 ring-amber-400 dark:ring-amber-600' : ''}`}
                           >
                             {/* File/Image Attachment */}
                             {message.attachedFile && (

@@ -26,7 +26,7 @@ public class MiniFeedDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class FeedItem {
-        private String itemType; // "QUIZ_REMINDER", "GROUP_ACTIVITY", "UPCOMING_SESSION", "GROUP_MATCH"
+        private String itemType; // "QUIZ_REMINDER", "UPCOMING_EVENT", "REGISTERED_SESSION", "RECOMMENDED_SESSION", "GROUP_MATCH"
         private Integer priority; // Lower number = higher priority
         private String timestamp;
         
@@ -35,26 +35,33 @@ public class MiniFeedDto {
         private Integer questionsAnswered;
         private Integer totalQuestions;
         
-        // Group activity fields
-        private Long groupId;
-        private String groupName;
-        private String activityType; // "MESSAGE", "FILE"
-        private String activityMessage;
-        private String actorName;
-        
-        // Session fields
-        private Long sessionId;
-        private String sessionTitle;
-        private String expertName;
-        private String courseName;
-        private String scheduledAt;
-        private Integer availableSpots;
+        // Event fields
+        private Long eventId;
+        private String eventTitle;
+        private String eventType;
+        private String eventDescription;
+        private String eventLocation;
+        private String eventMeetingLink;
+        private String eventStartTime;
+        private String eventEndTime;
         
         // Group match fields
+        private Long groupId;
+        private String groupName;
+        private String courseName;
         private Integer matchPercentage;
         private String matchReason;
         private Integer currentSize;
         private Integer maxSize;
+        
+        // Session fields (both registered and recommended)
+        private Long sessionId;
+        private String sessionTitle;
+        private String expertName;
+        private String scheduledAt;
+        private Integer availableSpots;
+        private Boolean isRegistered; // true for registered sessions, false for recommendations
+        private Integer topicMatchPercentage; // for recommended sessions
     }
     
     @Data

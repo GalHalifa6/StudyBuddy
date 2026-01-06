@@ -1,16 +1,13 @@
 package com.studybuddy.controller;
 
-import com.studybuddy.dto.FeedbackDto;
 import com.studybuddy.dto.MiniFeedDto;
 import com.studybuddy.dto.QuizDto;
 import com.studybuddy.model.*;
-import com.studybuddy.repository.ExpertProfileRepository;
+import com.studybuddy.repository.EventRepository;
 import com.studybuddy.repository.ExpertSessionRepository;
-import com.studybuddy.repository.MessageRepository;
-import com.studybuddy.repository.SafetyFeedbackRepository;
+import com.studybuddy.repository.UserTopicRepository;
 import com.studybuddy.service.MatchingService;
 import com.studybuddy.service.QuizService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -19,22 +16,21 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
  * Feed Controller - The Aggregator.
  * 
- * Aggregates recommendations from multiple services:
- * - Group matches (MatchingService)
- * - Upcoming sessions (ExpertSessionRepository)
- * - Suggested experts (ExpertProfileRepository)
+ * Provides personalized feed with:
+ * - Quiz reminders (always first)
+ * - Upcoming relevant events
+ * - Group match recommendations
+ * - Upcoming sessions you've registered for
+ * - Recommended new sessions (with topic intersection)
  * 
- * Note: 
- * - Quiz/profiling endpoints are in QuizController
- * - Feedback collection endpoints are in PSFeedbackController
+ * Pagination: 4 items at a time
+ * Ordering: Quiz first, then randomized categories, with internal sorting
  */
 @RestController
 @RequestMapping("/api/feed")
@@ -45,95 +41,95 @@ public class FeedController {
     private final MatchingService matchingService;
     private final QuizService quizService;
     private final ExpertSessionRepository sessionRepository;
-    private final ExpertProfileRepository expertRepository;
-    private final MessageRepository messageRepository;
+    private final EventRepository eventRepository;
     private final com.studybuddy.repository.UserRepository userRepository;
+    private final UserTopicRepository userTopicRepository;
+    private final com.studybuddy.repository.SessionParticipantRepository participantRepository;
     
     /**
      * GET /api/feed/student
      * 
-     * Returns unified feed with prioritized items:
-     * Priority 1: Quiz Status (if incomplete)
-     * Priority 2: Recent group activities
-     * Priority 3: Upcoming expert sessions
-     * Priority 4: High % match study groups
+     * Returns unified feed with prioritized items (paginated, 4 at a time).
+     * 
+     * Priority 1: Quiz Status (if incomplete) - ALWAYS FIRST
+     * Then randomized between:
+     * - Upcoming relevant events (from user's groups)
+     * - Group match recommendations (by % match, high to low)
+     * - Registered upcoming sessions (by date, sooner first)
+     * - Recommended new sessions with topic overlap (by % match, high to low)
+     * 
+     * @param offset Starting index for pagination (default: 0)
      */
     @GetMapping("/student")
-    public ResponseEntity<MiniFeedDto.Response> getStudentFeed(Authentication authentication) {
+    public ResponseEntity<MiniFeedDto.Response> getStudentFeed(
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int offset) {
         try {
-            log.info("=== FEED ENDPOINT CALLED ===");
+            log.info("=== FEED ENDPOINT CALLED (offset={}) ===", offset);
             User currentUser = userRepository.findByUsername(authentication.getName())
                     .orElseThrow(() -> new RuntimeException("User not found"));
             log.info("Fetching unified feed for user {} ({})", currentUser.getId(), currentUser.getUsername());
             
-            List<MiniFeedDto.FeedItem> feedItems = new java.util.ArrayList<>();
-        
-        // ALWAYS add quiz reminder first if profile incomplete
-        MiniFeedDto.FeedItem quizItem = null;
-        try {
-            quizItem = createQuizReminderItem(currentUser);
-            if (quizItem != null) {
-                log.info("Adding quiz reminder to feed");
-                feedItems.add(quizItem);
+            List<MiniFeedDto.FeedItem> allFeedItems = new ArrayList<>();
+            
+            // Step 1: ALWAYS add quiz reminder first (if applicable) - but only on first page
+            if (offset == 0) {
+                MiniFeedDto.FeedItem quizItem = createQuizReminderItem(currentUser);
+                if (quizItem != null) {
+                    log.info("Adding quiz reminder to feed");
+                    allFeedItems.add(quizItem);
+                }
             }
-        } catch (Exception e) {
-            log.error("Error creating quiz reminder for user {}: {}", currentUser.getId(), e.getMessage(), e);
-        }
-        
-        // Collect all other feed items
-        List<MiniFeedDto.FeedItem> activities = new java.util.ArrayList<>();
-        try {
-            activities = getRecentGroupActivities(currentUser);
-            log.info("Found {} recent group activities", activities.size());
-        } catch (Exception e) {
-            log.error("Error getting group activities for user {}: {}", currentUser.getId(), e.getMessage(), e);
-        }
-        
-        List<MiniFeedDto.FeedItem> sessions = new java.util.ArrayList<>();
-        try {
-            sessions = getUpcomingSessionItems(currentUser);
-            log.info("Found {} upcoming sessions", sessions.size());
-        } catch (Exception e) {
-            log.error("Error getting upcoming sessions for user {}: {}", currentUser.getId(), e.getMessage(), e);
-        }
-        
-        List<MiniFeedDto.FeedItem> matches = new java.util.ArrayList<>();
-        try {
-            matches = getGroupMatchItems(currentUser);
-            log.info("Found {} group matches", matches.size());
-        } catch (Exception e) {
-            log.error("Error getting group matches for user {}: {}", currentUser.getId(), e.getMessage(), e);
-        }
-        
-        // Smart interleaving: alternate between different types for diversity
-        List<MiniFeedDto.FeedItem> mixedItems = interleaveItems(sessions, activities, matches);
-        feedItems.addAll(mixedItems);
-        
-        // Limit total feed to 15 items (1 quiz + 14 others)
-        if (feedItems.size() > 15) {
-            feedItems = feedItems.subList(0, 15);
-        }
-        
-        log.info("Total feed items: {} (Quiz: {}, Activities: {}, Sessions: {}, Matches: {})", 
-                feedItems.size(), 
-                quizItem != null ? 1 : 0,
-                activities.size(),
-                sessions.size(),
-                matches.size());
-        
-        MiniFeedDto.ProfileSummary userProfile = getUserProfileSummary(currentUser);
-        
+            
+            // Step 2: Collect all feed items from each category
+            List<MiniFeedDto.FeedItem> events = getUpcomingRelevantEvents(currentUser);
+            List<MiniFeedDto.FeedItem> groupMatches = getGroupMatchItems(currentUser);
+            List<MiniFeedDto.FeedItem> registeredSessions = getRegisteredUpcomingSessions(currentUser);
+            List<MiniFeedDto.FeedItem> recommendedSessions = getRecommendedNewSessions(currentUser);
+            
+            log.info("Feed categories - Events: {}, GroupMatches: {}, RegisteredSessions: {}, RecommendedSessions: {}", 
+                    events.size(), groupMatches.size(), registeredSessions.size(), recommendedSessions.size());
+            
+            // Step 3: Interleave categories in randomized order
+            List<MiniFeedDto.FeedItem> interleavedItems = interleaveCategories(
+                    events, groupMatches, registeredSessions, recommendedSessions);
+            
+            allFeedItems.addAll(interleavedItems);
+            
+            // Step 4: Apply pagination (4 items per page)
+            int pageSize = 4;
+            int startIndex = offset;
+            int endIndex = Math.min(startIndex + pageSize, allFeedItems.size());
+            
+            List<MiniFeedDto.FeedItem> paginatedItems = startIndex < allFeedItems.size() ?
+                    allFeedItems.subList(startIndex, endIndex) : new ArrayList<>();
+            
+            log.info("Returning {} items (offset={}, total available={})", 
+                    paginatedItems.size(), offset, allFeedItems.size());
+            
+            // Log what types are being returned
+            if (!paginatedItems.isEmpty()) {
+                String itemTypes = paginatedItems.stream()
+                        .map(item -> String.format("%s(%s)", 
+                                item.getItemType(), 
+                                item.getItemType().equals("UPCOMING_EVENT") ? item.getEventTitle() :
+                                item.getItemType().equals("GROUP_MATCH") ? item.getGroupName() :
+                                item.getItemType().equals("QUIZ_REMINDER") ? "quiz" :
+                                item.getSessionTitle()))
+                        .collect(Collectors.joining(", "));
+                log.info("Paginated items: [{}]", itemTypes);
+            }
+            
+            MiniFeedDto.ProfileSummary userProfile = getUserProfileSummary(currentUser);
+            
             MiniFeedDto.Response response = MiniFeedDto.Response.builder()
-                    .feedItems(feedItems)
+                    .feedItems(paginatedItems)
                     .userProfile(userProfile)
                     .build();
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("=== FEED ENDPOINT ERROR ===", e);
-            log.error("Error type: {}", e.getClass().getName());
-            log.error("Error message: {}", e.getMessage());
-            e.printStackTrace();
             throw e;
         }
     }
@@ -142,51 +138,38 @@ public class FeedController {
     
     /**
      * Priority 1: Create quiz reminder item if profile incomplete.
-     * Returns null if quiz is completed or skipped (no reminder needed).
+     * Returns null if quiz is completed (no reminder needed).
      */
     private MiniFeedDto.FeedItem createQuizReminderItem(User user) {
         try {
-            log.info("Creating quiz reminder for user {}", user.getId());
             QuizDto.ProfileResponse profile = quizService.getUserProfile(user);
             
             if (profile == null) {
-                log.warn("Profile is null for user {}, showing default reminder", user.getId());
                 return MiniFeedDto.FeedItem.builder()
                         .itemType("QUIZ_REMINDER")
                         .priority(1)
                         .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
                         .quizMessage("Complete the quiz for personalized group matches")
-                        .questionsAnswered(0)
-                        .totalQuestions(null)
                         .build();
             }
             
-            // Get quiz status safely
-            com.studybuddy.model.QuizStatus status = profile.getQuizStatus();
-            log.info("User {} has quiz status: {}", user.getId(), status);
-            
             // No reminder only for completed quizzes
-            if (status == com.studybuddy.model.QuizStatus.COMPLETED) {
-                log.info("User {} quiz is COMPLETED - no reminder needed", user.getId());
+            if (profile.getQuizStatus() == QuizStatus.COMPLETED) {
                 return null;
             }
             
             // Show reminder for NOT_STARTED, IN_PROGRESS, or SKIPPED
             String message;
-            if (status == com.studybuddy.model.QuizStatus.NOT_STARTED) {
+            if (profile.getQuizStatus() == QuizStatus.NOT_STARTED) {
                 message = "Complete the quiz for personalized group matches";
-                log.info("User {} hasn't started quiz - showing reminder", user.getId());
-            } else if (status == com.studybuddy.model.QuizStatus.IN_PROGRESS) {
+            } else if (profile.getQuizStatus() == QuizStatus.IN_PROGRESS) {
                 Double reliability = profile.getReliabilityPercentage() != null ? profile.getReliabilityPercentage() : 0.0;
                 int percentage = (int) Math.round(reliability * 100);
                 message = String.format("Complete the remaining quiz questions for better matches (%d%% done)", percentage);
-                log.info("User {} quiz is in progress ({}%) - showing reminder", user.getId(), percentage);
-            } else if (status == com.studybuddy.model.QuizStatus.SKIPPED) {
+            } else if (profile.getQuizStatus() == QuizStatus.SKIPPED) {
                 message = "You skipped the quiz. Complete it now for better group recommendations!";
-                log.info("User {} skipped quiz - showing reminder to complete", user.getId());
             } else {
                 message = "Complete the quiz for better group matching";
-                log.info("User {} has unknown quiz status - showing default reminder", user.getId());
             }
             
             return MiniFeedDto.FeedItem.builder()
@@ -194,227 +177,431 @@ public class FeedController {
                     .priority(1)
                     .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
                     .quizMessage(message)
-                    .questionsAnswered(null)
-                    .totalQuestions(null)
                     .build();
         } catch (Exception e) {
-            log.error("Error creating quiz reminder item for user {}: {}", user.getId(), e.getMessage(), e);
+            log.error("Error creating quiz reminder item", e);
             return null;
         }
     }
     
     /**
-     * Priority 2: Get recent activities from user's study groups.
-     * Shows groups with unread messages (messages created after user joined or last seen).
+     * Get upcoming relevant events from user's study groups.
+     * Sorted by date (sooner first).
      */
-    private List<MiniFeedDto.FeedItem> getRecentGroupActivities(User student) {
-        List<MiniFeedDto.FeedItem> activities = new java.util.ArrayList<>();
-        
+    private List<MiniFeedDto.FeedItem> getUpcomingRelevantEvents(User student) {
         try {
-            // Get student's groups with null checks
-            Set<StudyGroup> myGroups = student.getGroups();
-            if (myGroups == null || myGroups.isEmpty()) {
-                return activities;
-            }
-            
             LocalDateTime now = LocalDateTime.now();
-            LocalDateTime threeDaysAgo = now.minusDays(3);
+            LocalDateTime twoWeeksFromNow = now.plusWeeks(2);
             
-            // For each group, check for recent messages
-            for (StudyGroup group : myGroups) {
-                if (group == null) continue;
-                
-                // Get recent messages in this group
-                List<Message> recentMessages = messageRepository.findByGroupIdOrderByCreatedAtAsc(group.getId())
-                    .stream()
-                    .filter(msg -> msg != null && msg.getCreatedAt() != null && msg.getCreatedAt().isAfter(threeDaysAgo))
-                    .filter(msg -> msg.getSender() != null && !msg.getSender().getId().equals(student.getId())) // Not sent by current user
-                    .collect(Collectors.toList());
-                
-                if (!recentMessages.isEmpty()) {
-                    Message latestMessage = recentMessages.get(recentMessages.size() - 1);
-                    String groupName = group.getName() != null ? group.getName() : "Study Group";
-                    String senderName = latestMessage.getSender() != null && latestMessage.getSender().getUsername() != null ?
-                                       latestMessage.getSender().getUsername() : "Someone";
-                    
-                    int unreadCount = recentMessages.size();
-                    String activityMsg = unreadCount == 1 ? 
-                        String.format("%s sent a message", senderName) :
-                        String.format("%d new messages", unreadCount);
-                    
-                    activities.add(MiniFeedDto.FeedItem.builder()
-                            .itemType("GROUP_ACTIVITY")
-                            .priority(2)
-                            .timestamp(latestMessage.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME))
-                            .groupId(group.getId())
-                            .groupName(groupName)
-                            .activityType("MESSAGE")
-                            .activityMessage(activityMsg)
-                            .actorName(senderName)
-                            .build());
-                }
+            log.info("Fetching upcoming events for user {} (now: {}, twoWeeks: {})", 
+                    student.getId(), now, twoWeeksFromNow);
+            
+            List<Event> upcomingEvents = eventRepository.findUpcomingEventsByUserId(student.getId(), now);
+            
+            log.info("Found {} raw events from repository", upcomingEvents != null ? upcomingEvents.size() : 0);
+            
+            if (upcomingEvents == null || upcomingEvents.isEmpty()) {
+                log.info("No events found for user {}", student.getId());
+                return new ArrayList<>();
             }
             
-            // Sort by timestamp (most recent first) and limit to 5
-            return activities.stream()
-                .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
-                .limit(5)
-                .collect(Collectors.toList());
+            List<MiniFeedDto.FeedItem> eventItems = upcomingEvents.stream()
+                    .filter(event -> {
+                        if (event == null || event.getStartDateTime() == null) {
+                            log.warn("Skipping null event or event with null start time");
+                            return false;
+                        }
+                        boolean isWithinWindow = event.getStartDateTime().isBefore(twoWeeksFromNow);
+                        if (!isWithinWindow) {
+                            log.debug("Event {} '{}' is beyond 2-week window: {}", 
+                                    event.getId(), event.getTitle(), event.getStartDateTime());
+                        }
+                        return isWithinWindow;
+                    })
+                    .sorted(Comparator.comparing(Event::getStartDateTime))
+                    .limit(20)
+                    .map(event -> MiniFeedDto.FeedItem.builder()
+                            .itemType("UPCOMING_EVENT")
+                            .priority(2)
+                            .timestamp(event.getStartDateTime().format(DateTimeFormatter.ISO_DATE_TIME))
+                            .eventId(event.getId())
+                            .eventTitle(event.getTitle())
+                            .eventType(event.getEventType() != null ? event.getEventType().name() : null)
+                            .eventDescription(event.getDescription())
+                            .eventLocation(event.getLocation())
+                            .eventMeetingLink(event.getMeetingLink())
+                            .eventStartTime(event.getStartDateTime().format(DateTimeFormatter.ISO_DATE_TIME))
+                            .eventEndTime(event.getEndDateTime() != null ? 
+                                        event.getEndDateTime().format(DateTimeFormatter.ISO_DATE_TIME) : null)
+                            .groupId(event.getGroup() != null ? event.getGroup().getId() : null)
+                            .groupName(event.getGroup() != null ? event.getGroup().getName() : null)
+                            .build())
+                    .collect(Collectors.toList());
+            
+            log.info("Returning {} event items after filtering", eventItems.size());
+            return eventItems;
         } catch (Exception e) {
-            log.error("Error fetching group activities for user {}: {}", student.getId(), e.getMessage());
-            return activities;
+            log.error("Error fetching upcoming events for user {}", student.getId(), e);
+            return new ArrayList<>();
         }
     }
     
     /**
-     * Priority 3: Get upcoming expert sessions (within 7 days).
-     * Sorted by urgency (sooner = higher priority).
+     * Get high % match study groups.
+     * Sorted by match quality (high to low).
      */
-    private List<MiniFeedDto.FeedItem> getUpcomingSessionItems(User student) {
+    private List<MiniFeedDto.FeedItem> getGroupMatchItems(User student) {
         try {
-            Set<Course> studentCourses = student.getCourses();
-            if (studentCourses == null || studentCourses.isEmpty()) {
-                return List.of();
-            }
+            List<MiniFeedDto.GroupRecommendation> matches = matchingService.getTopGroups(student);
             
-            Set<Long> enrolledCourseIds = studentCourses.stream()
-                    .filter(course -> course != null && course.getId() != null)
-                    .map(Course::getId)
-                    .collect(Collectors.toSet());
-            
-            if (enrolledCourseIds.isEmpty()) {
-                return List.of();
-            }
-            
+            return matches.stream()
+                    .filter(match -> match.getCurrentSize() < match.getMaxSize())
+                    .sorted((m1, m2) -> Integer.compare(m2.getMatchPercentage(), m1.getMatchPercentage()))
+                    .limit(20)
+                    .map(match -> MiniFeedDto.FeedItem.builder()
+                            .itemType("GROUP_MATCH")
+                            .priority(3)
+                            .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                            .groupId(match.getGroupId())
+                            .groupName(match.getGroupName())
+                            .courseName(match.getCourseName())
+                            .matchPercentage(match.getMatchPercentage())
+                            .matchReason(match.getMatchReason())
+                            .currentSize(match.getCurrentSize())
+                            .maxSize(match.getMaxSize())
+                            .build())
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error fetching group matches", e);
+            return new ArrayList<>();
+        }
+    }
+    
+    /**
+     * Get upcoming sessions the user has registered for.
+     * Sorted by date (sooner first).
+     */
+    private List<MiniFeedDto.FeedItem> getRegisteredUpcomingSessions(User student) {
+        try {
             LocalDateTime now = LocalDateTime.now();
-            LocalDateTime weekFromNow = now.plusDays(7);
             
-            List<ExpertSession> allSessions = sessionRepository.findAll();
-            if (allSessions == null) {
-                return List.of();
-            }
-            
-            return allSessions.stream()
+            // Get sessions user has registered for through SessionParticipant
+            List<ExpertSession> registeredSessions = participantRepository.findByUserId(student.getId())
+                    .stream()
+                    .map(participant -> participant.getSession())
                     .filter(session -> session != null && 
-                                      session.getScheduledStartTime() != null &&
-                                      session.getScheduledStartTime().isAfter(now) &&
-                                      session.getScheduledStartTime().isBefore(weekFromNow))
-                    .filter(session -> session.getCourse() != null &&
-                                      enrolledCourseIds.contains(session.getCourse().getId()))
-                    .filter(session -> {
-                        // Only show sessions with available spots
-                        int available = session.getMaxParticipants() - session.getCurrentParticipants();
-                        return available > 0;
-                    })
-                    .sorted(Comparator.comparing(ExpertSession::getScheduledStartTime)) // Sooner first
-                    .limit(8)
+                                     session.getScheduledStartTime() != null &&
+                                     session.getScheduledStartTime().isAfter(now))
+                    .collect(Collectors.toList());
+            
+            log.info("Found {} registered sessions for user {}", registeredSessions.size(), student.getId());
+            
+            return registeredSessions.stream()
+                    .filter(session -> session.getStatus() == ExpertSession.SessionStatus.SCHEDULED &&
+                                     !Boolean.TRUE.equals(session.getIsCancelled()))
+                    .sorted(Comparator.comparing(ExpertSession::getScheduledStartTime))
+                    .limit(20)
                     .map(session -> {
-                        String expertName = session.getExpert() != null && session.getExpert().getFullName() != null ? 
-                                           session.getExpert().getFullName() : "Expert";
-                        String courseName = session.getCourse() != null && session.getCourse().getName() != null ? 
-                                           session.getCourse().getName() : "General";
-                        String sessionTitle = session.getTitle() != null ? session.getTitle() : "Study Session";
-                        String timestamp = session.getScheduledStartTime() != null ? 
-                                          session.getScheduledStartTime().format(DateTimeFormatter.ISO_DATE_TIME) : 
-                                          now.format(DateTimeFormatter.ISO_DATE_TIME);
-                        
+                        log.debug("Adding registered session to feed: {}", session.getTitle());
                         return MiniFeedDto.FeedItem.builder()
-                                .itemType("UPCOMING_SESSION")
-                                .priority(3)
-                                .timestamp(timestamp)
+                                .itemType("REGISTERED_SESSION")
+                                .priority(4)
+                                .timestamp(session.getScheduledStartTime().format(DateTimeFormatter.ISO_DATE_TIME))
                                 .sessionId(session.getId())
-                                .sessionTitle(sessionTitle)
-                                .expertName(expertName)
-                                .courseName(courseName)
-                                .scheduledAt(timestamp)
+                                .sessionTitle(session.getTitle())
+                                .expertName(session.getExpert() != null ? session.getExpert().getFullName() : "Expert")
+                                .courseName(session.getCourse() != null ? session.getCourse().getName() : "General")
+                                .scheduledAt(session.getScheduledStartTime().format(DateTimeFormatter.ISO_DATE_TIME))
                                 .availableSpots(session.getMaxParticipants() - session.getCurrentParticipants())
+                                .currentSize(session.getCurrentParticipants())
+                                .isRegistered(true)
                                 .build();
                     })
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            log.error("Error fetching upcoming sessions for user {}: {}", student.getId(), e.getMessage());
-            return List.of();
+            log.error("Error fetching registered sessions", e);
+            return new ArrayList<>();
         }
     }
     
     /**
-     * Priority 4: Get high % match study groups.
-     * Sorted by match quality and group health (not full, active).
+     * Get recommended new sessions with topic overlap.
+     * Sorted by topic match percentage (high to low).
      */
-    private List<MiniFeedDto.FeedItem> getGroupMatchItems(User student) {
-        List<MiniFeedDto.GroupRecommendation> matches = matchingService.getTopGroups(student);
-        log.info("MatchingService returned {} group recommendations", matches.size());
-        
-        return matches.stream()
-                .filter(match -> {
-                    // Only show groups that aren't full
-                    return match.getCurrentSize() < match.getMaxSize();
-                })
-                .sorted((m1, m2) -> {
-                    // Sort by match percentage (higher = better)
-                    return Integer.compare(m2.getMatchPercentage(), m1.getMatchPercentage());
-                })
-                .limit(10)
-                .map(match -> MiniFeedDto.FeedItem.builder()
-                        .itemType("GROUP_MATCH")
-                        .priority(4)
-                        .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
-                        .groupId(match.getGroupId())
-                        .groupName(match.getGroupName())
-                        .courseName(match.getCourseName())
-                        .matchPercentage(match.getMatchPercentage())
-                        .matchReason(match.getMatchReason())
-                        .currentSize(match.getCurrentSize())
-                        .maxSize(match.getMaxSize())
-                        .build())
-                .collect(Collectors.toList());
+    private List<MiniFeedDto.FeedItem> getRecommendedNewSessions(User student) {
+        try {
+            Set<Course> studentCourses = student.getCourses();
+            Set<Long> enrolledCourseIds = new HashSet<>();
+            
+            if (studentCourses != null && !studentCourses.isEmpty()) {
+                enrolledCourseIds = studentCourses.stream()
+                        .map(Course::getId)
+                        .collect(Collectors.toSet());
+                log.info("User {} enrolled in {} courses: {}", student.getId(), enrolledCourseIds.size(), enrolledCourseIds);
+            } else {
+                log.info("User {} has no enrolled courses", student.getId());
+            }
+            
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime oneMonthFromNow = now.plusMonths(1);
+            
+            Set<String> userTopicNames = getUserTopicNames(student);
+            log.info("User {} topics: {}", student.getId(), userTopicNames);
+            
+            List<ExpertSession> allSessions = sessionRepository.findAll();
+            if (allSessions == null) {
+                return new ArrayList<>();
+            }
+            
+            log.info("Total sessions in DB: {}", allSessions.size());
+            
+            List<ExpertSession> upcomingSessions = allSessions.stream()
+                    .filter(session -> session.getScheduledStartTime() != null &&
+                                     session.getScheduledStartTime().isAfter(now) &&
+                                     session.getScheduledStartTime().isBefore(oneMonthFromNow))
+                    .collect(Collectors.toList());
+            log.info("Upcoming sessions (within 1 month): {}", upcomingSessions.size());
+            
+            // Log each upcoming session with its course
+            upcomingSessions.forEach(session -> {
+                log.debug("Session: '{}' - Course ID: {} ({}), Status: {}, Spots: {}/{}", 
+                    session.getTitle(),
+                    session.getCourse() != null ? session.getCourse().getId() : "NULL",
+                    session.getCourse() != null ? session.getCourse().getName() : "NULL",
+                    session.getStatus(),
+                    session.getCurrentParticipants(),
+                    session.getMaxParticipants());
+            });
+            
+            // Filter and score sessions: show if enrolled in course OR topics match
+            Set<Long> finalEnrolledCourseIds = enrolledCourseIds;
+            
+            // Get sessions user is already registered for to exclude from recommendations
+            Set<Long> registeredSessionIds = allSessions.stream()
+                    .filter(session -> participantRepository.existsBySessionIdAndUserId(session.getId(), student.getId()))
+                    .map(ExpertSession::getId)
+                    .collect(Collectors.toSet());
+            
+            log.debug("User {} is registered for {} sessions: {}", student.getId(), registeredSessionIds.size(), registeredSessionIds);
+            
+            List<SessionWithScore> scoredSessions = allSessions.stream()
+                    .filter(session -> session.getScheduledStartTime() != null &&
+                                     session.getScheduledStartTime().isAfter(now) &&
+                                     session.getScheduledStartTime().isBefore(oneMonthFromNow))
+                    .filter(session -> session.getStatus() == ExpertSession.SessionStatus.SCHEDULED &&
+                                     !Boolean.TRUE.equals(session.getIsCancelled()))
+                    .filter(session -> session.getMaxParticipants() - session.getCurrentParticipants() > 0)
+                    .filter(session -> session.getStudent() == null || 
+                                     !session.getStudent().getId().equals(student.getId()))
+                    .filter(session -> !registeredSessionIds.contains(session.getId())) // Exclude already registered sessions
+                    .map(session -> {
+                        // Check if enrolled in session's course
+                        boolean enrolledInCourse = session.getCourse() != null && 
+                                                  finalEnrolledCourseIds.contains(session.getCourse().getId());
+                        
+                        // Calculate topic match score
+                        int topicScore = calculateTopicMatch(session, userTopicNames);
+                        
+                        // Session qualifies if enrolled in course OR topics match
+                        // If enrolled in course, give at least 75% score
+                        int finalScore = enrolledInCourse ? Math.max(topicScore, 75) : topicScore;
+                        
+                        log.debug("Session '{}' - Course: {}, Enrolled: {}, Topic match: {}%, Final score: {}%", 
+                            session.getTitle(),
+                            session.getCourse() != null ? session.getCourse().getName() : "NONE",
+                            enrolledInCourse, 
+                            topicScore, 
+                            finalScore);
+                        
+                        return new SessionWithScore(session, finalScore);
+                    })
+                    .filter(sws -> {
+                        if (sws.score == 0) {
+                            log.debug("Session '{}' filtered: not enrolled in course and 0% topic match", sws.session.getTitle());
+                        }
+                        return sws.score > 0;
+                    })
+                    .sorted((sws1, sws2) -> Integer.compare(sws2.score, sws1.score))
+                    .limit(20)
+                    .collect(Collectors.toList());
+            
+            log.info("Found {} recommended sessions for user {}", scoredSessions.size(), student.getId());
+            
+            return scoredSessions.stream()
+                    .map(sws -> {
+                        ExpertSession session = sws.session;
+                        return MiniFeedDto.FeedItem.builder()
+                                .itemType("RECOMMENDED_SESSION")
+                                .priority(5)
+                                .timestamp(session.getScheduledStartTime().format(DateTimeFormatter.ISO_DATE_TIME))
+                                .sessionId(session.getId())
+                                .sessionTitle(session.getTitle())
+                                .expertName(session.getExpert() != null ? session.getExpert().getFullName() : "Expert")
+                                .courseName(session.getCourse() != null ? session.getCourse().getName() : "General")
+                                .scheduledAt(session.getScheduledStartTime().format(DateTimeFormatter.ISO_DATE_TIME))
+                                .availableSpots(session.getMaxParticipants() - session.getCurrentParticipants())
+                                .isRegistered(false)
+                                .topicMatchPercentage(sws.score)
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error fetching recommended sessions", e);
+            return new ArrayList<>();
+        }
     }
     
     /**
-     * Smart interleaving: Mix different feed types for diversity.
-     * Prioritizes urgent sessions, then alternates between types.
+     * Helper class to hold session with its topic match score
      */
-    private List<MiniFeedDto.FeedItem> interleaveItems(
-            List<MiniFeedDto.FeedItem> sessions,
-            List<MiniFeedDto.FeedItem> activities,
-            List<MiniFeedDto.FeedItem> matches) {
+    private static class SessionWithScore {
+        ExpertSession session;
+        int score;
         
-        // Create mutable copies since input lists might be immutable
-        List<MiniFeedDto.FeedItem> sessionsCopy = new java.util.ArrayList<>(sessions);
-        List<MiniFeedDto.FeedItem> activitiesCopy = new java.util.ArrayList<>(activities);
-        List<MiniFeedDto.FeedItem> matchesCopy = new java.util.ArrayList<>(matches);
+        SessionWithScore(ExpertSession session, int score) {
+            this.session = session;
+            this.score = score;
+        }
+    }
+    
+    /**
+     * Get user's topic names from their groups and courses
+     */
+    private Set<String> getUserTopicNames(User user) {
+        Set<String> topicNames = new HashSet<>();
         
-        List<MiniFeedDto.FeedItem> result = new java.util.ArrayList<>();
+        // Get actual topics from UserTopic table
+        List<UserTopic> userTopics = userTopicRepository.findByUser(user);
         
-        // Add urgent sessions first (within 24 hours)
-        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1);
-        List<MiniFeedDto.FeedItem> urgentSessions = sessionsCopy.stream()
-                .filter(s -> {
-                    try {
-                        LocalDateTime sessionTime = LocalDateTime.parse(s.getScheduledAt(), DateTimeFormatter.ISO_DATE_TIME);
-                        return sessionTime.isBefore(tomorrow);
-                    } catch (Exception e) {
-                        return false;
-                    }
+        if (userTopics != null && !userTopics.isEmpty()) {
+            userTopics.stream()
+                    .filter(ut -> ut.getTopic() != null)
+                    .map(ut -> ut.getTopic().getName())
+                    .forEach(topicName -> {
+                        log.debug("Adding user topic: '{}'", topicName);
+                        topicNames.add(topicName);
+                    });
+        }
+        
+        log.info("User {} has {} topics: {}", user.getId(), topicNames.size(), topicNames);
+        return topicNames;
+    }
+    
+    /**
+     * Calculate topic match score between session and user topics
+     */
+    private int calculateTopicMatch(ExpertSession session, Set<String> userTopicNames) {
+        log.debug("calculateTopicMatch - User topics: {}", userTopicNames);
+        
+        if (session.getSessionTopics() == null || session.getSessionTopics().isEmpty()) {
+            log.debug("calculateTopicMatch - Session has no topics");
+            if (session.getCourse() != null) {
+                String courseName = session.getCourse().getName();
+                if (courseName != null && userTopicNames.stream()
+                        .anyMatch(topic -> topic.toLowerCase().contains(courseName.toLowerCase()) ||
+                                         courseName.toLowerCase().contains(topic.toLowerCase()))) {
+                    return 50;
+                }
+            }
+            return 0;
+        }
+        
+        Set<String> sessionTopicNames = session.getSessionTopics().stream()
+                .filter(st -> st.getTopic() != null)
+                .map(st -> st.getTopic().getName())
+                .collect(Collectors.toSet());
+        
+        log.debug("calculateTopicMatch - Session topics: {}", sessionTopicNames);
+        
+        long matchCount = session.getSessionTopics().stream()
+                .filter(st -> st.getTopic() != null)
+                .map(st -> st.getTopic().getName().toLowerCase().trim())
+                .filter(topicName -> {
+                    boolean matches = userTopicNames.stream()
+                            .anyMatch(userTopic -> {
+                                String normalizedUserTopic = userTopic.toLowerCase().trim();
+                                // Check for exact match or substring match
+                                boolean match = normalizedUserTopic.equals(topicName) ||
+                                               normalizedUserTopic.contains(topicName) || 
+                                               topicName.contains(normalizedUserTopic);
+                                log.debug("Comparing session topic '{}' with user topic '{}': {}", 
+                                    topicName, normalizedUserTopic, match);
+                                return match;
+                            });
+                    log.debug("Session topic '{}' overall match: {}", topicName, matches);
+                    return matches;
                 })
-                .limit(2)
-                .collect(Collectors.toList());
-        result.addAll(urgentSessions);
-        sessionsCopy.removeAll(urgentSessions);
+                .count();
         
-        // Now interleave: session, activity, match, activity, session, match...
-        int maxItems = Math.max(Math.max(sessionsCopy.size(), activitiesCopy.size()), matchesCopy.size());
-        for (int i = 0; i < maxItems; i++) {
-            if (i < sessionsCopy.size()) result.add(sessionsCopy.get(i));
-            if (i < activitiesCopy.size()) result.add(activitiesCopy.get(i));
-            if (i < matchesCopy.size()) result.add(matchesCopy.get(i));
-            if (i < activitiesCopy.size() - 1) {
-                // Add extra activity for engagement
-                result.add(activitiesCopy.get(Math.min(i + 1, activitiesCopy.size() - 1)));
+        int totalTopics = session.getSessionTopics().size();
+        int score = (int) ((matchCount * 100.0) / Math.max(totalTopics, 1));
+        log.debug("calculateTopicMatch - Match count: {}, Total topics: {}, Score: {}%", 
+            matchCount, totalTopics, score);
+        return score;
+    }
+    
+    /**
+     * Interleave categories in randomized order while maintaining internal sorting.
+     * Ensures at least one item from each category appears in the first page for diversity.
+     */
+    private List<MiniFeedDto.FeedItem> interleaveCategories(
+            List<MiniFeedDto.FeedItem> events,
+            List<MiniFeedDto.FeedItem> groupMatches,
+            List<MiniFeedDto.FeedItem> registeredSessions,
+            List<MiniFeedDto.FeedItem> recommendedSessions) {
+        
+        // Create a list of category wrappers for tracking
+        List<CategoryWrapper> categories = new ArrayList<>();
+        if (!events.isEmpty()) categories.add(new CategoryWrapper("Events", new ArrayList<>(events)));
+        if (!groupMatches.isEmpty()) categories.add(new CategoryWrapper("GroupMatches", new ArrayList<>(groupMatches)));
+        if (!registeredSessions.isEmpty()) categories.add(new CategoryWrapper("RegisteredSessions", new ArrayList<>(registeredSessions)));
+        if (!recommendedSessions.isEmpty()) categories.add(new CategoryWrapper("RecommendedSessions", new ArrayList<>(recommendedSessions)));
+        
+        // Shuffle the order of categories
+        Collections.shuffle(categories, new Random());
+        
+        List<MiniFeedDto.FeedItem> result = new ArrayList<>();
+        
+        // Phase 1: Ensure diversity - take first item from each category for the first page
+        // (Quiz reminder already added separately, so we have 3 slots left for first page diversity)
+        int diversitySlots = Math.min(3, categories.size()); // Room for 3 more items after quiz
+        for (int i = 0; i < diversitySlots && i < categories.size(); i++) {
+            CategoryWrapper category = categories.get(i);
+            if (!category.items.isEmpty()) {
+                result.add(category.items.remove(0));
+                log.debug("Added diversity item from {}", category.name);
             }
         }
         
+        // Phase 2: Round-robin through remaining items
+        int maxSize = categories.stream()
+                .mapToInt(cat -> cat.items.size())
+                .max()
+                .orElse(0);
+        
+        for (int i = 0; i < maxSize; i++) {
+            for (CategoryWrapper category : categories) {
+                if (i < category.items.size()) {
+                    result.add(category.items.get(i));
+                }
+            }
+        }
+        
+        log.info("Interleaved {} total items with diversity-first approach", result.size());
         return result;
+    }
+    
+    /**
+     * Helper wrapper class for category tracking
+     */
+    private static class CategoryWrapper {
+        String name;
+        List<MiniFeedDto.FeedItem> items;
+        
+        CategoryWrapper(String name, List<MiniFeedDto.FeedItem> items) {
+            this.name = name;
+            this.items = items;
+        }
     }
     
     /**

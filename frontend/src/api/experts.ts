@@ -81,6 +81,7 @@ export interface ExpertSession {
   canJoin: boolean;
   isUpcoming: boolean;
   createdAt: string;
+  topics?: { id: number; name: string; category: string; description?: string; }[];
 }
 
 export interface ExpertSummary {
@@ -124,6 +125,7 @@ export interface CreateSessionRequest {
   courseId?: number;
   isRecurring?: boolean;
   recurrencePattern?: string; // 'weekly', 'biweekly', 'monthly'
+  topicIds?: number[]; // Topics for this session
 }
 
 export interface ExpertQuestion {

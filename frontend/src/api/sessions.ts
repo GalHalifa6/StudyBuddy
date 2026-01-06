@@ -69,6 +69,22 @@ export const sessionService = {
     return response.data;
   },
 
+  // Get ALL sessions in the system (no filtering by enrollment)
+  getAllSessions: async (filters?: {
+    type?: string;
+    courseId?: number;
+    search?: string;
+  }): Promise<SessionInfo[]> => {
+    const params = new URLSearchParams();
+    if (filters?.type) params.append('type', filters.type);
+    if (filters?.courseId) params.append('courseId', filters.courseId.toString());
+    if (filters?.search) params.append('search', filters.search);
+    
+    const query = params.toString();
+    const response = await api.get(`/sessions/all${query ? `?${query}` : ''}`);
+    return response.data;
+  },
+
   // Get session details
   getSession: async (sessionId: number): Promise<SessionInfo> => {
     const response = await api.get(`/sessions/${sessionId}`);

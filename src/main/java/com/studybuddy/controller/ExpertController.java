@@ -1,6 +1,7 @@
 package com.studybuddy.controller;
 
 import com.studybuddy.dto.ExpertDto;
+import com.studybuddy.dto.TopicDto;
 import com.studybuddy.model.*;
 import com.studybuddy.repository.*;
 import jakarta.validation.Valid;
@@ -59,6 +60,12 @@ public class ExpertController {
 
     @Autowired
     private com.studybuddy.repository.SessionRequestRepository sessionRequestRepository;
+
+    @Autowired
+    private TopicRepository topicRepository;
+
+    @Autowired
+    private SessionTopicRepository sessionTopicRepository;
 
     /**
      * Helper method to check if current expert is verified
@@ -406,6 +413,20 @@ public class ExpertController {
             }
             
             ExpertSession savedSession = sessionRepository.save(session);
+            
+            // Add topics to session
+            if (request.getTopicIds() != null && !request.getTopicIds().isEmpty()) {
+                List<Topic> topics = topicRepository.findAllById(request.getTopicIds());
+                for (Topic topic : topics) {
+                    SessionTopic sessionTopic = new SessionTopic();
+                    sessionTopic.setSession(savedSession);
+                    sessionTopic.setTopic(topic);
+                    sessionTopicRepository.save(sessionTopic);
+                }
+                // Reload to get the topics
+                savedSession = sessionRepository.findById(savedSession.getId())
+                        .orElseThrow(() -> new RuntimeException("Session not found"));
+            }
             
             // Generate Jitsi meeting link if platform is JITSI and no link provided
             if ((savedSession.getMeetingPlatform() == null || savedSession.getMeetingPlatform().equals("JITSI")) 
@@ -1025,6 +1046,18 @@ public class ExpertController {
     }
 
     private ExpertDto.SessionResponse toSessionResponse(ExpertSession session) {
+        // Map session topics to topic info DTOs
+        List<TopicDto.TopicInfo> topics = session.getSessionTopics() != null
+                ? session.getSessionTopics().stream()
+                        .map(st -> TopicDto.TopicInfo.builder()
+                                .id(st.getTopic().getId())
+                                .name(st.getTopic().getName())
+                                .category(st.getTopic().getCategory().name())
+                                .description(st.getTopic().getDescription())
+                                .build())
+                        .collect(Collectors.toList())
+                : new ArrayList<>();
+        
         return ExpertDto.SessionResponse.builder()
                 .id(session.getId())
                 .expert(toExpertSummary(session.getExpert()))
@@ -1050,6 +1083,7 @@ public class ExpertController {
                 .canJoin(session.canJoin())
                 .isUpcoming(session.isUpcoming())
                 .createdAt(session.getCreatedAt())
+                .topics(topics)
                 .build();
     }
 
