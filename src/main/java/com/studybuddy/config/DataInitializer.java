@@ -140,11 +140,12 @@ public class DataInitializer implements CommandLineRunner {
         }
         
         // Step 2: Create 20 Quiz Questions (only if missing)
+        // NOTE: This is a fallback for initial seeding. Admins should manage questions via the Admin Panel.
         if (quizQuestionRepository.count() == 0) {
-            log.info("Creating quiz questions...");
+            log.info("Creating quiz questions (fallback seeding - admins should manage via Admin Panel)...");
             createQuizQuestions();
         } else {
-            log.info("Quiz questions already exist. Skipping.");
+            log.info("Quiz questions already exist. Skipping. Admins can manage questions via Admin Panel.");
         }
         
         // Step 3: Create 50 Students with profiles (only if not many users exist yet)
