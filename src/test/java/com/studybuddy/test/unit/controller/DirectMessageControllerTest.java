@@ -1,8 +1,16 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.DirectMessageController;
-import com.studybuddy.model.*;
-import com.studybuddy.repository.*;
+import com.studybuddy.messaging.controller.DirectMessageController;
+import com.studybuddy.user.model.User;
+import com.studybuddy.messaging.model.Conversation;
+import com.studybuddy.messaging.model.DirectMessage;
+import com.studybuddy.messaging.repository.ConversationRepository;
+import com.studybuddy.messaging.repository.DirectMessageRepository;
+import com.studybuddy.messaging.repository.DirectMessageReceiptRepository;
+import com.studybuddy.messaging.model.DirectMessageReceipt;
+import com.studybuddy.notification.model.Notification;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.file.repository.FileUploadRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,7 +55,7 @@ class DirectMessageControllerTest {
     private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     @Mock
-    private com.studybuddy.service.NotificationService notificationService;
+    private com.studybuddy.notification.service.NotificationService notificationService;
 
     @Mock
     private Authentication authentication;

@@ -1,7 +1,7 @@
 package com.studybuddy.security;
 
-import com.studybuddy.model.User;
-import com.studybuddy.repository.UserRepository;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.repository.UserRepository;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

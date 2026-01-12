@@ -1,9 +1,9 @@
 package com.studybuddy.test.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.studybuddy.model.Role;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.UserRepository;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

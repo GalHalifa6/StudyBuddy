@@ -1,13 +1,18 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.AdminController;
-import com.studybuddy.dto.AuthDto;
-import com.studybuddy.dto.UserAdminDto;
-import com.studybuddy.model.Role;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.*;
-import com.studybuddy.repository.UserRepository;
-import com.studybuddy.service.AdminService;
+import com.studybuddy.admin.controller.AdminController;
+import com.studybuddy.auth.dto.AuthDto;
+import com.studybuddy.admin.dto.UserAdminDto;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.auth.repository.EmailVerificationTokenRepository;
+import com.studybuddy.notification.repository.NotificationRepository;
+import com.studybuddy.group.repository.GroupMemberRequestRepository;
+import com.studybuddy.expert.repository.QuestionVoteRepository;
+import com.studybuddy.expert.repository.SessionParticipantRepository;
+import com.studybuddy.expert.repository.ExpertProfileRepository;
+import com.studybuddy.admin.service.AdminService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

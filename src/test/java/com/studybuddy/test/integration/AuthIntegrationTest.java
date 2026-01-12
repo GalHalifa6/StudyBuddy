@@ -1,13 +1,13 @@
 package com.studybuddy.test.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.studybuddy.dto.AuthDto;
-import com.studybuddy.model.AllowedEmailDomain;
-import com.studybuddy.model.Role;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.AllowedEmailDomainRepository;
-import com.studybuddy.repository.UserRepository;
-import com.studybuddy.service.EmailService;
+import com.studybuddy.auth.dto.AuthDto;
+import com.studybuddy.admin.model.AllowedEmailDomain;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.user.model.User;
+import com.studybuddy.admin.repository.AllowedEmailDomainRepository;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.email.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

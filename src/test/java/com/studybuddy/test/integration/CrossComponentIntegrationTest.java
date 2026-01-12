@@ -1,9 +1,21 @@
 package com.studybuddy.test.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.studybuddy.dto.AuthDto;
-import com.studybuddy.model.*;
-import com.studybuddy.repository.*;
+import com.studybuddy.auth.dto.AuthDto;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.course.model.Course;
+import com.studybuddy.group.model.StudyGroup;
+import com.studybuddy.messaging.model.Message;
+import com.studybuddy.admin.model.AllowedEmailDomain;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.course.repository.CourseRepository;
+import com.studybuddy.group.repository.StudyGroupRepository;
+import com.studybuddy.messaging.repository.MessageRepository;
+import com.studybuddy.file.repository.FileUploadRepository;
+import com.studybuddy.notification.repository.NotificationRepository;
+import com.studybuddy.group.repository.GroupMemberRequestRepository;
+import com.studybuddy.admin.repository.AllowedEmailDomainRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,8 +24,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import com.studybuddy.service.EmailService;
-import com.studybuddy.service.EmailVerificationService;
+import com.studybuddy.email.service.EmailService;
+import com.studybuddy.email.service.EmailVerificationService;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;

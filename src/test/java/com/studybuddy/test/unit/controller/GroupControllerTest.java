@@ -1,9 +1,15 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.GroupController;
-import com.studybuddy.model.*;
-import com.studybuddy.repository.*;
-import com.studybuddy.service.NotificationService;
+import com.studybuddy.group.controller.GroupController;
+import com.studybuddy.user.model.User;
+import com.studybuddy.course.model.Course;
+import com.studybuddy.group.model.StudyGroup;
+import com.studybuddy.group.model.GroupMemberRequest;
+import com.studybuddy.user.repository.UserRepository;
+import com.studybuddy.course.repository.CourseRepository;
+import com.studybuddy.group.repository.StudyGroupRepository;
+import com.studybuddy.group.repository.GroupMemberRequestRepository;
+import com.studybuddy.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

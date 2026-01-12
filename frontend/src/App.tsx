@@ -83,7 +83,7 @@ function App() {
             />
 
             {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
           </AuthProvider>

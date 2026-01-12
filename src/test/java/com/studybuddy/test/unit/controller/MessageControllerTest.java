@@ -1,15 +1,16 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.MessageController;
-import com.studybuddy.model.FileUpload;
-import com.studybuddy.model.Message;
-import com.studybuddy.model.StudyGroup;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.FileUploadRepository;
-import com.studybuddy.repository.MessageReceiptRepository;
-import com.studybuddy.repository.MessageRepository;
-import com.studybuddy.repository.StudyGroupRepository;
-import com.studybuddy.repository.UserRepository;
+import com.studybuddy.messaging.controller.MessageController;
+import com.studybuddy.file.model.FileUpload;
+import com.studybuddy.messaging.model.Message;
+import com.studybuddy.group.model.StudyGroup;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.file.repository.FileUploadRepository;
+import com.studybuddy.messaging.repository.MessageReceiptRepository;
+import com.studybuddy.messaging.repository.MessageRepository;
+import com.studybuddy.group.repository.StudyGroupRepository;
+import com.studybuddy.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -273,7 +274,7 @@ class MessageControllerTest {
         User adminUser = new User();
         adminUser.setId(2L);
         adminUser.setUsername("admin");
-        adminUser.setRole(com.studybuddy.model.Role.ADMIN);
+        adminUser.setRole(Role.ADMIN);
 
         when(authentication.getName()).thenReturn("admin");
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(adminUser));
@@ -297,7 +298,7 @@ class MessageControllerTest {
         User otherUser = new User();
         otherUser.setId(2L);
         otherUser.setUsername("otheruser");
-        otherUser.setRole(com.studybuddy.model.Role.USER);
+        otherUser.setRole(Role.USER);
 
         when(authentication.getName()).thenReturn("otheruser");
         when(userRepository.findByUsername("otheruser")).thenReturn(Optional.of(otherUser));

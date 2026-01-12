@@ -1,12 +1,13 @@
 package com.studybuddy.test.unit.controller;
 
-import com.studybuddy.controller.CourseController;
-import com.studybuddy.model.Course;
-import com.studybuddy.model.StudyGroup;
-import com.studybuddy.model.User;
-import com.studybuddy.repository.CourseRepository;
-import com.studybuddy.repository.StudyGroupRepository;
-import com.studybuddy.repository.UserRepository;
+import com.studybuddy.course.controller.CourseController;
+import com.studybuddy.course.model.Course;
+import com.studybuddy.group.model.StudyGroup;
+import com.studybuddy.user.model.User;
+import com.studybuddy.user.model.Role;
+import com.studybuddy.course.repository.CourseRepository;
+import com.studybuddy.group.repository.StudyGroupRepository;
+import com.studybuddy.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -87,7 +88,7 @@ class CourseControllerTest {
         User testUser = new User();
         testUser.setId(1L);
         testUser.setUsername("testuser");
-        testUser.setRole(com.studybuddy.model.Role.ADMIN); // Admin can access all courses
+        testUser.setRole(Role.ADMIN); // Admin can access all courses
         testUser.setCourses(new java.util.HashSet<>());
         
         when(securityContext.getAuthentication()).thenReturn(authentication);
@@ -116,7 +117,7 @@ class CourseControllerTest {
         User testUser = new User();
         testUser.setId(1L);
         testUser.setUsername("testuser");
-        testUser.setRole(com.studybuddy.model.Role.ADMIN);
+        testUser.setRole(Role.ADMIN);
         testUser.setCourses(new java.util.HashSet<>());
         
         when(securityContext.getAuthentication()).thenReturn(authentication);
