@@ -22,9 +22,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
-  AlertCircle,
   CheckCircle,
-  X,
   XCircle,
   Settings,
   Save,
@@ -50,7 +48,7 @@ const QuizManagement: React.FC = () => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuizQuestionAdmin | null>(null);
   const [editingOptionId, setEditingOptionId] = useState<number | null>(null);
-  const [config, setConfig] = useState<QuizConfig | null>(null);
+  const [, setConfig] = useState<QuizConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<number>>(new Set());
   const [savingConfig, setSavingConfig] = useState(false);
@@ -476,7 +474,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
         <div className="border-t border-gray-200 p-4 bg-gray-50">
           <div className="space-y-3">
             <h4 className="font-semibold text-gray-900">Options:</h4>
-            {question.options.map((option, idx) => (
+            {question.options.map((option) => (
               <div
                 key={option.optionId}
                 className="bg-white rounded-lg p-4 border border-gray-200"

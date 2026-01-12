@@ -1,0 +1,110 @@
+version: '3.8'
+
+# Docker Compose automatically loads .env file from the project root
+# Create .env file from env.example and fill in your values
+
+services:
+  # PostgreSQL Database (production-ready alternative to H2)
+  postgres:
+    image: postgres:15-alpine
+    container_name: studybuddy-db
+    environment:
+      POSTGRES_DB: studybuddy
+      POSTGRES_USER: studybuddy
+      POSTGRES_PASSWORD: studybuddy_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studybuddy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - studybuddy-network
+
+  # Spring Boot Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studybuddy-backend
+    ports:
+      - "8080:8080"
+    environment:
+      # Database Configuration (PostgreSQL)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/studybuddy
+      SPRING_DATASOURCE_USERNAME: studybuddy
+      SPRING_DATASOURCE_PASSWORD: studybuddy_password
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      
+      # Server Configuration
+      SERVER_PORT: 8080
+      SERVER_ADDRESS: 0.0.0.0
+      
+      # JWT Configuration (change in production!)
+      JWT_SECRET: ${JWT_SECRET:-mySecretKeyForStudyBuddyPlatformChangeInProduction}
+      JWT_EXPIRATION: 86400000
+      
+      # OAuth2 Configuration (set via environment variables)
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      
+      # Email Configuration
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@studybuddy.com}
+      
+      # Jitsi Configuration
+      JITSI_KID: ${JITSI_KID:-}
+      JITSI_PRIVATE_KEY: ${JITSI_PRIVATE_KEY:-}
+      
+      # Frontend URL
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      
+      # File Upload Directory (mounted volume)
+      FILE_UPLOAD_DIR: /app/uploads
+      
+      # Logging
+      LOGGING_LEVEL_COM_STUDYBUDDY: INFO
+    volumes:
+      - uploads_data:/app/uploads
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - studybuddy-network
+    restart: unless-stopped
+
+  # Frontend (React/Vite)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # When frontend runs in Docker, it should use backend service name
+        # For browser access, use localhost (browser runs outside Docker)
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-ws://localhost:8080}
+    container_name: studybuddy-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - studybuddy-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  studybuddy-network:
+    driver: bridge
+

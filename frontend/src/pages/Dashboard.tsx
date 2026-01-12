@@ -21,7 +21,6 @@ import { FeedResponse } from '../api/feed';
 import {
   DashboardOverview,
   MessageUnreadSummary,
-  SessionSummary,
   StudyGroup,
 } from '../types';
 
@@ -178,7 +177,6 @@ const Dashboard: React.FC = () => {
     ];
   }, [overview, myGroups.length]);
 
-  const nextSession = overview?.nextSession ?? null;
   const unreadSummary = useMemo(() => overview?.unreadMessages ?? ({
     total: 0,
     groups: [],
@@ -194,29 +192,29 @@ const Dashboard: React.FC = () => {
     return 'Good evening';
   };
 
-  const formatDateRange = (session: SessionSummary) => {
-    const startIso = session.scheduledStartTime ?? (session as unknown as { startTime?: string }).startTime;
-    const endIso = session.scheduledEndTime ?? (session as unknown as { endTime?: string }).endTime;
+  // const formatDateRange = (session: SessionSummary) => {
+  //   const startIso = session.scheduledStartTime ?? (session as unknown as { startTime?: string }).startTime;
+  //   const endIso = session.scheduledEndTime ?? (session as unknown as { endTime?: string }).endTime;
 
-    if (!startIso || !endIso) {
-      return 'Schedule to be confirmed';
-    }
+  //   if (!startIso || !endIso) {
+  //     return 'Schedule to be confirmed';
+  //   }
 
-    const start = new Date(startIso);
-    const end = new Date(endIso);
+  //   const start = new Date(startIso);
+  //   const end = new Date(endIso);
 
-    return `${start.toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    })} • ${start.toLocaleTimeString(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    })} - ${end.toLocaleTimeString(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    })}`;
-  };
+  //   return `${start.toLocaleDateString(undefined, {
+  //     weekday: 'short',
+  //     month: 'short',
+  //     day: 'numeric',
+  //   })} • ${start.toLocaleTimeString(undefined, {
+  //     hour: 'numeric',
+  //     minute: '2-digit',
+  //   })} - ${end.toLocaleTimeString(undefined, {
+  //     hour: 'numeric',
+  //     minute: '2-digit',
+  //   })}`;
+  // };
 
   const formatRelativeTime = (isoDate?: string) => {
     if (!isoDate) return 'Just now';
@@ -238,13 +236,13 @@ const Dashboard: React.FC = () => {
     return target.toLocaleDateString();
   };
 
-  const formatSessionType = (sessionType?: string) =>
-    sessionType
-      ? sessionType
-          .replace(/_/g, ' ')
-          .toLowerCase()
-          .replace(/(^|\s)\S/g, (s) => s.toUpperCase())
-      : 'Session';
+  // const formatSessionType = (sessionType?: string) =>
+  //   sessionType
+  //     ? sessionType
+  //         .replace(/_/g, ' ')
+  //         .toLowerCase()
+  //         .replace(/(^|\s)\S/g, (s) => s.toUpperCase())
+  //     : 'Session';
 
   if (isLoading) {
     return (
@@ -524,65 +522,6 @@ const Dashboard: React.FC = () => {
                                 )}
                               </button>
                             </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  
-                  // GROUP_ACTIVITY (legacy - being phased out)
-                  if (item.itemType === 'GROUP_ACTIVITY') {
-                    return (
-                      <div key={`activity-${index}`} className="border border-blue-200 dark:border-blue-900 rounded-xl p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/40 dark:to-cyan-950/40 hover:shadow-md transition">
-                        <div className="flex items-start gap-3">
-                          <div className="bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-200 p-2 rounded-lg">
-                            <MessageSquare className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.groupName}</h4>
-                            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">{item.activityMessage}</p>
-                            <Link
-                              to={`/groups/${item.groupId}`}
-                              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400"
-                            >
-                              View group
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  
-                  // UPCOMING_SESSION
-                  if (item.itemType === 'UPCOMING_SESSION') {
-                    return (
-                      <div key={`session-${index}`} className="border border-emerald-200 dark:border-emerald-900 rounded-xl p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 hover:shadow-md transition">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3 flex-1">
-                            <div className="bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-200 p-2 rounded-lg">
-                              <Calendar className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.sessionTitle}</h4>
-                              <p className="text-xs text-emerald-600 dark:text-emerald-300">{item.courseName}</p>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                with {item.expertName} • {new Date(item.scheduledAt!).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-600 text-white px-2 py-1 rounded-full">
-                              <Users className="h-3 w-3" />
-                              {item.availableSpots}
-                            </span>
-                            <Link
-                              to={`/sessions/${item.sessionId}`}
-                              className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400"
-                            >
-                              Join
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </Link>
                           </div>
                         </div>
                       </div>
