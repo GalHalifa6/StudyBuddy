@@ -9,6 +9,7 @@ import com.studybuddy.expert.model.ExpertProfile;
 import com.studybuddy.expert.model.ExpertSession;
 import com.studybuddy.expert.model.SessionRequest;
 import com.studybuddy.expert.repository.SessionRequestRepository;
+import com.studybuddy.expert.repository.ExpertProfileRepository;
 import com.studybuddy.user.repository.UserRepository;
 import com.studybuddy.course.repository.CourseRepository;
 import com.studybuddy.expert.repository.ExpertSessionRepository;
