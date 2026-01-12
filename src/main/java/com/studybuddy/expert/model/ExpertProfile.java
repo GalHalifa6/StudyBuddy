@@ -50,21 +50,25 @@ public class ExpertProfile {
     @Column(columnDefinition = "TEXT")
     private String qualifications; // Degrees, certifications
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer yearsOfExperience = 0;
 
     // Specializations and Expertise
+    @Builder.Default
     @ElementCollection
     @CollectionTable(name = "expert_specializations", joinColumns = @JoinColumn(name = "expert_id"))
     @Column(name = "specialization")
     private List<String> specializations = new ArrayList<>();
 
+    @Builder.Default
     @ElementCollection
     @CollectionTable(name = "expert_skills", joinColumns = @JoinColumn(name = "expert_id"))
     @Column(name = "skill")
     private List<String> skills = new ArrayList<>();
 
     // Verification Status
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isVerified = false;
 
@@ -75,15 +79,19 @@ public class ExpertProfile {
     private String verifiedBy; // Admin username who verified
 
     // Ratings and Reviews
+    @Builder.Default
     @Column(nullable = false)
     private Double averageRating = 0.0;
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer totalRatings = 0;
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer totalSessions = 0;
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer totalQuestionsAnswered = 0;
 
@@ -91,30 +99,38 @@ public class ExpertProfile {
     @Column(columnDefinition = "TEXT")
     private String weeklyAvailability; // JSON: {"monday": ["09:00-11:00", "14:00-16:00"], ...}
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer maxSessionsPerWeek = 10;
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer sessionDurationMinutes = 30; // Default session duration
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean acceptingNewStudents = true;
 
     // Consultation Preferences
+    @Builder.Default
     @Column(nullable = false)
     private Boolean offersGroupConsultations = true;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean offersOneOnOne = true;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean offersAsyncQA = true; // Asynchronous Q&A support
 
     // Response Times
+    @Builder.Default
     @Column(nullable = false)
     private Integer typicalResponseHours = 24; // Typical response time in hours
 
     // Pricing (if applicable in future)
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isFree = true;
 
@@ -129,20 +145,25 @@ public class ExpertProfile {
     private String personalWebsite;
 
     // Status
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isActive = true;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isAvailableNow = false; // Real-time availability status
 
     // Statistics
+    @Builder.Default
     @Column(nullable = false)
     private Integer helpfulAnswers = 0;
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer studentsHelped = 0;
 
     // Courses they can help with
+    @Builder.Default
     @ManyToMany
     @JoinTable(
             name = "expert_courses",

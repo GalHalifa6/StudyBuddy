@@ -1,6 +1,7 @@
 package com.studybuddy.test.integration;
 
 import com.studybuddy.user.model.User;
+import com.studybuddy.user.model.Role;
 import com.studybuddy.course.model.Course;
 import com.studybuddy.group.model.StudyGroup;
 import com.studybuddy.file.model.FileUpload;

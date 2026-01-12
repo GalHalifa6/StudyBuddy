@@ -2,8 +2,11 @@ package com.studybuddy.test.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studybuddy.user.model.User;
+import com.studybuddy.user.model.Role;
 import com.studybuddy.course.model.Course;
 import com.studybuddy.group.model.StudyGroup;
+import com.studybuddy.messaging.model.Message;
+import com.studybuddy.file.model.FileUpload;
 import com.studybuddy.user.repository.UserRepository;
 import com.studybuddy.course.repository.CourseRepository;
 import com.studybuddy.group.repository.StudyGroupRepository;

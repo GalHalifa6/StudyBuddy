@@ -51,9 +51,11 @@ public class Notification {
     // For actions that need approval
     private Long actorId; // The user who triggered the notification (e.g., user requesting to join)
     
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isRead = false;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isActionable = false; // If true, requires accept/reject action
 

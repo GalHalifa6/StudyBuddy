@@ -72,16 +72,20 @@ public class ExpertReview {
     private String improvements; // Suggestions for improvement
 
     // Visibility
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isAnonymous = false;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isPublic = true;
 
     // Moderation
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isApproved = true; // For moderation purposes
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isFlagged = false;
 
@@ -89,9 +93,11 @@ public class ExpertReview {
     private String flagReason;
 
     // Helpfulness of the review itself
+    @Builder.Default
     @Column(nullable = false)
     private Integer helpfulCount = 0;
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer reportCount = 0;
 

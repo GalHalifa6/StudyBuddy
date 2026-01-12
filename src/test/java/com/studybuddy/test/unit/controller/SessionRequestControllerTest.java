@@ -4,10 +4,12 @@ import com.studybuddy.expert.controller.ExpertController;
 import com.studybuddy.expert.controller.StudentExpertController;
 import com.studybuddy.expert.dto.ExpertDto;
 import com.studybuddy.user.model.User;
+import com.studybuddy.user.model.Role;
 import com.studybuddy.course.model.Course;
 import com.studybuddy.expert.model.ExpertProfile;
 import com.studybuddy.expert.model.ExpertSession;
 import com.studybuddy.expert.model.SessionRequest;
+import com.studybuddy.notification.model.Notification;
 import com.studybuddy.expert.repository.SessionRequestRepository;
 import com.studybuddy.expert.repository.ExpertProfileRepository;
 import com.studybuddy.user.repository.UserRepository;
@@ -86,7 +88,7 @@ class SessionRequestControllerTest {
         studentUser.setUsername("student");
         studentUser.setEmail("student@example.com");
         studentUser.setFullName("Student User");
-        studentUser.setRole(com.studybuddy.model.Role.USER);
+        studentUser.setRole(Role.USER);
 
         // Setup expert user
         expertUser = new User();
@@ -94,7 +96,7 @@ class SessionRequestControllerTest {
         expertUser.setUsername("expert");
         expertUser.setEmail("expert@example.com");
         expertUser.setFullName("Expert User");
-        expertUser.setRole(com.studybuddy.model.Role.EXPERT);
+        expertUser.setRole(Role.EXPERT);
 
         // Setup test course
         testCourse = new Course();
@@ -145,15 +147,15 @@ class SessionRequestControllerTest {
         java.time.LocalDateTime startTime = java.time.LocalDateTime.now().plusDays(1);
         java.time.LocalDateTime endTime = startTime.plusHours(1);
         
-        com.studybuddy.dto.ExpertDto.TimeSlot timeSlot = com.studybuddy.dto.ExpertDto.TimeSlot.builder()
+        ExpertDto.TimeSlot timeSlot = ExpertDto.TimeSlot.builder()
             .start(startTime)
             .end(endTime)
             .build();
         
-        java.util.List<com.studybuddy.dto.ExpertDto.TimeSlot> timeSlots = new ArrayList<>();
+        java.util.List<ExpertDto.TimeSlot> timeSlots = new ArrayList<>();
         timeSlots.add(timeSlot);
         
-        com.studybuddy.dto.ExpertDto.SessionRequestCreate requestBody = com.studybuddy.dto.ExpertDto.SessionRequestCreate.builder()
+        ExpertDto.SessionRequestCreate requestBody = ExpertDto.SessionRequestCreate.builder()
             .expertId(2L)
             .courseId(1L)
             .title("Test Session")
@@ -165,7 +167,7 @@ class SessionRequestControllerTest {
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode()); // createSessionRequest returns ok() not CREATED
-        verify(sessionRequestRepository, times(1)).save(any(com.studybuddy.model.SessionRequest.class));
+        verify(sessionRequestRepository, times(1)).save(any(SessionRequest.class));
         verify(notificationService, times(1)).createNotification(any(User.class), anyString(), anyString(), anyString(), anyString());
     }
 
@@ -260,7 +262,7 @@ class SessionRequestControllerTest {
             return sr;
         });
         when(notificationService.createNotification(any(User.class), anyString(), anyString(), anyString(), anyString()))
-            .thenReturn(new com.studybuddy.model.Notification());
+            .thenReturn(new Notification());
 
         LocalDateTime chosenStart = LocalDateTime.now().plusDays(2);
         LocalDateTime chosenEnd = chosenStart.plusHours(1);
@@ -296,7 +298,7 @@ class SessionRequestControllerTest {
         when(sessionRequestRepository.findById(1L)).thenReturn(Optional.of(testRequest));
         when(sessionRequestRepository.save(any(SessionRequest.class))).thenReturn(testRequest);
         when(notificationService.createNotification(any(User.class), anyString(), anyString(), anyString()))
-            .thenReturn(new com.studybuddy.model.Notification());
+            .thenReturn(new Notification());
 
         ExpertDto.SessionRequestReject requestBody = ExpertDto.SessionRequestReject.builder()
             .reason("Not available at requested times")

@@ -7,6 +7,8 @@ import com.studybuddy.messaging.model.DirectMessage;
 import com.studybuddy.messaging.repository.ConversationRepository;
 import com.studybuddy.messaging.repository.DirectMessageRepository;
 import com.studybuddy.messaging.repository.DirectMessageReceiptRepository;
+import com.studybuddy.messaging.model.DirectMessageReceipt;
+import com.studybuddy.notification.model.Notification;
 import com.studybuddy.user.repository.UserRepository;
 import com.studybuddy.file.repository.FileUploadRepository;
 import org.junit.jupiter.api.BeforeEach;

@@ -4,6 +4,7 @@ import com.studybuddy.file.controller.FileController;
 import com.studybuddy.file.model.FileUpload;
 import com.studybuddy.group.model.StudyGroup;
 import com.studybuddy.user.model.User;
+import com.studybuddy.user.model.Role;
 import com.studybuddy.file.repository.FileUploadRepository;
 import com.studybuddy.group.repository.StudyGroupRepository;
 import com.studybuddy.user.repository.UserRepository;
@@ -71,7 +72,7 @@ class FileControllerTest {
         testUser.setId(1L);
         testUser.setUsername("testuser");
         testUser.setEmail("test@example.com");
-        testUser.setRole(com.studybuddy.model.Role.USER);
+        testUser.setRole(Role.USER);
 
         testGroup = new StudyGroup();
         testGroup.setId(1L);
@@ -242,7 +243,7 @@ class FileControllerTest {
         User adminUser = new User();
         adminUser.setId(2L);
         adminUser.setUsername("admin");
-        adminUser.setRole(com.studybuddy.model.Role.ADMIN);
+        adminUser.setRole(Role.ADMIN);
 
         when(securityContext.getAuthentication()).thenReturn(authentication);
         SecurityContextHolder.setContext(securityContext);
@@ -264,7 +265,7 @@ class FileControllerTest {
         User otherUser = new User();
         otherUser.setId(2L);
         otherUser.setUsername("otheruser");
-        otherUser.setRole(com.studybuddy.model.Role.USER);
+        otherUser.setRole(Role.USER);
 
         when(securityContext.getAuthentication()).thenReturn(authentication);
         SecurityContextHolder.setContext(securityContext);

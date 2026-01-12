@@ -41,6 +41,7 @@ public class GroupMemberRequest {
     @Column(name = "request_type", nullable = false)
     private String requestType; // JOIN_REQUEST (user requests) or INVITE (creator invites)
 
+    @Builder.Default
     @Column(nullable = false)
     private String status = "PENDING"; // PENDING, ACCEPTED, REJECTED, CANCELLED
 

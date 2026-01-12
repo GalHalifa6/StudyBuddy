@@ -57,6 +57,7 @@ public class DirectMessage {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Builder.Default
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnoreProperties({"message"})
     private Set<com.studybuddy.messaging.model.DirectMessageReceipt> receipts = new HashSet<>();

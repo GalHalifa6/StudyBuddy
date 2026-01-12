@@ -1,6 +1,7 @@
 package com.studybuddy.test.integration;
 
 import com.studybuddy.user.model.User;
+import com.studybuddy.user.model.Role;
 import com.studybuddy.notification.model.Notification;
 import com.studybuddy.user.repository.UserRepository;
 import com.studybuddy.notification.repository.NotificationRepository;

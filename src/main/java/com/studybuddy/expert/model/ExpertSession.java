@@ -104,6 +104,7 @@ public class ExpertSession {
     private String sessionSummary; // Summary after session ends
 
     // Resources shared
+    @Builder.Default
     @ElementCollection
     @CollectionTable(name = "session_resources", joinColumns = @JoinColumn(name = "session_id"))
     @Column(name = "resource_url")

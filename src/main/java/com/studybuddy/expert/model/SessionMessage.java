@@ -35,6 +35,7 @@ public class SessionMessage {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Builder.Default
     @Column(length = 20)
     private String messageType = "text"; // text, file, code, system
 

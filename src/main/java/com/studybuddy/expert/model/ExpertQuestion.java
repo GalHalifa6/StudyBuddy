@@ -65,14 +65,17 @@ public class ExpertQuestion {
     @Column(length = 50)
     private String programmingLanguage; // Language of the code snippet
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private QuestionStatus status = QuestionStatus.OPEN;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private QuestionPriority priority = QuestionPriority.NORMAL;
 
+    @Builder.Default
     @ElementCollection
     @CollectionTable(name = "question_tags", joinColumns = @JoinColumn(name = "question_id"))
     @Column(name = "tag")
@@ -91,9 +94,11 @@ public class ExpertQuestion {
     private User answeredBy;
 
     // Visibility
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isPublic = true; // If false, only visible to student and expert
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isAnonymous = false; // Hide student identity
 
@@ -103,21 +108,26 @@ public class ExpertQuestion {
     @JsonIgnoreProperties({"followUpQuestions"})
     private com.studybuddy.expert.model.ExpertQuestion parentQuestion; // For follow-up questions
 
+    @Builder.Default
     @OneToMany(mappedBy = "parentQuestion", cascade = CascadeType.ALL)
     @JsonIgnoreProperties({"parentQuestion"})
     private List<com.studybuddy.expert.model.ExpertQuestion> followUpQuestions = new ArrayList<>();
 
     // Engagement metrics
+    @Builder.Default
     @Column(nullable = false)
     private Integer viewCount = 0;
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer upvotes = 0;
 
+    @Builder.Default
     @Column(nullable = false)
     private Integer downvotes = 0;
 
     // Helpfulness
+    @Builder.Default
     @Column
     private Boolean isAnswerAccepted = false;
 
@@ -128,6 +138,7 @@ public class ExpertQuestion {
     private String studentFeedback;
 
     // Attachments
+    @Builder.Default
     @ElementCollection
     @CollectionTable(name = "question_attachments", joinColumns = @JoinColumn(name = "question_id"))
     @Column(name = "attachment_url")
@@ -144,6 +155,7 @@ public class ExpertQuestion {
     @Column
     private LocalDateTime dueDate; // If student needs answer by certain time
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean isUrgent = false;
 
