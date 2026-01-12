@@ -69,7 +69,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const needsQuizOnboarding = !isAdmin && user?.role === 'USER' && requiresQuiz;
 
   // Redirect to quiz if needed (but not if already on quiz route)
-  if (needsQuizOnboarding && !isQuizRoute && !isOnboardingRoute) {
+  if (needsQuizOnboarding && !isQuizRoute) {
     return <Navigate to="/quiz-onboarding" replace />;
   }
 
