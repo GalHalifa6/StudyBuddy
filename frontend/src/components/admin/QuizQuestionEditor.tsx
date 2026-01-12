@@ -83,13 +83,15 @@ const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       if (option) {
         const index = question.options.findIndex(opt => opt.optionId === optionId);
         setEditingOptionIndex(index);
-        const updatedOptions = [...options];
-        updatedOptions[index] = {
-          optionText: option.optionText,
-          orderIndex: option.orderIndex,
-          roleWeights: { ...option.roleWeights },
-        };
-        setOptions(updatedOptions);
+        setOptions(prevOptions => {
+          const updatedOptions = [...prevOptions];
+          updatedOptions[index] = {
+            optionText: option.optionText,
+            orderIndex: option.orderIndex,
+            roleWeights: { ...option.roleWeights },
+          };
+          return updatedOptions;
+        });
       }
     }
   }, [isEditingOption, question, optionId]);
@@ -114,7 +116,7 @@ const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
     setOptions(options.filter((_, i) => i !== index));
   };
 
-  const handleUpdateOption = (index: number, field: keyof CreateOptionRequest, value: any) => {
+  const handleUpdateOption = (index: number, field: keyof CreateOptionRequest, value: string | number | Record<RoleType, number>) => {
     const updated = [...options];
     updated[index] = { ...updated[index], [field]: value };
     setOptions(updated);

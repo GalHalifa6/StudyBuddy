@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   getAdminQuestions,
   createAdminQuestion,
@@ -11,6 +11,7 @@ import {
   QuizQuestionAdmin,
   CreateQuestionRequest,
   UpdateQuestionRequest,
+  UpdateOptionRequest,
   RoleType,
   QuizConfig,
 } from '../../api/quiz';
@@ -53,12 +54,7 @@ const QuizManagement: React.FC = () => {
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<number>>(new Set());
   const [savingConfig, setSavingConfig] = useState(false);
 
-  useEffect(() => {
-    loadQuestions();
-    loadConfig();
-  }, []);
-
-  const loadQuestions = async () => {
+  const loadQuestions = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getAdminQuestions();
@@ -69,9 +65,9 @@ const QuizManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showError]);
 
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     try {
       setConfigLoading(true);
       const data = await getQuizConfig();
@@ -84,7 +80,12 @@ const QuizManagement: React.FC = () => {
     } finally {
       setConfigLoading(false);
     }
-  };
+  }, [showError]);
+
+  useEffect(() => {
+    loadQuestions();
+    loadConfig();
+  }, [loadQuestions, loadConfig]);
 
   const handleSaveConfig = async () => {
     try {
@@ -189,7 +190,7 @@ const QuizManagement: React.FC = () => {
     setShowEditor(true);
   };
 
-  const handleSaveOption = async (questionId: number, optionId: number, optionData: any) => {
+  const handleSaveOption = async (questionId: number, optionId: number, optionData: UpdateOptionRequest) => {
     try {
       await updateAdminOption(questionId, optionId, optionData);
       showSuccess('Option updated successfully');

@@ -634,7 +634,7 @@ const SessionRoom: React.FC = () => {
         />
       </div>
     );
-  }, [sessionStatus, session?.id, session?.meetingLink, user?.fullName, user?.username, jitsiAuth]);
+  }, [sessionStatus, session?.id, session?.meetingLink, user?.fullName, user?.username, user?.email, user?.id, isSessionExpert, jitsiAuth]);
 
   // Real-time whiteboard drawing
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
