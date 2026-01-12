@@ -4,11 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { authService, topicsService } from '../api';
 import { API_BASE_URL } from '../config/api';
 import { getProfile } from '../api/quiz';
-import type { Topic, TopicsByCategoryResponse } from '../api/topics';
+import type { TopicsByCategoryResponse } from '../api/topics';
 import {
   Save,
   Loader2,
-  BookOpen,
   Clock,
   MessageSquare,
   CheckCircle,
