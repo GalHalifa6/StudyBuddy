@@ -244,6 +244,61 @@ For production, consider:
    - Set up load balancing
    - Configure database connection pooling
 
+## 📱 Mobile App with Docker Backend
+
+The mobile app (studybuddy-mobile) typically runs outside Docker using Expo CLI, but connects to the Dockerized backend.
+
+### Running Mobile App Locally with Docker Backend
+
+1. **Start Docker services** (backend, frontend, database):
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Find your machine's IP address**:
+   - **Windows**: Run `ipconfig` and look for IPv4 Address
+   - **Mac/Linux**: Run `ifconfig` or `ip addr show`
+
+3. **Configure mobile app environment**:
+   Create `studybuddy-mobile/.env`:
+   ```env
+   # Use your machine's IP address (not localhost!)
+   EXPO_PUBLIC_API_BASE_URL=http://YOUR_MACHINE_IP:8080
+   EXPO_PUBLIC_WS_BASE_URL=ws://YOUR_MACHINE_IP:8080
+   ```
+
+4. **Start mobile app**:
+   ```bash
+   cd studybuddy-mobile
+   npm install
+   npm start
+   ```
+
+5. **Connect from device**:
+   - Scan QR code with Expo Go app
+   - Ensure your device is on the same network as your computer
+   - Ensure firewall allows connections on port 8080
+
+### Important Notes
+
+- **Use host IP, not `localhost`**: Mobile devices can't access `localhost` on your computer
+- **Same network**: Device and computer must be on the same WiFi network
+- **Firewall**: Ensure port 8080 is accessible from your network
+- **Backend CORS**: Backend is configured to allow all origins (`*`) by default
+
+### Mobile App Dockerfile (Optional)
+
+The mobile app includes a Dockerfile for CI/CD or containerized development:
+```bash
+# Build mobile app container
+docker build -t studybuddy-mobile ./studybuddy-mobile
+
+# Run mobile dev server in container
+docker run -p 8081:8081 studybuddy-mobile
+```
+
+**Note**: For normal development, use Expo CLI directly (`npm start`), not Docker.
+
 ## 📚 Additional Resources
 
 - [Docker Documentation](https://docs.docker.com/)
