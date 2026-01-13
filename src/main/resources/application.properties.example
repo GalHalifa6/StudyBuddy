@@ -5,21 +5,25 @@
 server.port=8080
 server.servlet.context-path=/
 
-# Database Configuration (H2 in-memory for development)
-spring.datasource.url=jdbc:h2:file:./data/studybuddy
-spring.datasource.driverClassName=org.h2.Driver
-spring.datasource.username=sa
-spring.datasource.password=
+# Database Configuration (PostgreSQL)
+# Environment variables override these defaults (used in Docker)
+# For local development: Set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
+# For Docker: These are set via docker-compose.yml environment variables
+spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/studybuddy}
+spring.datasource.driverClassName=${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+spring.datasource.username=${SPRING_DATASOURCE_USERNAME:studybuddy}
+spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:studybuddy_password}
 
-# H2 Console (for development)
-spring.h2.console.enabled=true
-spring.h2.console.path=/h2-console
-
-# JPA Configuration
-spring.jpa.hibernate.ddl-auto=update
+# JPA/Hibernate Configuration
+spring.jpa.database-platform=${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
+# Use 'update' for production, 'create' only for initial schema creation
+spring.jpa.hibernate.ddl-auto=${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
 spring.jpa.show-sql=false
-spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect
 spring.jpa.properties.hibernate.format_sql=true
+
+# H2 Console (disabled for PostgreSQL)
+spring.h2.console.enabled=false
+spring.h2.console.path=/h2-console
 
 # JWT Configuration
 jwt.secret=your-secret-key-change-in-production-min-256-bits
