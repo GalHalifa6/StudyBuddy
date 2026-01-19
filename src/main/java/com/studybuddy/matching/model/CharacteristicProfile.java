@@ -6,8 +6,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
 @Entity
 @Table(name = "characteristic_profiles")
@@ -26,16 +24,34 @@ public class CharacteristicProfile {
     @ToString.Exclude
     private com.studybuddy.user.model.User user;
     
-    /**
-     * Normalized scores (0.0 to 1.0) for each role.
-     */
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "profile_role_scores",
-                     joinColumns = @JoinColumn(name = "profile_id"))
-    @MapKeyEnumerated(EnumType.STRING)
-    @Column(name = "score")
+    // Direct role score columns for efficient querying (0.0 to 1.0)
+    @Column(name = "score_leader")
     @Builder.Default
-    private Map<RoleType, Double> roleScores = new HashMap<>();
+    private Double scoreLeader = 0.0;
+
+    @Column(name = "score_planner")
+    @Builder.Default
+    private Double scorePlanner = 0.0;
+
+    @Column(name = "score_expert")
+    @Builder.Default
+    private Double scoreExpert = 0.0;
+
+    @Column(name = "score_creative")
+    @Builder.Default
+    private Double scoreCreative = 0.0;
+
+    @Column(name = "score_communicator")
+    @Builder.Default
+    private Double scoreCommunicator = 0.0;
+
+    @Column(name = "score_team_player")
+    @Builder.Default
+    private Double scoreTeamPlayer = 0.0;
+
+    @Column(name = "score_challenger")
+    @Builder.Default
+    private Double scoreChallenger = 0.0;
     
     @Column(nullable = false)
     @Builder.Default
@@ -77,9 +93,6 @@ public class CharacteristicProfile {
     @PreUpdate
     protected void onSave() {
         this.updatedAt = LocalDateTime.now();
-        if (this.roleScores == null) {
-            this.roleScores = new HashMap<>();
-        }
         if (this.reliabilityPercentage == null) {
             updateReliability();
         }
@@ -87,21 +100,36 @@ public class CharacteristicProfile {
     
     @PostLoad
     protected void onLoad() {
-        if (this.roleScores == null) {
-            this.roleScores = new HashMap<>();
-        }
         if (this.reliabilityPercentage == null) {
             this.reliabilityPercentage = 0.0;
         }
     }
     
     public void setRoleScore(RoleType role, Double score) {
-        this.roleScores.put(role, Math.max(0.0, Math.min(1.0, score)));
+        double normalizedScore = score == null ? 0.0 : Math.max(0.0, Math.min(1.0, score));
+        switch (role) {
+            case LEADER -> this.scoreLeader = normalizedScore;
+            case PLANNER -> this.scorePlanner = normalizedScore;
+            case EXPERT -> this.scoreExpert = normalizedScore;
+            case CREATIVE -> this.scoreCreative = normalizedScore;
+            case COMMUNICATOR -> this.scoreCommunicator = normalizedScore;
+            case TEAM_PLAYER -> this.scoreTeamPlayer = normalizedScore;
+            case CHALLENGER -> this.scoreChallenger = normalizedScore;
+        }
         this.updatedAt = LocalDateTime.now();
     }
     
     public Double getRoleScore(RoleType role) {
-        return roleScores.getOrDefault(role, 0.0);
+        Double score = switch (role) {
+            case LEADER -> this.scoreLeader;
+            case PLANNER -> this.scorePlanner;
+            case EXPERT -> this.scoreExpert;
+            case CREATIVE -> this.scoreCreative;
+            case COMMUNICATOR -> this.scoreCommunicator;
+            case TEAM_PLAYER -> this.scoreTeamPlayer;
+            case CHALLENGER -> this.scoreChallenger;
+        };
+        return score == null ? 0.0 : score;
     }
     
     /**
@@ -131,12 +159,17 @@ public class CharacteristicProfile {
      * Get the dominant (highest scoring) role.
      */
     public RoleType getDominantRole() {
-        if (roleScores == null || roleScores.isEmpty()) {
-            return RoleType.TEAM_PLAYER;
+        RoleType dominant = RoleType.TEAM_PLAYER;
+        double maxScore = getRoleScore(RoleType.TEAM_PLAYER);
+
+        for (RoleType role : RoleType.values()) {
+            double score = getRoleScore(role);
+            if (score > maxScore) {
+                maxScore = score;
+                dominant = role;
+            }
         }
-        return roleScores.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse(RoleType.TEAM_PLAYER);
+
+        return dominant;
     }
 }

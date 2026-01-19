@@ -7,6 +7,7 @@ import com.studybuddy.group.model.*;
 import com.studybuddy.course.model.*;
 import com.studybuddy.matching.model.*;
 import com.studybuddy.matching.repository.CharacteristicProfileRepository;
+import com.studybuddy.matching.repository.GroupCharacteristicProfileRepository;
 import com.studybuddy.course.repository.CourseRepository;
 import com.studybuddy.group.repository.StudyGroupRepository;
 import com.studybuddy.user.repository.UserRepository;
@@ -19,8 +20,10 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Matching Service implementing Variance Reduction Algorithm
- * for psychological safety optimization.
+ * Matching Service implementing Cosine Similarity Algorithm with Complementary Vectors.
+ * Matches students with groups based on gap-filling: students who excel in roles
+ * the group lacks receive higher match scores.
+ * Uses pre-computed GroupCharacteristicProfiles for efficient matching.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,17 +31,11 @@ import java.util.stream.Collectors;
 public class MatchingService {
     
     private final CharacteristicProfileRepository profileRepository;
+    private final GroupCharacteristicProfileRepository groupProfileRepository;
     private final StudyGroupRepository groupRepository;
-    private final UserRepository userRepository;
-    private final CourseRepository courseRepository;
     
     /**
-     * Find top matched groups using variance reduction algorithm.
-     * 
-     * Steps:
-     * 1. Hard filters (course, availability, language)
-     * 2. Calculate variance reduction for each candidate group
-     * 3. Rank by lowest projected variance (most balanced team)
+     * Find top matched groups using cosine similarity with complementary vectors.
      */
     @Transactional(readOnly = true)
     public List<MiniFeedDto.GroupRecommendation> getTopGroups(User student) {
@@ -63,14 +60,12 @@ public class MatchingService {
             return Collections.emptyList();
         }
         
-        // STEP 1: Hard Filters
-        List<StudyGroup> candidateGroups = groupRepository.findAll().stream()
-                .filter(group -> applyHardFilters(group, student, enrolledCourseIds))
-                .collect(Collectors.toList());
+        // Fetch groups with database-level filtering (hard filters applied)
+        List<StudyGroup> candidateGroups = groupRepository.findMatchableGroups(enrolledCourseIds, student.getId());
         
-        log.info("Found {} candidate groups after hard filters", candidateGroups.size());
+        log.info("Found {} candidate groups after database filtering", candidateGroups.size());
         
-        // STEP 2: Calculate match scores using variance reduction
+        // Calculate match scores using variance reduction
         List<MiniFeedDto.GroupRecommendation> recommendations = candidateGroups.stream()
                 .map(group -> calculateMatchScore(group, studentProfile))
                 .filter(Objects::nonNull)
@@ -82,70 +77,27 @@ public class MatchingService {
     }
     
     /**
-     * Apply hard filters for group eligibility.
-     */
-    private boolean applyHardFilters(StudyGroup group, User student, Set<Long> enrolledCourseIds) {
-        // Must be in same course
-        if (group.getCourse() == null || !enrolledCourseIds.contains(group.getCourse().getId())) {
-            return false;
-        }
-        
-        // Must have capacity
-        int currentSize = group.getMembers() != null ? group.getMembers().size() : 0;
-        if (currentSize >= group.getMaxSize()) {
-            return false;
-        }
-        
-        // Student must not already be a member
-        if (group.getMembers() != null && group.getMembers().stream()
-                .anyMatch(m -> m.getId().equals(student.getId()))) {
-            return false;
-        }
-        
-        // Must be open or approval-based (not private)
-        if ("PRIVATE".equals(group.getVisibility())) {
-            return false;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Calculate match score using Variance Reduction Algorithm.
+     * Calculate match score using cosine similarity with complementary vector.
      */
     private MiniFeedDto.GroupRecommendation calculateMatchScore(StudyGroup group, 
                                                                  CharacteristicProfile studentProfile) {
         try {
-            // Get profiles of all current members
-            List<CharacteristicProfile> memberProfiles = group.getMembers().stream()
-                    .map(member -> profileRepository.findByUserId(member.getId()))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toList());
+            // Get pre-computed group profile
+            Optional<GroupCharacteristicProfile> groupProfileOpt = groupProfileRepository.findByGroupId(group.getId());
             
-            if (memberProfiles.isEmpty()) {
-                // New group, no variance yet
-                return buildRecommendation(group, studentProfile, 0.0, 0.0, 0.5, 
-                        "New group - be a founding member!");
+            if (groupProfileOpt.isEmpty() || groupProfileOpt.get().getMemberCount() == 0) {
+                // New group - encourage joining
+                return buildRecommendation(group, 0.75, "New group - be a founding member!");
             }
             
-            // Calculate current group variance
-            Map<RoleType, Double> currentGroupProfile = calculateAverageProfile(memberProfiles);
-            double currentVariance = calculateVariance(currentGroupProfile);
+            GroupCharacteristicProfile groupProfile = groupProfileOpt.get();
+            Map<RoleType, Double> currentAverages = groupProfile.getAverageRoleScores();
             
-            // Calculate projected variance with student added
-            List<CharacteristicProfile> projectedProfiles = new ArrayList<>(memberProfiles);
-            projectedProfiles.add(studentProfile);
-            Map<RoleType, Double> projectedGroupProfile = calculateAverageProfile(projectedProfiles);
-            double projectedVariance = calculateVariance(projectedGroupProfile);
+            // Calculate cosine similarity between student and group's complementary vector
+            double cosineSimilarity = calculateCosineSimilarity(studentProfile, currentAverages);
+            String matchReason = generateMatchReason(cosineSimilarity);
             
-            // Calculate match score
-            double varianceReduction = currentVariance - projectedVariance;
-            double matchScore = calculateMatchScoreFromVariance(varianceReduction, currentVariance);
-            String matchReason = generateMatchReason(studentProfile, currentGroupProfile, varianceReduction);
-            
-            return buildRecommendation(group, studentProfile, currentVariance, 
-                    projectedVariance, matchScore, matchReason);
+            return buildRecommendation(group, cosineSimilarity, matchReason);
             
         } catch (Exception e) {
             log.error("Error calculating match score for group {}: {}", group.getId(), e.getMessage());
@@ -154,67 +106,70 @@ public class MatchingService {
     }
     
     /**
-     * Calculate average profile across all members.
+     * Calculate cosine similarity between student profile and group's complementary vector.
+     * Complementary vector = (1.0 - avg_role1, 1.0 - avg_role2, ..., 1.0 - avg_role7)
+     * 
+     * This measures how well the student fills the gaps in the group.
+     * High score = student excels in roles the group lacks
+     * Low score = student overlaps with group's existing strengths
      */
-    private Map<RoleType, Double> calculateAverageProfile(List<CharacteristicProfile> profiles) {
-        Map<RoleType, Double> average = new HashMap<>();
+    private double calculateCosineSimilarity(CharacteristicProfile studentProfile,
+                                            Map<RoleType, Double> groupAverages) {
+        // Build complementary vector: what the group is missing
+        Map<RoleType, Double> complementaryVector = new HashMap<>();
+        for (RoleType role : RoleType.values()) {
+            double groupAvg = groupAverages.getOrDefault(role, 0.0);
+            complementaryVector.put(role, 1.0 - groupAvg);
+        }
+        
+        // Calculate dot product
+        double dotProduct = 0.0;
+        for (RoleType role : RoleType.values()) {
+            double studentScore = studentProfile.getRoleScore(role);
+            double complementaryScore = complementaryVector.get(role);
+            dotProduct += studentScore * complementaryScore;
+        }
+        
+        // Calculate magnitudes
+        double studentMagnitude = 0.0;
+        double complementaryMagnitude = 0.0;
         
         for (RoleType role : RoleType.values()) {
-            double sum = profiles.stream()
-                    .mapToDouble(p -> p.getRoleScore(role))
-                    .sum();
-            average.put(role, sum / profiles.size());
+            double studentScore = studentProfile.getRoleScore(role);
+            double complementaryScore = complementaryVector.get(role);
+            studentMagnitude += studentScore * studentScore;
+            complementaryMagnitude += complementaryScore * complementaryScore;
         }
         
-        return average;
-    }
-    
-    /**
-     * Calculate variance (standard deviation) of profile.
-     * Lower variance = more balanced/uniform team.
-     */
-    private double calculateVariance(Map<RoleType, Double> profile) {
-        double mean = profile.values().stream()
-                .mapToDouble(Double::doubleValue)
-                .average()
-                .orElse(0.0);
+        studentMagnitude = Math.sqrt(studentMagnitude);
+        complementaryMagnitude = Math.sqrt(complementaryMagnitude);
         
-        double variance = profile.values().stream()
-                .mapToDouble(score -> Math.pow(score - mean, 2))
-                .average()
-                .orElse(0.0);
-        
-        return Math.sqrt(variance); // Standard deviation
-    }
-    
-    /**
-     * Convert variance reduction to match score (0.0 to 1.0).
-     */
-    private double calculateMatchScoreFromVariance(double varianceReduction, double currentVariance) {
-        if (currentVariance == 0.0) {
-            return 0.5; // Neutral
+        // Handle edge cases
+        if (studentMagnitude == 0.0 || complementaryMagnitude == 0.0) {
+            return 0.0;
         }
         
-        double normalizedReduction = varianceReduction / currentVariance;
-        double score = 0.5 + (normalizedReduction * 0.5);
+        // Cosine similarity: cos(θ) = (A·B) / (||A|| * ||B||)
+        double cosineSim = dotProduct / (studentMagnitude * complementaryMagnitude);
         
-        return Math.max(0.0, Math.min(1.0, score));
+        // Clamp to [0, 1] range (should already be in this range, but ensure it)
+        return Math.max(0.0, Math.min(1.0, cosineSim));
     }
     
     /**
-     * Generate match quality description based on score.
+     * Generate match quality description based on cosine similarity score.
      */
-    private String generateMatchReason(CharacteristicProfile studentProfile, 
-                                       Map<RoleType, Double> groupProfile,
-                                       double varianceReduction) {
-        if (varianceReduction > 0.05) {
-            return "Highly compatible - complements team strengths";
-        } else if (varianceReduction > 0) {
-            return "Good compatibility - maintains team balance";
-        } else if (varianceReduction > -0.05) {
-            return "Moderate compatibility";
+    private String generateMatchReason(double cosineSimilarity) {
+        if (cosineSimilarity >= 0.85) {
+            return "Perfect fit - you complete this team!";
+        } else if (cosineSimilarity >= 0.70) {
+            return "Excellent match - fills key gaps in the group";
+        } else if (cosineSimilarity >= 0.55) {
+            return "Good match - complements team strengths";
+        } else if (cosineSimilarity >= 0.40) {
+            return "Moderate match - some overlapping roles";
         } else {
-            return "Lower compatibility - overlapping profiles";
+            return "Different strengths - group already strong in your areas";
         }
     }
     
@@ -222,14 +177,9 @@ public class MatchingService {
      * Build recommendation DTO.
      */
     private MiniFeedDto.GroupRecommendation buildRecommendation(StudyGroup group,
-                                                                 CharacteristicProfile studentProfile,
-                                                                 double currentVariance,
-                                                                 double projectedVariance,
                                                                  double matchScore,
                                                                  String matchReason) {
         int currentSize = group.getMembers() != null ? group.getMembers().size() : 0;
-        
-        // Convert match score (0.0-1.0) to percentage (0-100)
         int matchPercentage = (int) Math.round(matchScore * 100);
         
         return MiniFeedDto.GroupRecommendation.builder()
@@ -240,8 +190,6 @@ public class MatchingService {
                 .maxSize(group.getMaxSize())
                 .matchPercentage(matchPercentage)
                 .matchReason(matchReason)
-                .currentVariance(currentVariance)
-                .projectedVariance(projectedVariance)
                 .build();
     }
     
@@ -267,20 +215,12 @@ public class MatchingService {
             return Collections.emptyList();
         }
         
-        // Get all groups from enrolled courses
-        List<StudyGroup> allGroups = groupRepository.findAll().stream()
+        // Get base matchable groups from database (applies core hard filters)
+        List<StudyGroup> allGroups = groupRepository.findMatchableGroups(enrolledCourseIds, student.getId());
+        
+        // Apply additional optional filters in-memory
+        List<StudyGroup> filteredGroups = allGroups.stream()
                 .filter(group -> {
-                    // Must be in enrolled course
-                    if (group.getCourse() == null || !enrolledCourseIds.contains(group.getCourse().getId())) {
-                        return false;
-                    }
-                    
-                    // Exclude groups where user is already a member
-                    if (group.getMembers() != null && 
-                        group.getMembers().stream().anyMatch(member -> member.getId().equals(student.getId()))) {
-                        return false;
-                    }
-                    
                     // Apply course filter if specified
                     if (courseId != null && !courseId.equals(group.getCourse().getId())) {
                         return false;
@@ -310,10 +250,10 @@ public class MatchingService {
                 })
                 .collect(Collectors.toList());
         
-        log.info("Found {} groups after applying filters", allGroups.size());
+        log.info("Found {} groups after applying filters", filteredGroups.size());
         
         // Calculate match scores for all groups
-        return allGroups.stream()
+        return filteredGroups.stream()
                 .map(group -> calculateGroupMatchDto(group, student, studentProfile))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -345,46 +285,32 @@ public class MatchingService {
             boolean isMember = group.getMembers() != null && 
                     group.getMembers().stream().anyMatch(m -> m.getId().equals(student.getId()));
             
-            // Calculate match percentage
-            int matchPercentage = 50; // Default
-            String matchReason = "Standard compatibility";
-            Double currentVariance = null;
-            Double projectedVariance = null;
+            int matchPercentage;
+            String matchReason;
             
-            if (studentProfile != null && !isMember) {
-                // Get profiles of all current members
-                List<CharacteristicProfile> memberProfiles = group.getMembers().stream()
-                        .map(member -> profileRepository.findByUserId(member.getId()))
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .collect(Collectors.toList());
+            if (isMember) {
+                matchPercentage = 100;
+                matchReason = "You are a member of this group";
+            } else if (studentProfile == null) {
+                matchPercentage = 50;
+                matchReason = "Complete your profile quiz for accurate matching";
+            } else {
+                // Get pre-computed group profile
+                Optional<GroupCharacteristicProfile> groupProfileOpt = 
+                    groupProfileRepository.findByGroupId(group.getId());
                 
-                if (memberProfiles.isEmpty()) {
-                    // New group
+                if (groupProfileOpt.isEmpty() || groupProfileOpt.get().getMemberCount() == 0) {
                     matchPercentage = 75;
                     matchReason = "New group - be a founding member!";
                 } else {
-                    // Calculate variance-based score
-                    Map<RoleType, Double> currentGroupProfile = calculateAverageProfile(memberProfiles);
-                    currentVariance = calculateVariance(currentGroupProfile);
+                    GroupCharacteristicProfile groupProfile = groupProfileOpt.get();
+                    Map<RoleType, Double> currentAverages = groupProfile.getAverageRoleScores();
                     
-                    List<CharacteristicProfile> projectedProfiles = new ArrayList<>(memberProfiles);
-                    projectedProfiles.add(studentProfile);
-                    Map<RoleType, Double> projectedGroupProfile = calculateAverageProfile(projectedProfiles);
-                    projectedVariance = calculateVariance(projectedGroupProfile);
-                    
-                    double varianceReduction = currentVariance - projectedVariance;
-                    double matchScore = calculateMatchScoreFromVariance(varianceReduction, currentVariance);
-                    matchPercentage = (int) Math.round(matchScore * 100);
-                    matchReason = generateMatchReason(studentProfile, currentGroupProfile, varianceReduction);
+                    double cosineSimilarity = calculateCosineSimilarity(studentProfile, currentAverages);
+                    matchPercentage = (int) Math.round(cosineSimilarity * 100);
+                    matchReason = generateMatchReason(cosineSimilarity);
                 }
-            } else if (isMember) {
-                matchPercentage = 100;
-                matchReason = "You are a member of this group";
             }
-            
-            // Apply adjustments based on group characteristics
-            matchPercentage = applyGroupCharacteristicAdjustments(matchPercentage, group, currentSize, isMember);
             
             return GroupMatchDto.builder()
                     .groupId(group.getId())
@@ -401,8 +327,6 @@ public class MatchingService {
                     .matchReason(matchReason)
                     .isMember(isMember)
                     .hasPendingRequest(false) // TODO: Check pending requests
-                    .currentVariance(currentVariance)
-                    .projectedVariance(projectedVariance)
                     .createdAt(group.getCreatedAt() != null ? group.getCreatedAt().toString() : null)
                     .build();
                     
@@ -410,44 +334,5 @@ public class MatchingService {
             log.error("Error calculating match for group {}: {}", group.getId(), e.getMessage());
             return null;
         }
-    }
-    
-    /**
-     * Apply adjustments based on group characteristics.
-     */
-    private int applyGroupCharacteristicAdjustments(int baseScore, StudyGroup group, 
-                                                     int currentSize, boolean isMember) {
-        int adjustedScore = baseScore;
-        
-        // If already a member, cap at 100
-        if (isMember) {
-            return 100;
-        }
-        
-        // Availability adjustment
-        double fillPercentage = (double) currentSize / group.getMaxSize();
-        if (fillPercentage >= 1.0) {
-            adjustedScore -= 30; // Full groups less appealing
-        } else if (fillPercentage > 0.8) {
-            adjustedScore -= 10; // Almost full
-        } else if (fillPercentage < 0.3 && currentSize > 0) {
-            adjustedScore += 5; // Plenty of space
-        }
-        
-        // Visibility adjustment
-        if ("OPEN".equalsIgnoreCase(group.getVisibility())) {
-            adjustedScore += 5; // Easy to join
-        } else if ("PRIVATE".equalsIgnoreCase(group.getVisibility())) {
-            adjustedScore -= 20; // Hard to join
-        }
-        
-        // Size preference adjustment
-        if (group.getMaxSize() <= 6) {
-            adjustedScore += 5; // Intimate groups
-        } else if (group.getMaxSize() > 15) {
-            adjustedScore -= 5; // Very large groups
-        }
-        
-        return Math.max(10, Math.min(100, adjustedScore));
     }
 }

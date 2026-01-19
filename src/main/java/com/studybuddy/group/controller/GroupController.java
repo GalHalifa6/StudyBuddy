@@ -2,6 +2,9 @@ package com.studybuddy.group.controller;
 
 import com.studybuddy.group.model.*;
 import com.studybuddy.group.repository.*;
+import com.studybuddy.matching.event.GroupCreatedEvent;
+import com.studybuddy.matching.event.GroupMemberJoinedEvent;
+import com.studybuddy.matching.event.GroupMemberLeftEvent;
 import com.studybuddy.user.model.User;
 import com.studybuddy.user.model.Role;
 import com.studybuddy.user.repository.UserRepository;
@@ -12,6 +15,7 @@ import com.studybuddy.messaging.repository.MessageRepository;
 import com.studybuddy.messaging.repository.MessageReceiptRepository;
 import com.studybuddy.notification.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -46,6 +50,9 @@ public class GroupController {
 
     @Autowired
     private MessageReceiptRepository messageReceiptRepository;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -114,6 +121,11 @@ public class GroupController {
 
             // Refetch the group to include the updated members
             savedGroup = groupRepository.findById(savedGroup.getId()).orElse(savedGroup);
+
+            // Publish event for group profile creation
+            eventPublisher.publishEvent(
+                new GroupCreatedEvent(savedGroup.getId(), creator.getId(), LocalDateTime.now())
+            );
 
             return ResponseEntity.ok(savedGroup);
         } catch (Exception e) {
@@ -329,6 +341,12 @@ public class GroupController {
             group.getMembers().add(user);
             userRepository.save(user);
             groupRepository.save(group);
+            
+            // Publish event for group profile recalculation
+            eventPublisher.publishEvent(
+                new GroupMemberJoinedEvent(group.getId(), user.getId(), LocalDateTime.now())
+            );
+            
             return ResponseEntity.ok(Map.of("message", "Joined group successfully", "status", "JOINED"));
         }
 
@@ -686,6 +704,11 @@ public class GroupController {
 
         user.getGroups().remove(group);
         userRepository.save(user);
+        
+        // Publish event for group profile recalculation
+        eventPublisher.publishEvent(
+            new GroupMemberLeftEvent(group.getId(), user.getId(), LocalDateTime.now())
+        );
 
         return ResponseEntity.ok(Map.of("message", "Left group successfully"));
     }
