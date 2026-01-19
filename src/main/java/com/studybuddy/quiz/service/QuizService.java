@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studybuddy.quiz.dto.QuizDto;
 import com.studybuddy.admin.model.AdminAuditLog;
+import com.studybuddy.matching.event.UserProfileUpdatedEvent;
 import com.studybuddy.matching.model.CharacteristicProfile;
 import com.studybuddy.quiz.model.QuizOption;
 import com.studybuddy.quiz.model.QuizQuestion;
@@ -18,11 +19,13 @@ import com.studybuddy.quiz.repository.QuizQuestionRepository;
 import com.studybuddy.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,6 +45,7 @@ public class QuizService {
     private final AdminAuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
     private final com.studybuddy.quiz.repository.QuizConfigRepository quizConfigRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     /**
@@ -198,7 +202,6 @@ public class QuizService {
         CharacteristicProfile profile = profileRepository.findByUserId(user.getId())
                 .orElse(CharacteristicProfile.builder()
                         .user(user)
-                        .roleScores(new HashMap<>())
                         .build());
         
         for (Map.Entry<RoleType, Double> entry : normalizedScores.entrySet()) {
@@ -215,6 +218,11 @@ public class QuizService {
         
         log.info("Profile created/updated for user {}. Status: {}, Questions: {}/{}", 
                 user.getId(), quizStatus, answeredQuestions, totalQuestions);
+        
+        // Publish event for group profile recalculation if user is in any groups
+        eventPublisher.publishEvent(
+            new UserProfileUpdatedEvent(user.getId(), LocalDateTime.now())
+        );
         
         String message;
         if (quizStatus == QuizStatus.COMPLETED) {
@@ -246,7 +254,6 @@ public class QuizService {
         CharacteristicProfile profile = profileRepository.findByUserId(user.getId())
                 .orElse(CharacteristicProfile.builder()
                         .user(user)
-                        .roleScores(new HashMap<>())
                         .build());
         
         profile.setQuizStatus(QuizStatus.SKIPPED);

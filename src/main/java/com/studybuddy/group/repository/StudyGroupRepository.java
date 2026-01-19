@@ -29,6 +29,23 @@ public interface StudyGroupRepository extends JpaRepository<StudyGroup, Long> {
     @Query("SELECT g FROM StudyGroup g WHERE g.course.id = :courseId AND g.visibility = 'open' AND g.isActive = true")
     List<StudyGroup> findOpenGroupsByCourse(@Param("courseId") Long courseId);
     
+    /**
+     * Find groups that are matchable for a student based on hard filters:
+     * - Group is in one of student's enrolled courses
+     * - Group is not full (has available space)
+     * - Student is not already a member
+     * - Group is not private
+     */
+    @Query("SELECT g FROM StudyGroup g WHERE " +
+           "g.course.id IN :courseIds AND " +
+           "SIZE(g.members) < g.maxSize AND " +
+           "g.visibility != 'PRIVATE' AND " +
+           ":studentId NOT MEMBER OF g.members")
+    List<StudyGroup> findMatchableGroups(
+        @Param("courseIds") java.util.Set<Long> courseIds,
+        @Param("studentId") Long studentId
+    );
+    
     // Eagerly fetch groups with members for admin panel
     @Query("SELECT DISTINCT g FROM StudyGroup g LEFT JOIN FETCH g.members LEFT JOIN FETCH g.course LEFT JOIN FETCH g.creator WHERE g.id IN :ids")
     List<StudyGroup> findByIdsWithMembers(@Param("ids") List<Long> ids);

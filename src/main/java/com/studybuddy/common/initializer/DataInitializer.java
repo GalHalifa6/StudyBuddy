@@ -1233,7 +1233,6 @@ public class DataInitializer implements CommandLineRunner {
         if (existingProfile == null) {
             CharacteristicProfile profile = CharacteristicProfile.builder()
                     .user(savedStudent)
-                    .roleScores(new java.util.HashMap<>())
                     .quizStatus(com.studybuddy.quiz.model.QuizStatus.COMPLETED)
                     .totalQuestions(20)
                     .answeredQuestions(20)
