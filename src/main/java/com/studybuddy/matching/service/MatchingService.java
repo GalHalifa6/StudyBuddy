@@ -30,6 +30,17 @@ import java.util.stream.Collectors;
 @Slf4j
 public class MatchingService {
     
+    // Per-role target composition for balanced teams
+    private static final Map<RoleType, Double> TARGET = Map.of(
+        RoleType.TEAM_PLAYER, 0.7,
+        RoleType.COMMUNICATOR, 0.7,
+        RoleType.PLANNER, 0.6,
+        RoleType.EXPERT, 0.6,
+        RoleType.LEADER, 0.55,
+        RoleType.CREATIVE, 0.5,
+        RoleType.CHALLENGER, 0.45
+    );
+    
     private final CharacteristicProfileRepository profileRepository;
     private final GroupCharacteristicProfileRepository groupProfileRepository;
     private final StudyGroupRepository groupRepository;
@@ -65,9 +76,20 @@ public class MatchingService {
         
         log.info("Found {} candidate groups after database filtering", candidateGroups.size());
         
-        // Calculate match scores using variance reduction
+        // Batch fetch group profiles to avoid N+1 queries
+        List<Long> groupIds = candidateGroups.stream()
+                .map(StudyGroup::getId)
+                .collect(Collectors.toList());
+        
+        Map<Long, GroupCharacteristicProfile> profileMap = groupProfileRepository.findByGroupIdIn(groupIds)
+                .stream()
+                .collect(Collectors.toMap(GroupCharacteristicProfile::getGroupId, gp -> gp));
+        
+        log.info("Batch loaded {} group profiles", profileMap.size());
+        
+        // Calculate match scores
         List<MiniFeedDto.GroupRecommendation> recommendations = candidateGroups.stream()
-                .map(group -> calculateMatchScore(group, studentProfile))
+                .map(group -> calculateMatchScore(group, studentProfile, profileMap))
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(MiniFeedDto.GroupRecommendation::getMatchPercentage).reversed())
                 .limit(10)
@@ -77,27 +99,48 @@ public class MatchingService {
     }
     
     /**
-     * Calculate match score using cosine similarity with complementary vector.
+     * Calculate match score using gap-filling algorithm.
      */
     private MiniFeedDto.GroupRecommendation calculateMatchScore(StudyGroup group, 
-                                                                 CharacteristicProfile studentProfile) {
+                                                                 CharacteristicProfile studentProfile,
+                                                                 Map<Long, GroupCharacteristicProfile> profileMap) {
         try {
-            // Get pre-computed group profile
-            Optional<GroupCharacteristicProfile> groupProfileOpt = groupProfileRepository.findByGroupId(group.getId());
+            // Get pre-computed group profile from batch map
+            Optional<GroupCharacteristicProfile> groupProfileOpt = 
+                    Optional.ofNullable(profileMap.get(group.getId()));
             
             if (groupProfileOpt.isEmpty() || groupProfileOpt.get().getMemberCount() == 0) {
-                // New group - encourage joining
-                return buildRecommendation(group, 0.75, "New group - be a founding member!");
+                // New group - base score + availability boost
+                return buildRecommendation(group, newGroupScore(group), 
+                        "New group - be a founding member!");
             }
             
             GroupCharacteristicProfile groupProfile = groupProfileOpt.get();
             Map<RoleType, Double> currentAverages = groupProfile.getAverageRoleScores();
             
-            // Calculate cosine similarity between student and group's complementary vector
-            double cosineSimilarity = calculateCosineSimilarity(studentProfile, currentAverages);
-            String matchReason = generateMatchReason(cosineSimilarity);
+            // Calculate gap-filling score
+            double gapFillScore = calculateGapFillScore(studentProfile, currentAverages);
             
-            return buildRecommendation(group, cosineSimilarity, matchReason);
+            // Apply reliability-aware blending: blend toward neutral (0.55) based on reliability
+            double reliability = clamp01(studentProfile.getReliabilityPercentage() != null 
+                    ? studentProfile.getReliabilityPercentage() : 0.0);
+            double neutralBase = 0.55;
+            double blended = neutralBase + reliability * (gapFillScore - neutralBase);
+            
+            // Apply display curve with floor (20%) for friendlier UX
+            double display = 0.20 + 0.80 * Math.pow(blended, 0.75);
+            
+            // Log summary
+            log.info(">>> Group '{}' gap={}% reliability={}% blended={}% display={}%", 
+                    group.getName(), 
+                    Math.round(gapFillScore * 100), 
+                    Math.round(reliability * 100),
+                    Math.round(blended * 100),
+                    Math.round(display * 100));
+            
+            String matchReason = generateMatchReason(display);
+            
+            return buildRecommendation(group, display, matchReason);
             
         } catch (Exception e) {
             log.error("Error calculating match score for group {}: {}", group.getId(), e.getMessage());
@@ -106,67 +149,93 @@ public class MatchingService {
     }
     
     /**
-     * Calculate cosine similarity between student profile and group's complementary vector.
-     * Complementary vector = (1.0 - avg_role1, 1.0 - avg_role2, ..., 1.0 - avg_role7)
+     * Calculate gap-filling score using need-weighted contribution.
+     * Measures how well a student fills the gaps in a group's composition.
      * 
-     * This measures how well the student fills the gaps in the group.
-     * High score = student excels in roles the group lacks
-     * Low score = student overlaps with group's existing strengths
+     * Instead of cosine similarity (which measures "same direction"), this calculates
+     * "how much of what the group needs does this student provide".
      */
-    private double calculateCosineSimilarity(CharacteristicProfile studentProfile,
-                                            Map<RoleType, Double> groupAverages) {
-        // Build complementary vector: what the group is missing
-        Map<RoleType, Double> complementaryVector = new HashMap<>();
+    private double calculateGapFillScore(CharacteristicProfile studentProfile,
+                                        Map<RoleType, Double> groupAverages) {
+        double alpha = 2.5;  // Emphasize student's strong traits (exponential)
+        double beta = 2.0;   // Emphasize big gaps in the group
+        double eps = 1e-9;
+        
+        // 1) Compute real needs for each role
+        Map<RoleType, Double> needs = new EnumMap<>(RoleType.class);
         for (RoleType role : RoleType.values()) {
-            double groupAvg = groupAverages.getOrDefault(role, 0.0);
-            complementaryVector.put(role, 1.0 - groupAvg);
+            double groupAvg = clamp01(groupAverages.getOrDefault(role, 0.0));
+            double target = TARGET.getOrDefault(role, 0.6);
+            double need = Math.max(0.0, target - groupAvg);
+            needs.put(role, need);
         }
         
-        // Calculate dot product
-        double dotProduct = 0.0;
+        // 2) If group has no gaps -> return neutral score
+        double totalNeed = needs.values().stream().mapToDouble(Double::doubleValue).sum();
+        if (totalNeed < eps) {
+            return 0.5;
+        }
+        
+        // 3) Score = weighted coverage of needs
+        double numerator = 0.0;
+        double denominator = 0.0;
+        
         for (RoleType role : RoleType.values()) {
-            double studentScore = studentProfile.getRoleScore(role);
-            double complementaryScore = complementaryVector.get(role);
-            dotProduct += studentScore * complementaryScore;
+            double studentScore = clamp01(studentProfile.getRoleScore(role));
+            double need = needs.get(role);
+            
+            // Floor only if there's a real gap (prevents tiny gaps from dominating)
+            if (need > 0.0) {
+                need = Math.max(need, 0.05);
+            }
+            
+            // Weighted need (emphasize bigger gaps)
+            double needWeight = Math.pow(need, beta);
+            denominator += needWeight;
+            
+            // Student contribution (emphasize stronger traits)
+            double studentContribution = Math.pow(studentScore, alpha) * needWeight;
+            numerator += studentContribution;
         }
         
-        // Calculate magnitudes
-        double studentMagnitude = 0.0;
-        double complementaryMagnitude = 0.0;
+        double score = clamp01(numerator / denominator);
         
-        for (RoleType role : RoleType.values()) {
-            double studentScore = studentProfile.getRoleScore(role);
-            double complementaryScore = complementaryVector.get(role);
-            studentMagnitude += studentScore * studentScore;
-            complementaryMagnitude += complementaryScore * complementaryScore;
-        }
+        // Apply calibration curve to spread scores for better UX
+        double calibratedScore = Math.pow(score, 0.7);
         
-        studentMagnitude = Math.sqrt(studentMagnitude);
-        complementaryMagnitude = Math.sqrt(complementaryMagnitude);
-        
-        // Handle edge cases
-        if (studentMagnitude == 0.0 || complementaryMagnitude == 0.0) {
-            return 0.0;
-        }
-        
-        // Cosine similarity: cos(θ) = (A·B) / (||A|| * ||B||)
-        double cosineSim = dotProduct / (studentMagnitude * complementaryMagnitude);
-        
-        // Clamp to [0, 1] range (should already be in this range, but ensure it)
-        return Math.max(0.0, Math.min(1.0, cosineSim));
+        return calibratedScore;
     }
     
     /**
-     * Generate match quality description based on cosine similarity score.
+     * Clamp value to [0, 1] range.
      */
-    private String generateMatchReason(double cosineSimilarity) {
-        if (cosineSimilarity >= 0.85) {
+    private static double clamp01(double x) {
+        return Math.max(0.0, Math.min(1.0, x));
+    }
+    
+    /**
+     * Calculate consistent score for new/empty groups.
+     */
+    private double newGroupScore(StudyGroup group) {
+        double base = 0.55;
+        int currentSize = group.getMembers() != null ? group.getMembers().size() : 0;
+        double availabilityBoost = group.getMaxSize() > 0
+                ? 0.15 * (1.0 - (currentSize / (double) group.getMaxSize()))
+                : 0.0;
+        return clamp01(base + availabilityBoost);
+    }
+    
+    /**
+     * Generate match quality description based on gap-filling score.
+     */
+    private String generateMatchReason(double gapFillScore) {
+        if (gapFillScore >= 0.85) {
             return "Perfect fit - you complete this team!";
-        } else if (cosineSimilarity >= 0.70) {
+        } else if (gapFillScore >= 0.70) {
             return "Excellent match - fills key gaps in the group";
-        } else if (cosineSimilarity >= 0.55) {
+        } else if (gapFillScore >= 0.55) {
             return "Good match - complements team strengths";
-        } else if (cosineSimilarity >= 0.40) {
+        } else if (gapFillScore >= 0.40) {
             return "Moderate match - some overlapping roles";
         } else {
             return "Different strengths - group already strong in your areas";
@@ -252,9 +321,20 @@ public class MatchingService {
         
         log.info("Found {} groups after applying filters", filteredGroups.size());
         
+        // Batch fetch group profiles to avoid N+1 queries
+        List<Long> groupIds = filteredGroups.stream()
+                .map(StudyGroup::getId)
+                .collect(Collectors.toList());
+        
+        Map<Long, GroupCharacteristicProfile> profileMap = groupProfileRepository.findByGroupIdIn(groupIds)
+                .stream()
+                .collect(Collectors.toMap(GroupCharacteristicProfile::getGroupId, gp -> gp));
+        
+        log.info("Batch loaded {} group profiles", profileMap.size());
+        
         // Calculate match scores for all groups
         return filteredGroups.stream()
-                .map(group -> calculateGroupMatchDto(group, student, studentProfile))
+                .map(group -> calculateGroupMatchDto(group, student, studentProfile, profileMap))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
@@ -272,14 +352,18 @@ public class MatchingService {
         CharacteristicProfile studentProfile = profileRepository.findByUserId(student.getId())
                 .orElse(null);
         
-        return calculateGroupMatchDto(group, student, studentProfile);
+        // Single lookup - no batch map
+        return calculateGroupMatchDto(group, student, studentProfile, null);
     }
     
     /**
      * Calculate full GroupMatchDto with all details.
+     * 
+     * @param profileMap Optional batch-loaded profiles map. If null, will fetch individually.
      */
     private GroupMatchDto calculateGroupMatchDto(StudyGroup group, User student, 
-                                                  CharacteristicProfile studentProfile) {
+                                                  CharacteristicProfile studentProfile,
+                                                  Map<Long, GroupCharacteristicProfile> profileMap) {
         try {
             int currentSize = group.getMembers() != null ? group.getMembers().size() : 0;
             boolean isMember = group.getMembers() != null && 
@@ -295,20 +379,34 @@ public class MatchingService {
                 matchPercentage = 50;
                 matchReason = "Complete your profile quiz for accurate matching";
             } else {
-                // Get pre-computed group profile
-                Optional<GroupCharacteristicProfile> groupProfileOpt = 
-                    groupProfileRepository.findByGroupId(group.getId());
+                // Get group profile - from batch map if available, otherwise fetch individually
+                Optional<GroupCharacteristicProfile> groupProfileOpt;
+                if (profileMap != null) {
+                    groupProfileOpt = Optional.ofNullable(profileMap.get(group.getId()));
+                } else {
+                    groupProfileOpt = groupProfileRepository.findByGroupId(group.getId());
+                }
                 
                 if (groupProfileOpt.isEmpty() || groupProfileOpt.get().getMemberCount() == 0) {
-                    matchPercentage = 75;
+                    matchPercentage = (int) Math.round(newGroupScore(group) * 100);
                     matchReason = "New group - be a founding member!";
                 } else {
                     GroupCharacteristicProfile groupProfile = groupProfileOpt.get();
                     Map<RoleType, Double> currentAverages = groupProfile.getAverageRoleScores();
                     
-                    double cosineSimilarity = calculateCosineSimilarity(studentProfile, currentAverages);
-                    matchPercentage = (int) Math.round(cosineSimilarity * 100);
-                    matchReason = generateMatchReason(cosineSimilarity);
+                    double gapFillScore = calculateGapFillScore(studentProfile, currentAverages);
+                    
+                    // Apply reliability-aware blending
+                    double reliability = clamp01(studentProfile.getReliabilityPercentage() != null 
+                            ? studentProfile.getReliabilityPercentage() : 0.0);
+                    double neutralBase = 0.55;
+                    double blended = neutralBase + reliability * (gapFillScore - neutralBase);
+                    
+                    // Apply display curve with floor (20%)
+                    double display = 0.20 + 0.80 * Math.pow(blended, 0.75);
+                    
+                    matchPercentage = (int) Math.round(display * 100);
+                    matchReason = generateMatchReason(display);
                 }
             }
             

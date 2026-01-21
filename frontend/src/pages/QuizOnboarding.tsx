@@ -36,16 +36,9 @@ const QuizOnboarding: React.FC = () => {
     try {
       setIsLoading(true);
       const quizData = await getQuiz();
-      // Sort by orderIndex
+      // Sort by orderIndex to show questions in correct order
       const sortedQuestions = quizData.sort((a, b) => a.orderIndex - b.orderIndex);
-      // Only show question with orderIndex = 1 (the first question)
-      const firstQuestion = sortedQuestions.filter(q => q.orderIndex === 1);
-      if (firstQuestion.length === 0 && sortedQuestions.length > 0) {
-        // Fallback: if no question with orderIndex=1, use the first one in the list
-        setQuestions([sortedQuestions[0]]);
-      } else {
-        setQuestions(firstQuestion);
-      }
+      setQuestions(sortedQuestions);
       // Reset to first question index
       setCurrentQuestionIndex(0);
       // Clear any previous answers when loading

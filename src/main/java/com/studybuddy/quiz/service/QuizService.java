@@ -57,6 +57,7 @@ public class QuizService {
     @Transactional(readOnly = true)
     public List<QuizDto.QuestionResponse> getQuiz(User user) {
         List<QuizQuestion> allQuestions = questionRepository.findAllActiveWithOptions();
+        int totalActiveQuestions = allQuestions.size();
         
         // Get configured selected question IDs
         com.studybuddy.quiz.model.QuizConfig config = quizConfigRepository.getDefaultConfig();
@@ -79,7 +80,7 @@ public class QuizService {
             
             allQuestions = selectedQuestions;
             log.info("User {} - returning {} of {} active quiz questions (filtered by selected IDs)", 
-                    user.getId(), allQuestions.size(), questionRepository.findAllActiveWithOptions().size());
+                    user.getId(), allQuestions.size(), totalActiveQuestions);
         } else {
             log.info("User {} - returning {} active quiz questions (no selection configured, showing all)", 
                     user.getId(), allQuestions.size());
@@ -121,15 +122,35 @@ public class QuizService {
             }
         }
         
-        // Save new answers
+        // Bulk-fetch questions and options to avoid N+1
+        Set<Long> questionIds = request.getAnswers().keySet();
+        Set<Long> optionIds = new HashSet<>(request.getAnswers().values());
+        
+        Map<Long, QuizQuestion> questionMap = questionRepository.findAllById(questionIds).stream()
+                .collect(Collectors.toMap(QuizQuestion::getId, q -> q));
+        Map<Long, QuizOption> optionMap = optionRepository.findAllById(optionIds).stream()
+                .collect(Collectors.toMap(QuizOption::getId, o -> o));
+        
+        // Validate all question/option IDs exist and options belong to questions
+        List<com.studybuddy.quiz.model.QuizAnswer> newAnswers = new java.util.ArrayList<>();
         for (Map.Entry<Long, Long> entry : request.getAnswers().entrySet()) {
             Long questionId = entry.getKey();
             Long optionId = entry.getValue();
             
-            QuizQuestion question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid question ID: " + questionId));
-            QuizOption option = optionRepository.findById(optionId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid option ID: " + optionId));
+            QuizQuestion question = questionMap.get(questionId);
+            if (question == null) {
+                throw new IllegalArgumentException("Invalid question ID: " + questionId);
+            }
+            
+            QuizOption option = optionMap.get(optionId);
+            if (option == null) {
+                throw new IllegalArgumentException("Invalid option ID: " + optionId);
+            }
+            
+            // Validate option belongs to question (using IDs to avoid LAZY fetch)
+            if (!option.getQuestion().getId().equals(questionId)) {
+                throw new IllegalArgumentException("Option " + optionId + " does not belong to question " + questionId);
+            }
             
             com.studybuddy.quiz.model.QuizAnswer answer = com.studybuddy.quiz.model.QuizAnswer.builder()
                 .user(user)
@@ -137,8 +158,11 @@ public class QuizService {
                 .selectedOption(option)
                 .build();
             
-            answerRepository.save(answer);
+            newAnswers.add(answer);
         }
+        
+        // Batch save all new answers
+        answerRepository.saveAll(newAnswers);
         
         // Combine all answers (previous + new)
         Map<Long, Long> allAnswers = new HashMap<>(previousAnswers);
@@ -165,11 +189,21 @@ public class QuizService {
             maxPossible.put(role, 0.0);
         }
         
-        // Process each answer
+        // Bulk-fetch all options for score calculation (reuse existing optionMap if possible)
+        Set<Long> allOptionIds = new HashSet<>(allAnswers.values());
+        // Add any new option IDs not already in optionMap
+        allOptionIds.removeAll(optionMap.keySet());
+        if (!allOptionIds.isEmpty()) {
+            optionRepository.findAllById(allOptionIds).forEach(o -> optionMap.put(o.getId(), o));
+        }
+        
+        // Process each answer using bulk-fetched options
         for (Map.Entry<Long, Long> entry : allAnswers.entrySet()) {
             Long optionId = entry.getValue();
-            QuizOption option = optionRepository.findById(optionId)
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid option ID: " + optionId));
+            QuizOption option = optionMap.get(optionId);
+            if (option == null) {
+                throw new IllegalArgumentException("Invalid option ID: " + optionId);
+            }
             
             // Accumulate scores
             for (Map.Entry<RoleType, Double> weight : option.getRoleWeights().entrySet()) {
@@ -190,12 +224,15 @@ public class QuizService {
             }
         }
         
-        // Normalize scores to 0.0-1.0 range
+        // Normalize scores to 0.0-1.0 range based on ANSWERED questions (not total)
         Map<RoleType, Double> normalizedScores = new HashMap<>();
+        int answeredCount = Math.max(1, answeredQuestions); // Prevent division by zero
         for (RoleType role : RoleType.values()) {
             Double max = maxPossible.get(role);
             Double raw = rawScores.get(role);
-            normalizedScores.put(role, max > 0 ? raw / (max * allQuestions.size()) : 0.0);
+            // Normalize by answered questions, not total questions
+            // This prevents partial quiz users from having near-zero scores
+            normalizedScores.put(role, max > 0 ? raw / (max * answeredCount) : 0.0);
         }
         
         // Save or update profile
@@ -339,7 +376,21 @@ public class QuizService {
     }
     
     private QuizDto.QuestionResponse mapToQuestionResponse(QuizQuestion question) {
+        // Sort options and remove duplicates by text
         List<QuizDto.OptionResponse> options = question.getOptions().stream()
+                .sorted((a, b) -> Integer.compare(
+                    a.getOrderIndex() != null ? a.getOrderIndex() : 0,
+                    b.getOrderIndex() != null ? b.getOrderIndex() : 0
+                ))
+                .collect(Collectors.toMap(
+                    QuizOption::getOptionText, // Key: option text (ensures uniqueness)
+                    opt -> opt,                 // Value: the option itself
+                    (existing, duplicate) -> existing, // Keep first occurrence on duplicate
+                    java.util.LinkedHashMap::new       // Preserve order
+                ))
+                .values()
+                .stream()
+                .limit(4) // Limit to 4 unique options
                 .map(opt -> QuizDto.OptionResponse.builder()
                         .optionId(opt.getId())
                         .optionText(opt.getOptionText())
@@ -362,7 +413,7 @@ public class QuizService {
      */
     @Transactional(readOnly = true)
     public List<QuizDto.QuestionAdminResponse> getAllQuestionsForAdmin() {
-        List<QuizQuestion> allQuestions = questionRepository.findAll();
+        List<QuizQuestion> allQuestions = questionRepository.findAllWithOptions();
         
         return allQuestions.stream()
                 .sorted((a, b) -> Integer.compare(
