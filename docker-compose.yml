@@ -39,7 +39,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: studybuddy_password
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create
       
       # Server Configuration
       SERVER_PORT: 8080

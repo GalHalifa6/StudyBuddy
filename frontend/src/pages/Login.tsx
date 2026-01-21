@@ -140,14 +140,14 @@ const Login: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="flex items-center gap-3">
+                <User className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 <input
                   id="username"
                   type="text"
                   value={username}
                   onChange={(e) => { setUsername(e.target.value); setErrors([]); }}
-                  className="input pl-12"
+                  className="input flex-1"
                   placeholder="Enter your username"
                   required
                 />
@@ -156,14 +156,14 @@ const Login: React.FC = () => {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="flex items-center gap-3">
+                <Lock className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 <input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setErrors([]); }}
-                  className="input pl-12"
+                  className="input flex-1"
                   placeholder="Enter your password"
                   required
                 />

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { expertService, studentExpertService, ExpertSession } from '../api/experts';
 import { sessionService, JitsiAuthResponse } from '../api/sessions';
 import { resolveApiUrl } from '@/config/env';
@@ -72,6 +73,7 @@ const SessionRoom: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showError } = useToast();
   
   // Session state
   const [session, setSession] = useState<ExpertSession | null>(null);
@@ -319,19 +321,19 @@ const SessionRoom: React.FC = () => {
       }
     };
 
-    const handleVisibilityChange = () => {
-      // If page becomes hidden (user switches tabs/closes), send leave
-      if (document.visibilityState === 'hidden' && hasJoined.current) {
-        notifyLeave();
-      }
-    };
+    // Don't use visibility change - it triggers when Jitsi iframe gains focus
+    // const handleVisibilityChange = () => {
+    //   if (document.visibilityState === 'hidden' && hasJoined.current) {
+    //     notifyLeave();
+    //   }
+    // };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (hasJoined.current) {
         hasJoined.current = false;
         notifyLeave();
@@ -516,6 +518,13 @@ const SessionRoom: React.FC = () => {
         timestamp: new Date(),
         type: 'system',
       }]);
+      
+      // Explicitly notify join after starting session to ensure WebSocket connection
+      if (isConnected) {
+        console.log('Expert starting session - notifying join');
+        notifyJoin();
+      }
+      
       loadSession();
     } catch (error) {
       console.error('Failed to start session:', error);
@@ -551,8 +560,7 @@ const SessionRoom: React.FC = () => {
       sendChatMessage(messageContent, 'text');
     } else {
       console.error('>>> WebSocket not connected! Cannot send message');
-      // Show error to user - message won't be sent
-      alert('Not connected to chat. Please refresh the page.');
+      showError('Chat is connecting... Please wait a moment and try again.');
     }
   };
 
@@ -989,8 +997,9 @@ const SessionRoom: React.FC = () => {
         <div className="flex-1 flex flex-col min-w-0" style={{ minHeight: 0, maxHeight: '100%', overflow: 'hidden' }}>
           <div className="flex-1 bg-gray-900/50 relative p-4" style={{ minHeight: 0, maxHeight: '100%', overflow: 'hidden', flexShrink: 0 }}>
             {/* Show Jitsi embed when session is active - memoized to prevent remounting */}
-            {videoComponent}
-            {sessionStatus === 'active' && (!session?.meetingLink || session?.meetingPlatform !== 'JITSI') && (() => {
+            {session?.meetingLink && session?.meetingPlatform === 'JITSI' ? (
+              videoComponent
+            ) : sessionStatus === 'active' && (() => {
               // Debug: Log IDs to understand the "amit amit" issue
               console.log('Video panel debug:', {
                 userId: user?.id,
@@ -1247,11 +1256,17 @@ const SessionRoom: React.FC = () => {
                       type="text"
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder="Type a message..."
-                      className="flex-1 bg-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-600/50"
+                      onKeyPress={(e) => e.key === 'Enter' && isConnected && handleSendMessage()}
+                      placeholder={isConnected ? "Type a message..." : "Connecting to chat..."}
+                      disabled={!isConnected}
+                      className="flex-1 bg-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-600/50 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                    <button onClick={handleSendMessage} disabled={!newMessage.trim()} className="p-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50">
+                    <button 
+                      onClick={handleSendMessage} 
+                      disabled={!newMessage.trim() || !isConnected} 
+                      className="p-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                      title={!isConnected ? "Connecting to chat..." : "Send message"}
+                    >
                       <Send className="w-5 h-5" />
                     </button>
                   </div>

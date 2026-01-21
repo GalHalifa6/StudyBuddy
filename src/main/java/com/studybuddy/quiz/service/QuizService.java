@@ -375,6 +375,34 @@ public class QuizService {
                 .build();
     }
     
+    /**
+     * Get saved quiz answers for resuming in-progress quiz.
+     */
+    @Transactional(readOnly = true)
+    public QuizDto.SavedAnswersResponse getSavedAnswers(User user) {
+        List<com.studybuddy.quiz.model.QuizAnswer> existingAnswers = answerRepository.findByUserId(user.getId());
+        
+        // Convert to map of questionId -> optionId
+        Map<Long, Long> answersMap = existingAnswers.stream()
+                .collect(Collectors.toMap(
+                    answer -> answer.getQuestion().getId(),
+                    answer -> answer.getSelectedOption().getId()
+                ));
+        
+        CharacteristicProfile profile = profileRepository.findByUserId(user.getId())
+                .orElse(null);
+        
+        QuizStatus status = profile != null ? profile.getQuizStatus() : QuizStatus.NOT_STARTED;
+        
+        log.info("Retrieved {} saved answers for user {} with status {}", 
+                answersMap.size(), user.getId(), status);
+        
+        return QuizDto.SavedAnswersResponse.builder()
+                .answers(answersMap)
+                .quizStatus(status)
+                .build();
+    }
+    
     private QuizDto.QuestionResponse mapToQuestionResponse(QuizQuestion question) {
         // Sort options and remove duplicates by text
         List<QuizDto.OptionResponse> options = question.getOptions().stream()

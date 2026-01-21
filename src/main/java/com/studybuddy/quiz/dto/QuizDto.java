@@ -86,6 +86,15 @@ public class QuizDto {
         private Boolean requiresOnboarding;
         private QuizStatus quizStatus;
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SavedAnswersResponse {
+        private Map<Long, Long> answers; // questionId -> selectedOptionId
+        private QuizStatus quizStatus;
+    }
     
     @Data
     @NoArgsConstructor

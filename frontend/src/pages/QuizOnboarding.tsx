@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getQuiz, submitQuiz, skipQuiz, QuizQuestion } from '../api/quiz';
+import { getQuiz, submitQuiz, skipQuiz, getSavedAnswers, QuizQuestion } from '../api/quiz';
 import { useToast } from '../context/ToastContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { 
@@ -21,6 +21,7 @@ const QuizOnboarding: React.FC = () => {
   const { showSuccess, showError } = useToast();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [savedAnswers, setSavedAnswers] = useState<Record<number, number>>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,10 +40,29 @@ const QuizOnboarding: React.FC = () => {
       // Sort by orderIndex to show questions in correct order
       const sortedQuestions = quizData.sort((a, b) => a.orderIndex - b.orderIndex);
       setQuestions(sortedQuestions);
-      // Reset to first question index
-      setCurrentQuestionIndex(0);
-      // Clear any previous answers when loading
-      setAnswers({});
+      
+      // Load saved answers if any exist
+      try {
+        const savedData = await getSavedAnswers();
+        if (savedData.answers && Object.keys(savedData.answers).length > 0) {
+          setAnswers(savedData.answers);
+          setSavedAnswers(savedData.answers); // Track which answers are already saved
+          // Find the first unanswered question or go to first question
+          const firstUnansweredIndex = sortedQuestions.findIndex(
+            q => !savedData.answers[q.questionId]
+          );
+          setCurrentQuestionIndex(firstUnansweredIndex >= 0 ? firstUnansweredIndex : 0);
+        } else {
+          setCurrentQuestionIndex(0);
+          setAnswers({});
+          setSavedAnswers({});
+        }
+      } catch (err) {
+        // No saved answers, start fresh
+        setCurrentQuestionIndex(0);
+        setAnswers({});
+        setSavedAnswers({});
+      }
     } catch (err) {
       setError('Failed to load quiz questions. Please try again.');
     } finally {
@@ -93,7 +113,15 @@ const QuizOnboarding: React.FC = () => {
     setError(null);
 
     try {
-      const response = await submitQuiz({ answers });
+      // Only submit NEW answers (ones not in savedAnswers)
+      const newAnswers: Record<number, number> = {};
+      for (const [qId, optionId] of Object.entries(answers)) {
+        if (!savedAnswers[Number(qId)]) {
+          newAnswers[Number(qId)] = optionId;
+        }
+      }
+      
+      const response = await submitQuiz({ answers: newAnswers });
       showSuccess(response.message);
       setSuccessMessage(response.message);
       
