@@ -1,385 +1,316 @@
-# StudyBuddy Backend - MVP
+# StudyBuddy
+
+A comprehensive collaborative learning platform for university students to find study partners, form groups, and coordinate learning activities.
 
 ## Overview
-StudyBuddy is a collaborative learning platform designed to help university students find compatible study partners, form effective study groups, and coordinate their learning activities.
 
-## Technology Stack
-- **Framework**: Spring Boot 3.2.0
-- **Java Version**: 17
-- **Database**: H2 (Development), PostgreSQL (Production)
-- **Security**: Spring Security + JWT
-- **Build Tool**: Maven
-- **Documentation**: Springdoc OpenAPI (Swagger)
+StudyBuddy helps students connect with compatible study partners, create and join study groups, share materials, access expert tutoring, and collaborate in real-time. The platform includes a Spring Boot backend, React web application, and React Native mobile app.
+
+## Features
+
+- **Smart Matching** - Find compatible study partners using intelligent matching algorithms
+- **Study Groups** - Create, discover, and join study groups with real-time chat
+- **Expert Sessions** - Book tutoring sessions with verified experts via video conferencing
+- **Q&A Community** - Ask and answer questions with voting system
+- **Quiz System** - Create and take quizzes for self-assessment
+- **File Sharing** - Share study materials within groups
+- **Real-time Messaging** - Group chat and direct messages via WebSocket
+- **Course Management** - Organize groups and content by course
+- **Admin Panel** - User management, expert verification, and audit logs
+
+## Tech Stack
+
+### Backend
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Spring Boot | 3.2.0 | REST API framework |
+| Java | 17 | Programming language |
+| Spring Security | - | Authentication & authorization |
+| JWT | 0.12.3 | Token-based auth |
+| OAuth2 | - | Google SSO |
+| WebSocket/STOMP | - | Real-time messaging |
+| JPA/Hibernate | - | ORM |
+| H2/PostgreSQL | - | Database |
+| Springdoc OpenAPI | 2.3.0 | API documentation |
+
+### Frontend (Web)
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| React | 18.2.0 | UI framework |
+| TypeScript | 5.2.2 | Type safety |
+| Vite | 5.0.8 | Build tool |
+| Tailwind CSS | 3.4.0 | Styling |
+| React Router | 6.21.0 | Navigation |
+| Axios | 1.6.2 | HTTP client |
+| STOMP.js | 7.2.1 | WebSocket client |
+
+### Mobile App
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| React Native | 0.81.5 | Mobile framework |
+| Expo | 54.0.0 | Development platform |
+| TypeScript | 5.9.2 | Type safety |
+| React Navigation | - | Navigation |
+| React Query | 4.35.10 | Data fetching |
+| React Hook Form | 7.51.5 | Form handling |
 
 ## Project Structure
+
 ```
-studybuddy-backend/
-├── src/main/java/com/studybuddy/
-│   ├── StudyBuddyApplication.java      # Main application entry point
-│   ├── config/                          # Configuration classes
-│   │   ├── SecurityConfig.java         # Spring Security configuration
-│   │   ├── WebConfig.java              # CORS and Web MVC configuration
-│   │   └── ModelMapperConfig.java      # ModelMapper bean configuration
-│   ├── controller/                      # REST API Controllers
-│   │   ├── AuthController.java         # Authentication endpoints
-│   │   ├── CourseController.java       # Course management endpoints
-│   │   ├── GroupController.java        # Study group endpoints
-│   │   ├── MessageController.java      # Chat/messaging endpoints
-│   │   ├── FileController.java         # File upload/download endpoints
-│   │   └── MatchingController.java     # Group matching/recommendation endpoints
-│   ├── model/                           # JPA Entity models
-│   │   ├── User.java                   # User entity
-│   │   ├── Course.java                 # Course entity
-│   │   ├── StudyGroup.java             # Study group entity
-│   │   ├── Message.java                # Chat message entity
-│   │   ├── FileUpload.java             # File upload entity
-│   │   ├── RoomShare.java              # Room sharing entity
-│   │   └── ChatSummary.java            # Auto-generated chat summary entity
-│   ├── repository/                      # JPA Repositories
-│   │   ├── UserRepository.java
-│   │   ├── CourseRepository.java
-│   │   ├── StudyGroupRepository.java
-│   │   ├── MessageRepository.java
-│   │   ├── FileUploadRepository.java
-│   │   ├── RoomShareRepository.java
-│   │   └── ChatSummaryRepository.java
-│   ├── service/                         # Business logic layer
-│   │   ├── UserService.java
-│   │   ├── CourseService.java
-│   │   ├── StudyGroupService.java
-│   │   ├── MessageService.java
-│   │   ├── FileService.java
-│   │   ├── MatchingService.java         # NLP-based matching service
-│   │   └── NLPService.java              # NLP utilities (embeddings, summarization)
-│   ├── security/                        # Security components
-│   │   ├── JwtUtils.java                # JWT token utilities
-│   │   ├── JwtAuthenticationFilter.java # JWT filter
-│   │   └── UserDetailsServiceImpl.java  # User details service
-│   └── dto/                             # Data Transfer Objects
-│       ├── AuthDto.java                 # Authentication DTOs
-│       ├── CourseDto.java               # Course DTOs
-│       ├── GroupDto.java                # Group DTOs
-│       ├── MessageDto.java              # Message DTOs
-│       └── MatchingDto.java             # Matching DTOs
-├── src/main/resources/
-│   └── application.properties           # Application configuration
-├── pom.xml                              # Maven dependencies
-└── README.md                            # This file
+StudyBuddy/
+├── src/main/java/com/studybuddy/    # Backend (Java)
+│   ├── config/                       # Spring configuration
+│   ├── controller/                   # REST API controllers (21)
+│   ├── model/                        # JPA entities (34)
+│   ├── repository/                   # Data access (30)
+│   ├── service/                      # Business logic (13)
+│   ├── security/                     # JWT & auth
+│   └── dto/                          # Data transfer objects
+├── frontend/                         # Web app (React)
+│   └── src/
+│       ├── api/                      # API services (18)
+│       ├── pages/                    # Page components (31)
+│       ├── components/               # Reusable UI
+│       ├── context/                  # Auth, Theme, Toast
+│       └── hooks/                    # Custom hooks
+├── studybuddy-mobile/                # Mobile app (React Native)
+│   └── src/
+│       ├── api/                      # API services (17)
+│       ├── features/                 # Feature modules (13)
+│       ├── components/               # Reusable UI
+│       ├── navigation/               # Navigation setup
+│       └── auth/                     # Auth context
+├── src/test/                         # Backend tests
+└── .github/workflows/                # CI/CD pipeline
 ```
-
-## Core Features (MVP)
-
-### 1. Authentication & User Management
-- User registration and login with JWT authentication
-- User profile management with learning preferences
-- Profile embeddings for intelligent matching
-
-### 2. Course Management
-- Course creation and discovery
-- Course enrollment
-- Course lobbies for group discovery
-
-### 3. Study Group Management
-- Create/join/leave study groups
-- Smart group recommendations based on NLP matching
-- Group visibility settings (open, approval-based, private)
-- Member management and roles
-
-### 4. Chat & Messaging
-- Real-time group chat
-- Message history
-- Pinned messages
-- Auto-generated chat summaries with action items
-
-### 5. File Sharing
-- Upload and share study materials within groups
-- File storage and retrieval
-- Q&A over uploaded materials (simplified in MVP)
-
-### 6. Room Sharing
-- Share physical study spaces with other groups
-- Coordinate in-person study sessions
-- Availability tracking
-
-### 7. NLP-Powered Features
-- Intelligent group matching based on user profiles
-- Automatic chat summarization
-- Action item extraction
-- Content-based file search (simplified in MVP)
 
 ## Getting Started
 
 ### Prerequisites
-- Java 17 or higher
+
+- Java 17+
+- Node.js 18+
 - Maven 3.6+
-- (Optional) PostgreSQL for production database
+- (Optional) PostgreSQL for production
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd studybuddy-backend
-   ```
+```bash
+# Clone the repository
+git clone https://github.com/your-username/StudyBuddy.git
+cd StudyBuddy
+```
 
-2. **Build the project**
-   ```bash
-   mvn clean install
-   ```
+### Running the Backend
 
-3. **Run the application**
-   ```bash
-   mvn spring-boot:run
-   ```
+```bash
+# Build and run
+mvn clean install
+mvn spring-boot:run
+```
 
-   The application will start on `http://localhost:8080`
+The API will be available at `http://localhost:8080`
 
-### Configuration
+**API Documentation:** `http://localhost:8080/swagger-ui.html`
 
-Edit `src/main/resources/application.properties` to configure:
-- Database connection
-- JWT secret and expiration
-- File upload settings
-- CORS origins
-- Logging levels
-
-### Database
-
-#### H2 Console (Development)
-- Access the H2 console at: `http://localhost:8080/h2-console`
+**H2 Console (dev):** `http://localhost:8080/h2-console`
 - JDBC URL: `jdbc:h2:file:./data/studybuddy`
 - Username: `sa`
-- Password: (leave blank)
+- Password: (blank)
 
-#### PostgreSQL (Production)
-Update `application.properties`:
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/studybuddy
-spring.datasource.username=your_username
-spring.datasource.password=your_password
-spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+### Running the Web Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-## API Documentation
+The web app will be available at `http://localhost:5173`
 
-Once the application is running, access the Swagger UI at:
+### Running the Mobile App
+
+```bash
+cd studybuddy-mobile
+npm install
+npx expo start
 ```
-http://localhost:8080/swagger-ui.html
-```
 
-### Main API Endpoints
+Scan the QR code with Expo Go app or press:
+- `a` for Android emulator
+- `i` for iOS simulator
+- `w` for web browser
 
-#### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login and get JWT token
-- `PUT /api/auth/profile` - Update user profile
+## API Endpoints
 
-#### Courses
-- `GET /api/courses` - List all courses
-- `POST /api/courses` - Create a new course
-- `GET /api/courses/{id}` - Get course details
-- `POST /api/courses/{id}/enroll` - Enroll in a course
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login |
+| POST | `/api/auth/google` | Google OAuth login |
+| PUT | `/api/auth/profile` | Update profile |
+| POST | `/api/auth/verify-email` | Verify email |
 
-#### Groups
-- `GET /api/groups/course/{courseId}` - Get all groups for a course
-- `POST /api/groups` - Create a new study group
-- `GET /api/groups/{id}` - Get group details
-- `POST /api/groups/{id}/join` - Join a group
-- `POST /api/groups/{id}/leave` - Leave a group
+### Courses
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/courses` | List all courses |
+| POST | `/api/courses` | Create course |
+| GET | `/api/courses/{id}` | Get course details |
+| POST | `/api/courses/{id}/enroll` | Enroll in course |
 
-#### Matching
-- `POST /api/matching/recommend` - Get personalized group recommendations
-- `POST /api/matching/find-buddies` - Find compatible study partners
+### Study Groups
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/groups/course/{courseId}` | List groups for course |
+| POST | `/api/groups` | Create group |
+| GET | `/api/groups/{id}` | Get group details |
+| POST | `/api/groups/{id}/join` | Join group |
+| POST | `/api/groups/{id}/leave` | Leave group |
 
-#### Messages
-- `GET /api/messages/group/{groupId}` - Get group chat history
-- `POST /api/messages` - Send a message
-- `POST /api/messages/{groupId}/summarize` - Generate chat summary
+### Matching
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/matching/recommend` | Get group recommendations |
+| POST | `/api/matching/find-buddies` | Find study partners |
 
-#### Files
-- `POST /api/files/upload` - Upload a file to a group
-- `GET /api/files/group/{groupId}` - List group files
-- `GET /api/files/{id}/download` - Download a file
+### Messages
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/messages/group/{groupId}` | Get group messages |
+| POST | `/api/messages` | Send message |
+| WebSocket | `/ws` | Real-time messaging |
 
-#### Room Sharing
-- `POST /api/rooms` - Create a room share offer
-- `GET /api/rooms/available` - Get available room shares
-- `POST /api/rooms/{id}/request` - Request to share a room
+### Expert System
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/experts` | List experts |
+| POST | `/api/experts/sessions` | Book session |
+| GET | `/api/experts/sessions/upcoming` | Get upcoming sessions |
 
-## Development Notes
-
-### NLP Features (MVP Implementation)
-For the MVP, NLP features use simplified implementations:
-- **Embeddings**: Hash-based pseudo-embeddings (replace with sentence-transformers in production)
-- **Summarization**: Rule-based extractive summarization (replace with abstractive models in production)
-- **Q&A**: Simple keyword matching (replace with RAG pipeline in production)
-
-### Production Enhancements
-To make this production-ready, consider:
-1. Implementing real sentence transformers for embeddings
-2. Adding Redis for caching and session management
-3. Implementing WebSocket for real-time chat
-4. Adding file storage service (AWS S3, etc.)
-5. Implementing proper logging and monitoring
-6. Adding rate limiting and API throttling
-7. Implementing comprehensive test suite
-8. Setting up CI/CD pipeline
-9. Adding database migrations (Flyway/Liquibase)
-10. Implementing proper error handling and validation
-
-## Security
-
-- Passwords are hashed using BCrypt
-- JWT tokens for stateless authentication
-- CORS configured for frontend origins
-- Input validation on all endpoints
-- SQL injection protection via JPA/Hibernate
+### Quizzes
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/quiz` | List quizzes |
+| POST | `/api/quiz` | Create quiz |
+| POST | `/api/quiz/{id}/submit` | Submit quiz answers |
 
 ## Testing
 
 ### Backend Tests
 
-The backend includes comprehensive unit and integration tests using JUnit, Mockito, and Spring Boot Test.
-
-#### Test Structure
-```
-src/test/java/com/studybuddy/test/
-├── config/
-│   └── TestConfig.java              # Shared test configuration
-├── unit/                            # Unit tests (isolated, mocked dependencies)
-│   ├── controller/
-│   │   ├── AdminControllerTest.java
-│   │   ├── AuthControllerTest.java
-│   │   ├── CourseControllerTest.java
-│   │   ├── FileControllerTest.java
-│   │   ├── GroupControllerTest.java
-│   │   ├── MessageControllerTest.java
-│   │   └── NotificationControllerTest.java
-│   ├── service/
-│   │   └── NotificationServiceTest.java
-│   └── security/
-│       └── JwtUtilsTest.java
-└── integration/                     # Integration tests (full Spring context)
-    ├── AdminIntegrationTest.java
-    ├── AuthIntegrationTest.java
-    ├── CourseIntegrationTest.java
-    ├── CrossComponentIntegrationTest.java
-    ├── FileIntegrationTest.java
-    ├── GroupIntegrationTest.java
-    ├── MessageIntegrationTest.java
-    └── NotificationIntegrationTest.java
-```
-
-#### Running Backend Tests
-
-**Run all tests:**
 ```bash
+# Run all tests
 mvn test
-```
 
-**Run only unit tests:**
-```bash
-mvn test -Dtest=com.studybuddy.test.unit.*
-```
-
-**Run only integration tests:**
-```bash
-mvn test -Dtest=com.studybuddy.test.integration.*
-```
-
-**Run specific test class:**
-```bash
-mvn test -Dtest=AuthControllerTest
-```
-
-**Run tests with coverage:**
-```bash
+# Run with coverage report
 mvn test jacoco:report
+
+# Run unit tests only
+mvn test -Dtest="com.studybuddy.test.unit.*"
+
+# Run integration tests only
+mvn test -Dtest="com.studybuddy.test.integration.*"
 ```
-
-Tests use a separate configuration file (`src/test/resources/application-test.properties`) with an in-memory H2 database that is cleared between tests.
-
-For detailed testing documentation, see `src/test/java/com/studybuddy/test/README.md`.
 
 ### Frontend Tests
 
-The frontend uses Vitest with React Testing Library and MSW (Mock Service Worker) for API mocking.
-
-#### Test Structure
-```
-frontend/src/
-├── test/                            # Test utilities and setup
-│   ├── setup.ts                     # Global test setup
-│   ├── utils/                       # Test utilities
-│   │   ├── test-utils.tsx          # Custom render with providers
-│   │   └── index.ts                 # Exports
-│   └── mocks/                       # Mock data and API handlers
-│       ├── handlers.ts              # MSW request handlers
-│       ├── server.ts                # MSW server setup
-│       └── mockData.ts              # Reusable mock data
-├── components/__tests__/            # Component tests
-│   └── ProtectedRoute.test.tsx
-├── pages/__tests__/                 # Page tests
-│   └── Login.test.tsx
-└── api/__tests__/                   # API service tests
-    └── auth.test.ts
-```
-
-#### Running Frontend Tests
-
-**Run tests:**
 ```bash
 cd frontend
+
+# Run tests
 npm run test
-```
 
-**Run tests with coverage:**
-```bash
+# Run with coverage
 npm run test:coverage
-```
 
-**Run tests in watch mode:**
-```bash
+# Run in watch mode
 npm run test:watch
 ```
 
-**Run tests with UI:**
-```bash
-npm run test:ui
+## Configuration
+
+### Backend Configuration
+
+Edit `src/main/resources/application.properties`:
+
+```properties
+# Database (Production)
+spring.datasource.url=jdbc:postgresql://localhost:5432/studybuddy
+spring.datasource.username=your_username
+spring.datasource.password=your_password
+
+# JWT
+jwt.secret=your-secret-key
+jwt.expiration=86400000
+
+# Google OAuth
+spring.security.oauth2.client.registration.google.client-id=your-client-id
+spring.security.oauth2.client.registration.google.client-secret=your-client-secret
 ```
 
-**Run tests once (CI mode):**
-```bash
-npm run test:run
-```
+### Environment Variables
 
-For detailed frontend testing documentation, see `frontend/TESTING.md`.
-
-## Building for Production
-
-1. Update `application.properties` for production settings
-2. Build the JAR file:
-   ```bash
-   mvn clean package -DskipTests
-   ```
-3. Run the JAR:
-   ```bash
-   java -jar target/studybuddy-backend-1.0.0.jar
-   ```
-
-## Environment Variables
-
-For production, use environment variables instead of hardcoded values:
 ```bash
 export JWT_SECRET=your-secret-key
 export DB_URL=jdbc:postgresql://localhost:5432/studybuddy
 export DB_USERNAME=your_username
 export DB_PASSWORD=your_password
+export GOOGLE_CLIENT_ID=your-google-client-id
+export GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
-## License
+## Building for Production
 
-[Specify your license]
+### Backend
+
+```bash
+mvn clean package -DskipTests
+java -jar target/studybuddy-backend-1.0.0.jar
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm run build
+```
+
+Build output will be in `frontend/dist/`
+
+### Mobile App
+
+```bash
+cd studybuddy-mobile
+npx expo build:android  # For Android APK
+npx expo build:ios      # For iOS IPA
+```
+
+## Security
+
+- BCrypt password hashing
+- JWT token authentication
+- OAuth2 Google SSO
+- CORS protection
+- Input validation
+- SQL injection protection via JPA
+- XSS protection
+
+## CI/CD
+
+The project uses GitHub Actions for continuous integration:
+- Automated testing on pull requests
+- Code coverage reporting via Codecov
+- Build verification
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## Contributors
 
@@ -388,6 +319,6 @@ export DB_PASSWORD=your_password
 - Gal Halifa
 - Keren Greenberg
 
-## Support
+## License
 
-For issues and questions, please open an issue on the GitHub repository.
+This project is licensed under the MIT License - see the LICENSE file for details.
