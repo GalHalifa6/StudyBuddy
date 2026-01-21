@@ -317,7 +317,6 @@ The project uses GitHub Actions for continuous integration:
 - Amit Asher
 - Ron Kadosh
 - Gal Halifa
-- Keren Greenberg
 
 ## License
 
