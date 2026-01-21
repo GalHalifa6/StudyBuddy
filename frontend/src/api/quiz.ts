@@ -34,6 +34,11 @@ export interface OnboardingStatusResponse {
   quizStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED';
 }
 
+export interface SavedAnswersResponse {
+  answers: Record<number, number>; // questionId -> selectedOptionId
+  quizStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED';
+}
+
 // ==================== API Calls ====================
 
 /**
@@ -69,6 +74,15 @@ export const getProfile = async (): Promise<ProfileResponse> => {
  */
 export const getOnboardingStatus = async (): Promise<OnboardingStatusResponse> => {
   const response = await axios.get<OnboardingStatusResponse>('/quiz/onboarding-status');
+  return response.data;
+};
+
+/**
+ * Get saved quiz answers (for resuming in-progress quiz).
+ * GET /api/quiz/answers
+ */
+export const getSavedAnswers = async (): Promise<SavedAnswersResponse> => {
+  const response = await axios.get<SavedAnswersResponse>('/quiz/answers');
   return response.data;
 };
 

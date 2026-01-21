@@ -120,4 +120,19 @@ public class QuizController {
         QuizDto.ProfileResponse response = quizService.getUserProfile(currentUser);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * GET /api/quiz/answers
+     * 
+     * Get saved quiz answers (for resuming in-progress quiz).
+     */
+    @GetMapping("/answers")
+    public ResponseEntity<QuizDto.SavedAnswersResponse> getSavedAnswers(Authentication authentication) {
+        User currentUser = userRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        log.info("Fetching saved answers for user {}", currentUser.getId());
+        
+        QuizDto.SavedAnswersResponse response = quizService.getSavedAnswers(currentUser);
+        return ResponseEntity.ok(response);
+    }
 }

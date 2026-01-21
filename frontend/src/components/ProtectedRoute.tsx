@@ -11,7 +11,6 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const location = useLocation();
   const { isAuthenticated, isLoading, user, isAdmin } = useAuth();
-  const [quizLoading, setQuizLoading] = useState(false);
   const [requiresQuiz, setRequiresQuiz] = useState(false);
   const [checkingQuiz, setCheckingQuiz] = useState(true);
 
@@ -30,7 +29,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       }
 
       try {
-        setQuizLoading(true);
         const status = await getOnboardingStatus();
         setRequiresQuiz(status.requiresOnboarding);
       } catch (error) {
@@ -38,7 +36,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
         // If check fails, assume no quiz needed to avoid blocking access
         setRequiresQuiz(false);
       } finally {
-        setQuizLoading(false);
         setCheckingQuiz(false);
       }
     };
@@ -73,11 +70,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/quiz-onboarding" replace />;
   }
 
-
-  // If on quiz route but doesn't need it, redirect to dashboard
-  if (isQuizRoute && !needsQuizOnboarding && !quizLoading) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Allow users to retake quiz anytime - don't redirect away from quiz page
+  // (removed the auto-redirect from quiz page when not needed)
 
 
   return <>{children}</>;

@@ -41,6 +41,7 @@ import {
   HelpCircle,
   Search,
   Repeat,
+  ArrowRight,
 } from 'lucide-react';
 
 const ExpertDashboard: React.FC = () => {
@@ -450,133 +451,136 @@ const ExpertDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Expert Dashboard</h1>
-          <p className="text-gray-500 mt-1">Manage your expert profile, sessions, and student questions</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowSessionModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            New Session
-          </button>
-          <button
-            onClick={() => setShowProfileModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors"
-          >
-            <Edit className="w-5 h-5" />
-            Edit Profile
-          </button>
-        </div>
-      </div>
-
-      {/* Profile Summary Card */}
-      {profile && (
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center">
-                <User className="w-10 h-10" />
+    <div className="space-y-8 animate-fade-in">
+      {/* Hero Section */}
+      <div className="bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 rounded-3xl text-white p-8 shadow-lg overflow-hidden relative">
+        <div className="absolute inset-0 opacity-20 bg-noise" />
+        <div className="relative z-10">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 text-purple-100 mb-2">
+                <Award className="h-4 w-4" />
+                <span className="text-sm uppercase tracking-[0.2em]">Expert Hub</span>
               </div>
-              <div>
-                <h2 className="text-2xl font-bold">{user?.fullName || user?.username}</h2>
-                <p className="text-purple-100">{profile.title || 'Expert'}</p>
-                {profile.institution && <p className="text-purple-200 text-sm">{profile.institution}</p>}
-                <div className="flex items-center gap-4 mt-2">
-                  <div className="flex items-center gap-1">
+              <h1 className="text-3xl md:text-4xl font-semibold mb-3">
+                {profile ? `${user?.fullName || user?.username}` : 'Expert Dashboard'}
+              </h1>
+              <p className="text-purple-100 max-w-xl leading-relaxed mb-4">
+                Manage your expert profile, sessions, and student questions. {profile?.title && `${profile.title} at ${profile.institution || 'Tel Aviv University'}`}
+              </p>
+              {profile && (
+                <div className="flex flex-wrap items-center gap-4 mt-4">
+                  <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full">
                     <Star className="w-4 h-4 text-yellow-300 fill-yellow-300" />
-                    <span>{profile.averageRating?.toFixed(1) || '0.0'}</span>
-                    <span className="text-purple-200">({profile.totalRatings || 0} reviews)</span>
+                    <span className="font-semibold">{profile.averageRating?.toFixed(1) || '0.0'}</span>
+                    <span className="text-purple-200 text-sm">({profile.totalRatings || 0} reviews)</span>
                   </div>
                   {profile.isVerified && (
-                    <span className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-sm">
-                      <CheckCircle className="w-3 h-3" />
+                    <span className="flex items-center gap-1 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm">
+                      <CheckCircle className="w-4 h-4" />
                       Verified
                     </span>
                   )}
+                  <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                    profile.acceptingNewStudents 
+                      ? 'bg-green-400/30 text-green-100 border border-green-300/30' 
+                      : 'bg-red-400/30 text-red-100 border border-red-300/30'
+                  }`}>
+                    {profile.acceptingNewStudents ? 'Available' : 'Unavailable'}
+                  </span>
                 </div>
-              </div>
+              )}
+              {profile?.specializations && profile.specializations.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {profile.specializations.slice(0, 5).map((spec, i) => (
+                    <span key={i} className="bg-white/15 backdrop-blur-sm px-3 py-1 rounded-full text-sm border border-white/10">
+                      {spec}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="text-right">
-              <p className="text-sm text-purple-200">Availability</p>
-              <span className={`px-3 py-1 rounded-full text-sm ${
-                profile.acceptingNewStudents ? 'bg-green-400/20 text-green-100' : 'bg-red-400/20 text-red-100'
-              }`}>
-                {profile.acceptingNewStudents ? 'Available' : 'Unavailable'}
-              </span>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setShowSessionModal(true)}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-purple-600 rounded-xl hover:bg-purple-50 transition-colors font-medium shadow-lg"
+              >
+                <Plus className="w-5 h-5" />
+                New Session
+              </button>
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-colors border border-white/10"
+              >
+                <Edit className="w-5 h-5" />
+                Edit Profile
+              </button>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-4">
-            {profile.specializations?.map((spec, i) => (
-              <span key={i} className="bg-white/20 px-3 py-1 rounded-full text-sm">
-                {spec}
-              </span>
-            ))}
           </div>
         </div>
-      )}
+        <div className="absolute -right-20 -bottom-32 w-96 h-96 bg-gradient-to-br from-purple-400/40 to-indigo-400/40 blur-3xl rounded-full" />
+      </div>
 
       {/* Stats Grid */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-lg shadow-gray-100/50 dark:shadow-gray-950/40">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-500">Upcoming Sessions</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.upcomingSessions}</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Upcoming Sessions</p>
+                <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{stats.upcomingSessions}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-blue-600" />
+              <div className="bg-blue-500/10 text-blue-500 p-3 rounded-xl">
+                <Calendar className="h-6 w-6" />
               </div>
             </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Scheduled coaching sessions</p>
           </div>
-          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-lg shadow-gray-100/50 dark:shadow-gray-950/40">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-500">Pending Questions</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.pendingQuestions}</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Pending Questions</p>
+                <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{stats.pendingQuestions}</p>
               </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                <MessageCircle className="w-6 h-6 text-orange-600" />
+              <div className="bg-orange-500/10 text-orange-500 p-3 rounded-xl">
+                <MessageCircle className="h-6 w-6" />
               </div>
             </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Awaiting your response</p>
           </div>
-          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-lg shadow-gray-100/50 dark:shadow-gray-950/40">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-500">Average Rating</p>
-                <div className="flex items-center gap-1">
-                  <p className="text-2xl font-bold text-gray-900">{stats.averageRating?.toFixed(1) || '0.0'}</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Average Rating</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{stats.averageRating?.toFixed(1) || '0.0'}</p>
                   <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
                 </div>
               </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                <Award className="w-6 h-6 text-yellow-600" />
+              <div className="bg-yellow-500/10 text-yellow-500 p-3 rounded-xl">
+                <Award className="h-6 w-6" />
               </div>
             </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">From student reviews</p>
           </div>
-          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-lg shadow-gray-100/50 dark:shadow-gray-950/40">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-500">Students Helped</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.studentsHelped}</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Students Helped</p>
+                <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{stats.studentsHelped}</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-green-600" />
+              <div className="bg-green-500/10 text-green-500 p-3 rounded-xl">
+                <TrendingUp className="h-6 w-6" />
               </div>
             </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Total students coached</p>
           </div>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-8">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-md">
+        <nav className="flex gap-2 p-2 overflow-x-auto">
           {[
             { id: 'overview', label: 'Overview' },
             { id: 'sessions', label: 'Sessions' },
@@ -588,10 +592,10 @@ const ExpertDashboard: React.FC = () => {
               key={tab.id}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-4 px-1 border-b-2 font-medium transition-colors ${
+              className={`px-4 py-2 rounded-xl font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'border-purple-600 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
               }`}
             >
               {tab.label}
@@ -604,64 +608,74 @@ const ExpertDashboard: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Upcoming Sessions */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="font-semibold text-gray-900">Upcoming Sessions</h3>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-md shadow-gray-100/50 dark:shadow-gray-950/40">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Upcoming Sessions</h3>
               <button
                 onClick={() => setActiveTab('sessions')}
-                className="text-sm text-purple-600 hover:text-purple-700"
+                className="text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1"
               >
                 View all
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {upcomingSessions.filter(s => s.status === 'Scheduled').slice(0, 3).map((session) => (
-                <div key={session.id} className="p-4 hover:bg-gray-50">
+                <div key={session.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                   <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        {getSessionTypeIcon(session.sessionType)}
-                        <span className="font-medium text-gray-900">{session.title}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="text-purple-500">
+                          {getSessionTypeIcon(session.sessionType)}
+                        </div>
+                        <span className="font-medium text-gray-900 dark:text-white">{session.title}</span>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">{formatDateTime(session.scheduledStartTime)}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        {formatDateTime(session.scheduledStartTime)}
+                      </p>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(session.status)}`}>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
                       {session.status}
                     </span>
                   </div>
                 </div>
               ))}
               {upcomingSessions.filter(s => s.status === 'Scheduled').length === 0 && (
-                <div className="p-8 text-center text-gray-500">
-                  <Calendar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No upcoming sessions</p>
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Calendar className="w-8 h-8 text-gray-400 dark:text-gray-600" />
+                  </div>
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">No upcoming sessions</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Create a session to get started</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Pending Questions */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="font-semibold text-gray-900">Pending Questions</h3>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-md shadow-gray-100/50 dark:shadow-gray-950/40">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Pending Questions</h3>
               <button
                 onClick={() => setActiveTab('questions')}
-                className="text-sm text-purple-600 hover:text-purple-700"
+                className="text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1"
               >
                 View all
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {questions.filter(q => q.status !== 'Answered' && q.status !== 'Resolved' && q.status !== 'Closed').slice(0, 3).map((question) => (
-                <div key={question.id} className="p-4 hover:bg-gray-50">
-                  <div className="flex items-start justify-between">
+                <div key={question.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{question.title}</p>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="font-medium text-gray-900 dark:text-white line-clamp-1">{question.title}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         From {question.student?.fullName || 'Anonymous'}
                       </p>
                     </div>
-                    <span className={`ml-2 px-2 py-1 rounded-full text-xs ${getPriorityColor(question.priority)}`}>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${getPriorityColor(question.priority)}`}>
                       {question.priority}
                     </span>
                   </div>
@@ -670,16 +684,20 @@ const ExpertDashboard: React.FC = () => {
                       setSelectedQuestion(question);
                       setShowAnswerModal(true);
                     }}
-                    className="mt-2 text-sm text-purple-600 hover:text-purple-700"
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
                   >
-                    Answer →
+                    Answer question
+                    <Send className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ))}
               {questions.filter(q => q.status !== 'Answered' && q.status !== 'Resolved' && q.status !== 'Closed').length === 0 && (
-                <div className="p-8 text-center text-gray-500">
-                  <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No pending questions</p>
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <MessageCircle className="w-8 h-8 text-gray-400 dark:text-gray-600" />
+                  </div>
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">No pending questions</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Questions from students will appear here</p>
                 </div>
               )}
             </div>
@@ -688,12 +706,15 @@ const ExpertDashboard: React.FC = () => {
       )}
 
       {activeTab === 'sessions' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-            <h3 className="font-semibold text-gray-900">All Sessions</h3>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-md shadow-gray-100/50 dark:shadow-gray-950/40">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">All Sessions</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your coaching sessions</p>
+            </div>
             <button
               onClick={() => setShowSessionModal(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium shadow-sm"
             >
               <Plus className="w-4 h-4" />
               Create Session
@@ -762,10 +783,19 @@ const ExpertDashboard: React.FC = () => {
               </div>
             ))}
             {sessions.length === 0 && (
-              <div className="p-12 text-center text-gray-500">
-                <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No sessions yet</p>
-                <p className="text-sm mt-1">Create your first session to start helping students</p>
+              <div className="p-16 text-center">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-10 h-10 text-gray-400 dark:text-gray-600" />
+                </div>
+                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No sessions yet</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Create your first session to start helping students</p>
+                <button
+                  onClick={() => setShowSessionModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Session
+                </button>
               </div>
             )}
           </div>
@@ -773,9 +803,10 @@ const ExpertDashboard: React.FC = () => {
       )}
 
       {activeTab === 'questions' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Student Questions</h3>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-md shadow-gray-100/50 dark:shadow-gray-950/40">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Student Questions</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Answer questions from students</p>
           </div>
           <div className="divide-y divide-gray-100">
             {questions.map((question) => (
@@ -823,10 +854,12 @@ const ExpertDashboard: React.FC = () => {
               </div>
             ))}
             {questions.length === 0 && (
-              <div className="p-12 text-center text-gray-500">
-                <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No questions yet</p>
-                <p className="text-sm mt-1">Questions from students will appear here</p>
+              <div className="p-16 text-center">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <MessageCircle className="w-10 h-10 text-gray-400 dark:text-gray-600" />
+                </div>
+                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No questions yet</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Questions from students will appear here</p>
               </div>
             )}
           </div>
@@ -834,10 +867,10 @@ const ExpertDashboard: React.FC = () => {
       )}
 
       {activeTab === 'session-requests' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Pending Session Requests</h3>
-            <p className="text-sm text-gray-500 mt-1">Review and respond to student session requests</p>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-md shadow-gray-100/50 dark:shadow-gray-950/40">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Pending Session Requests</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Review and respond to student session requests</p>
           </div>
           <div className="divide-y divide-gray-100">
             {sessionRequests.length > 0 ? (
@@ -926,10 +959,12 @@ const ExpertDashboard: React.FC = () => {
                 </div>
               ))
             ) : (
-              <div className="p-12 text-center text-gray-500">
-                <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No pending requests</p>
-                <p className="text-sm mt-1">Session requests from students will appear here</p>
+              <div className="p-16 text-center">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-10 h-10 text-gray-400 dark:text-gray-600" />
+                </div>
+                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No pending requests</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Session requests from students will appear here</p>
               </div>
             )}
           </div>
@@ -937,9 +972,10 @@ const ExpertDashboard: React.FC = () => {
       )}
 
       {activeTab === 'reviews' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Student Reviews</h3>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-md shadow-gray-100/50 dark:shadow-gray-950/40">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Student Reviews</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Feedback from your students</p>
           </div>
           <div className="divide-y divide-gray-100">
             {reviews.map((review) => (
@@ -980,10 +1016,12 @@ const ExpertDashboard: React.FC = () => {
               </div>
             ))}
             {reviews.length === 0 && (
-              <div className="p-12 text-center text-gray-500">
-                <Star className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No reviews yet</p>
-                <p className="text-sm mt-1">Reviews from students will appear here</p>
+              <div className="p-16 text-center">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <Star className="w-10 h-10 text-gray-400 dark:text-gray-600" />
+                </div>
+                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No reviews yet</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Reviews from students will appear here</p>
               </div>
             )}
           </div>

@@ -6,7 +6,6 @@ import {
   BookOpen,
   Calendar,
   Clock,
-  GraduationCap,
   MessageSquare,
   Shield,
   Sparkles,
@@ -16,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { dashboardService, groupService, feedService, sessionService } from '../api';
+import { dashboardService, groupService, feedService, sessionService, topicsService } from '../api';
 import { FeedResponse } from '../api/feed';
 import {
   DashboardOverview,
@@ -35,6 +34,7 @@ const Dashboard: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreFeed, setHasMoreFeed] = useState(true);
   const [registeringSessionIds, setRegisteringSessionIds] = useState<Set<number>>(new Set());
+  const [hasTopics, setHasTopics] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,10 +42,11 @@ const Dashboard: React.FC = () => {
         console.log('Fetching dashboard data...');
         
         // Fetch independently so one failure doesn't block others
-        const [groupsResult, overviewResult, feedResult] = await Promise.allSettled([
+        const [groupsResult, overviewResult, feedResult, topicsResult] = await Promise.allSettled([
           groupService.getMyGroups(),
           dashboardService.getOverview(),
           feedService.getStudentFeed(0),
+          topicsService.getMyTopics(),
         ]);
         
         if (groupsResult.status === 'fulfilled') {
@@ -69,6 +70,13 @@ const Dashboard: React.FC = () => {
           setHasMoreFeed(feedResult.value.feedItems.length === 4);
         } else {
           console.error('Failed to load feed:', feedResult.reason);
+        }
+        
+        if (topicsResult.status === 'fulfilled') {
+          console.log('Topics data:', topicsResult.value);
+          setHasTopics(topicsResult.value.topics.length > 0);
+        } else {
+          console.error('Failed to load topics:', topicsResult.reason);
         }
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
@@ -372,6 +380,30 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Topics Reminder - Show if user has no topics */}
+                {!hasTopics && (
+                  <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl text-white p-5 shadow-md">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-base font-semibold mb-1">Choose Your Topics</h4>
+                        <p className="text-purple-50 text-sm mb-3">
+                          Select topics you're interested in to get personalized group recommendations and better matches.
+                        </p>
+                        <Link
+                          to="/settings"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-white text-purple-600 rounded-lg hover:bg-purple-50 transition text-sm font-medium"
+                        >
+                          Choose topics
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {feedData.feedItems.map((item, index) => {
                   // QUIZ_REMINDER
                   if (item.itemType === 'QUIZ_REMINDER') {
@@ -388,7 +420,7 @@ const Dashboard: React.FC = () => {
                               to="/quiz-onboarding"
                               className="inline-flex items-center gap-2 px-3 py-1.5 bg-white text-amber-600 rounded-lg hover:bg-amber-50 transition text-sm font-medium"
                             >
-                              Take the quiz
+                              Continue the quiz
                               <ArrowRight className="h-3.5 w-3.5" />
                             </Link>
                           </div>
@@ -592,57 +624,6 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 shadow-md shadow-gray-200/60 dark:shadow-gray-950/40">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Quick actions</h2>
-              <span className="inline-flex items-center gap-1 text-xs font-medium bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200 px-2.5 py-1 rounded-full">
-                <Sparkles className="h-3.5 w-3.5" />
-                Recommended
-              </span>
-            </div>
-            <div className="space-y-3">
-              <Link
-                to="/sessions"
-                className="flex items-center justify-between bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-indigo-200 dark:hover:border-indigo-900 rounded-xl px-4 py-3 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-indigo-500" />
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">Browse upcoming sessions</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Reserve a spot with your favorite expert.</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-indigo-500" />
-              </Link>
-              <Link
-                to="/qa"
-                className="flex items-center justify-between bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-indigo-200 dark:hover:border-indigo-900 rounded-xl px-4 py-3 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <MessageSquare className="h-5 w-5 text-indigo-500" />
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">Ask or answer questions</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Contribute to the Q&A community.</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-indigo-500" />
-              </Link>
-              <Link
-                to="/experts"
-                className="flex items-center justify-between bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 hover:border-indigo-200 dark:hover:border-indigo-900 rounded-xl px-4 py-3 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <GraduationCap className="h-5 w-5 text-indigo-500" />
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">Connect with experts</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Find mentors matched to your goals.</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-indigo-500" />
-              </Link>
-            </div>
-          </div>
-
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-rose-100 dark:border-rose-900/60 p-6 shadow-md shadow-rose-100/40 dark:shadow-rose-950/30">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">

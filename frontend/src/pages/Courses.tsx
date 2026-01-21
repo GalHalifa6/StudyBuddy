@@ -130,7 +130,6 @@ const Courses: React.FC = () => {
       await courseService.enrollInCourse(courseId);
       await loadCourses(false);
       setFeedback({ type: 'success', message: 'Enrolled! We added the course to your personal hub.' });
-      switchView('enrolled');
     } catch (error) {
       setFeedback({ type: 'error', message: 'Could not enroll in that course right now. Please try again.' });
     } finally {

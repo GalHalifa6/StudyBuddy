@@ -116,27 +116,39 @@ public class MatchingService {
             }
             
             GroupCharacteristicProfile groupProfile = groupProfileOpt.get();
-            Map<RoleType, Double> currentAverages = groupProfile.getAverageRoleScores();
             
-            // Calculate gap-filling score
-            double gapFillScore = calculateGapFillScore(studentProfile, currentAverages);
+            // Ensure all roles are present in averages (fix #1)
+            Map<RoleType, Double> currentAverages = new EnumMap<>(RoleType.class);
+            for (RoleType r : RoleType.values()) currentAverages.put(r, 0.0);
+            currentAverages.putAll(groupProfile.getAverageRoleScores());
             
-            // Apply reliability-aware blending: blend toward neutral (0.55) based on reliability
-            double reliability = clamp01(studentProfile.getReliabilityPercentage() != null 
-                    ? studentProfile.getReliabilityPercentage() : 0.0);
-            double neutralBase = 0.55;
-            double blended = neutralBase + reliability * (gapFillScore - neutralBase);
+            // Debug logging
+            log.info("MATCH_DEBUG groupId={} name='{}' memberCount={} avgs={}",
+                group.getId(),
+                group.getName(),
+                groupProfile.getMemberCount(),
+                currentAverages);
             
-            // Apply display curve with floor (20%) for friendlier UX
-            double display = 0.20 + 0.80 * Math.pow(blended, 0.75);
+            // Calculate raw gap-filling score
+            double rawScore = calculateGapFillScore(studentProfile, currentAverages);
             
-            // Log summary
-            log.info(">>> Group '{}' gap={}% reliability={}% blended={}% display={}%", 
+            // Add variance boost based on role diversity
+            double diversityBonus = calculateDiversityBonus(studentProfile, currentAverages);
+            double adjustedScore = clamp01(rawScore + diversityBonus * 0.15);
+            
+            // Expand range dramatically: map 0.3-0.7 input to 40-90% output
+            // Use linear transformation with amplification
+            double normalized = (adjustedScore - 0.3) / 0.4;  // Normalize 0.3-0.7 to 0-1
+            normalized = clamp01(normalized);
+            double display = 0.40 + 0.50 * normalized;  // Map to 40-90%
+            
+            // Log detailed breakdown
+            log.info(">>> Group '{}': raw={} diversity={} adjusted={} display={}", 
                     group.getName(), 
-                    Math.round(gapFillScore * 100), 
-                    Math.round(reliability * 100),
-                    Math.round(blended * 100),
-                    Math.round(display * 100));
+                    String.format("%.3f", rawScore),
+                    String.format("%.3f", diversityBonus),
+                    String.format("%.3f", adjustedScore),
+                    String.format("%.0f%%", display * 100));
             
             String matchReason = generateMatchReason(display);
             
@@ -150,60 +162,48 @@ public class MatchingService {
     
     /**
      * Calculate gap-filling score using need-weighted contribution.
-     * Measures how well a student fills the gaps in a group's composition.
-     * 
-     * Instead of cosine similarity (which measures "same direction"), this calculates
-     * "how much of what the group needs does this student provide".
+     * Simpler version focused on actual complementarity.
      */
     private double calculateGapFillScore(CharacteristicProfile studentProfile,
                                         Map<RoleType, Double> groupAverages) {
-        double alpha = 2.5;  // Emphasize student's strong traits (exponential)
-        double beta = 2.0;   // Emphasize big gaps in the group
-        double eps = 1e-9;
-        
-        // 1) Compute real needs for each role
-        Map<RoleType, Double> needs = new EnumMap<>(RoleType.class);
-        for (RoleType role : RoleType.values()) {
-            double groupAvg = clamp01(groupAverages.getOrDefault(role, 0.0));
-            double target = TARGET.getOrDefault(role, 0.6);
-            double need = Math.max(0.0, target - groupAvg);
-            needs.put(role, need);
-        }
-        
-        // 2) If group has no gaps -> return neutral score
-        double totalNeed = needs.values().stream().mapToDouble(Double::doubleValue).sum();
-        if (totalNeed < eps) {
-            return 0.5;
-        }
-        
-        // 3) Score = weighted coverage of needs
-        double numerator = 0.0;
-        double denominator = 0.0;
+        double totalFit = 0.0;
+        int roleCount = RoleType.values().length;
         
         for (RoleType role : RoleType.values()) {
             double studentScore = clamp01(studentProfile.getRoleScore(role));
-            double need = needs.get(role);
+            double groupAvg = groupAverages.get(role);  // Safe now - always present
+            double target = TARGET.getOrDefault(role, 0.6);
             
-            // Floor only if there's a real gap (prevents tiny gaps from dominating)
-            if (need > 0.0) {
-                need = Math.max(need, 0.05);
-            }
+            // Calculate gap and how well student fills it
+            double gap = Math.max(0.0, target - groupAvg);
+            double contribution = studentScore * gap;
             
-            // Weighted need (emphasize bigger gaps)
-            double needWeight = Math.pow(need, beta);
-            denominator += needWeight;
-            
-            // Student contribution (emphasize stronger traits)
-            double studentContribution = Math.pow(studentScore, alpha) * needWeight;
-            numerator += studentContribution;
+            // Weight by importance (larger gaps matter more)
+            totalFit += contribution * (1.0 + gap);
         }
         
-        double score = clamp01(numerator / denominator);
+        log.debug("Gap-fill totalFit={}", totalFit);
+        return totalFit;  // Return unnormalized raw score for better differentiation
+    }
+    
+    /**
+     * Calculate diversity bonus - rewards having different strengths than the group.
+     */
+    private double calculateDiversityBonus(CharacteristicProfile studentProfile,
+                                          Map<RoleType, Double> groupAverages) {
+        double totalDifference = 0.0;
         
-        // Apply calibration curve to spread scores for better UX
-        double calibratedScore = Math.pow(score, 0.7);
+        for (RoleType role : RoleType.values()) {
+            double studentScore = clamp01(studentProfile.getRoleScore(role));
+            double groupAvg = groupAverages.get(role);  // Safe now - always present
+            
+            // Bonus if student is strong where group is weak
+            if (studentScore > groupAvg + 0.15) {
+                totalDifference += (studentScore - groupAvg);
+            }
+        }
         
-        return calibratedScore;
+        return totalDifference;  // Return unnormalized - no artificial compression
     }
     
     /**
@@ -229,11 +229,11 @@ public class MatchingService {
      * Generate match quality description based on gap-filling score.
      */
     private String generateMatchReason(double gapFillScore) {
-        if (gapFillScore >= 0.85) {
+        if (gapFillScore >= 0.80) {
             return "Perfect fit - you complete this team!";
-        } else if (gapFillScore >= 0.70) {
+        } else if (gapFillScore >= 0.65) {
             return "Excellent match - fills key gaps in the group";
-        } else if (gapFillScore >= 0.55) {
+        } else if (gapFillScore >= 0.50) {
             return "Good match - complements team strengths";
         } else if (gapFillScore >= 0.40) {
             return "Moderate match - some overlapping roles";
