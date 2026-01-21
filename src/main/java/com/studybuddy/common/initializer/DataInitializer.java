@@ -16,6 +16,7 @@ import com.studybuddy.messaging.repository.*;
 import com.studybuddy.admin.repository.*;
 import com.studybuddy.quiz.repository.*;
 import com.studybuddy.matching.repository.*;
+import com.studybuddy.matching.model.GroupCharacteristicProfile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +55,7 @@ public class DataInitializer implements CommandLineRunner {
     private final AllowedEmailDomainRepository allowedEmailDomainRepository;
     private final QuizQuestionRepository quizQuestionRepository;
     private final CharacteristicProfileRepository characteristicProfileRepository;
+    private final GroupCharacteristicProfileRepository groupProfileRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -764,6 +767,9 @@ public class DataInitializer implements CommandLineRunner {
         creator.getGroups().add(group);
         StudyGroup savedGroup = studyGroupRepository.save(group);
         userRepository.save(creator);
+        
+
+        
         return savedGroup;
     }
 
@@ -1345,8 +1351,75 @@ public class DataInitializer implements CommandLineRunner {
                 addMemberToGroup(group, members.get(i));
             }
         }
+
+        // Create initial group profile
+        createGroupProfile(group);
         
         log.info("Created group: {} with {} members", name, members.size());
+    }
+
+    /**
+     * Recalculate profiles for all groups after data initialization.
+     */
+    /**
+     * Create initial GroupCharacteristicProfile for a newly created group.
+     * Calculates average role scores based on current members' profiles.
+     */
+    private void createGroupProfile(StudyGroup group) {
+        try {
+            // Get member profiles
+            List<CharacteristicProfile> memberProfiles = new ArrayList<>();
+            for (User member : group.getMembers()) {
+                characteristicProfileRepository.findByUserId(member.getId())
+                    .ifPresent(memberProfiles::add);
+            }
+
+            GroupCharacteristicProfile groupProfile = new GroupCharacteristicProfile();
+            groupProfile.setGroupId(group.getId());
+            groupProfile.setLastUpdatedAt(LocalDateTime.now());
+
+            if (memberProfiles.isEmpty()) {
+                // No profiles yet, set all defaults explicitly
+                for (RoleType role : RoleType.values()) {
+                    groupProfile.setAverageRoleScore(role, 0.0);
+                }
+                groupProfile.setMemberCount(0);
+                groupProfile.setCurrentVariance(0.0);
+            } else {
+                // Calculate averages
+                Map<RoleType, Double> averages = new HashMap<>();
+                for (RoleType role : RoleType.values()) {
+                    double sum = memberProfiles.stream()
+                        .mapToDouble(p -> p.getRoleScore(role))
+                        .sum();
+                    averages.put(role, sum / memberProfiles.size());
+                }
+
+                // Set average scores
+                for (RoleType role : RoleType.values()) {
+                    groupProfile.setAverageRoleScore(role, averages.get(role));
+                }
+
+                // Calculate variance
+                double variance = averages.values().stream()
+                    .mapToDouble(avg -> {
+                        double diff = avg - (1.0 / RoleType.values().length);
+                        return diff * diff;
+                    })
+                    .sum() / RoleType.values().length;
+
+                groupProfile.setCurrentVariance(variance);
+                groupProfile.setMemberCount(memberProfiles.size());
+            }
+
+            groupProfileRepository.save(groupProfile);
+            log.info("✅ Created profile for group {} ('{}') with {} members, variance: {}", 
+                group.getId(), group.getName(), groupProfile.getMemberCount(), 
+                String.format("%.4f", groupProfile.getCurrentVariance()));
+            
+        } catch (Exception e) {
+            log.error("Failed to create profile for group {}: {}", group.getId(), e.getMessage());
+        }
     }
 }
 

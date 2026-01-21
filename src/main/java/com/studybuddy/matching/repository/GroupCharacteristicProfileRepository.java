@@ -16,6 +16,11 @@ public interface GroupCharacteristicProfileRepository extends JpaRepository<Grou
      * Find profile by group ID.
      */
     Optional<GroupCharacteristicProfile> findByGroupId(Long groupId);
+    
+    /**
+     * Batch fetch profiles for multiple groups (prevents N+1 queries).
+     */
+    List<GroupCharacteristicProfile> findByGroupIdIn(List<Long> groupIds);
 
     /**
      * Find all profiles for groups that contain a specific user.

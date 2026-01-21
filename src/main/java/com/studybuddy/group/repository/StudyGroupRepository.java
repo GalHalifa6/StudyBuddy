@@ -40,7 +40,7 @@ public interface StudyGroupRepository extends JpaRepository<StudyGroup, Long> {
            "g.course.id IN :courseIds AND " +
            "SIZE(g.members) < g.maxSize AND " +
            "g.visibility != 'PRIVATE' AND " +
-           ":studentId NOT MEMBER OF g.members")
+           "NOT EXISTS (SELECT 1 FROM g.members m WHERE m.id = :studentId)")
     List<StudyGroup> findMatchableGroups(
         @Param("courseIds") java.util.Set<Long> courseIds,
         @Param("studentId") Long studentId
