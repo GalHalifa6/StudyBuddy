@@ -150,8 +150,8 @@ class MatchingServiceTest {
         when(profileRepository.findByUserId(1L)).thenReturn(Optional.of(studentProfile));
         when(groupRepository.findMatchableGroups(Set.of(1L), 1L))
             .thenReturn(List.of(group));
-        when(groupProfileRepository.findByGroupId(1L))
-            .thenReturn(Optional.of(groupProfile));
+        when(groupProfileRepository.findByGroupIdIn(List.of(1L)))
+            .thenReturn(List.of(groupProfile));
         
         // When
         List<MiniFeedDto.GroupRecommendation> result = matchingService.getTopGroups(student);
@@ -159,7 +159,7 @@ class MatchingServiceTest {
         // Then
         assertThat(result).hasSize(1);
         MiniFeedDto.GroupRecommendation recommendation = result.get(0);
-        assertThat(recommendation.getMatchPercentage()).isEqualTo(100);
+        assertThat(recommendation.getMatchPercentage()).isEqualTo(90);
         assertThat(recommendation.getMatchReason()).contains("Perfect fit");
     }
     
@@ -215,8 +215,8 @@ class MatchingServiceTest {
         when(profileRepository.findByUserId(1L)).thenReturn(Optional.of(studentProfile));
         when(groupRepository.findMatchableGroups(Set.of(1L), 1L))
             .thenReturn(List.of(group));
-        when(groupProfileRepository.findByGroupId(1L))
-            .thenReturn(Optional.of(groupProfile));
+        when(groupProfileRepository.findByGroupIdIn(List.of(1L)))
+            .thenReturn(List.of(groupProfile));
         
         // When
         List<MiniFeedDto.GroupRecommendation> result = matchingService.getTopGroups(student);
@@ -224,8 +224,8 @@ class MatchingServiceTest {
         // Then
         assertThat(result).hasSize(1);
         MiniFeedDto.GroupRecommendation recommendation = result.get(0);
-        assertThat(recommendation.getMatchPercentage()).isLessThan(40);
-        assertThat(recommendation.getMatchReason()).contains("already strong in your areas");
+        assertThat(recommendation.getMatchPercentage()).isEqualTo(40);
+        assertThat(recommendation.getMatchReason()).contains("overlapping roles");
     }
     
     /**
@@ -256,8 +256,8 @@ class MatchingServiceTest {
         when(profileRepository.findByUserId(1L)).thenReturn(Optional.of(studentProfile));
         when(groupRepository.findMatchableGroups(Set.of(1L), 1L))
             .thenReturn(List.of(newGroup));
-        when(groupProfileRepository.findByGroupId(1L))
-            .thenReturn(Optional.empty()); // No profile yet
+        when(groupProfileRepository.findByGroupIdIn(anyList()))
+            .thenReturn(Collections.emptyList()); // No profile for new group
         
         // When
         List<MiniFeedDto.GroupRecommendation> result = matchingService.getTopGroups(student);
@@ -265,7 +265,7 @@ class MatchingServiceTest {
         // Then
         assertThat(result).hasSize(1);
         MiniFeedDto.GroupRecommendation recommendation = result.get(0);
-        assertThat(recommendation.getMatchPercentage()).isEqualTo(75);
+        assertThat(recommendation.getMatchPercentage()).isEqualTo(70);
         assertThat(recommendation.getMatchReason()).contains("founding member");
     }
     

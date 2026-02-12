@@ -9,6 +9,8 @@ import com.studybuddy.user.repository.UserRepository;
 import com.studybuddy.course.repository.CourseRepository;
 import com.studybuddy.group.repository.StudyGroupRepository;
 import com.studybuddy.group.repository.GroupMemberRequestRepository;
+import com.studybuddy.messaging.repository.MessageRepository;
+import com.studybuddy.messaging.repository.MessageReceiptRepository;
 import com.studybuddy.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -48,6 +51,15 @@ class GroupControllerTest {
 
     @Mock
     private NotificationService notificationService;
+
+    @Mock
+    private MessageRepository messageRepository;
+
+    @Mock
+    private MessageReceiptRepository messageReceiptRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @Mock
     private Authentication authentication;
