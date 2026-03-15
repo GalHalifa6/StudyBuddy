@@ -1,0 +1,14 @@
+-- V1__baseline.sql
+-- Baseline migration for StudyBuddy database schema.
+-- This file documents the initial schema that Hibernate auto-generated.
+-- Flyway will skip this for existing databases (baseline-on-migrate=true, baseline-version=0).
+-- For new databases, this creates the full schema.
+
+-- This is intentionally empty because:
+-- 1. Existing dev databases use Hibernate ddl-auto=update
+-- 2. Existing prod databases will be baselined by Flyway
+-- 3. Future schema changes go in V2__*, V3__*, etc.
+--
+-- To generate the full DDL from the current entities:
+--   mvn spring-boot:run -Dspring.jpa.properties.javax.persistence.schema-generation.scripts.action=create
+--   -Dspring.jpa.properties.javax.persistence.schema-generation.scripts.create-target=schema.sql

@@ -1,0 +1,1360 @@
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { groupService, messageService, fileService, calendarService } from '../api';
+import { StudyGroup, Message, FileUpload, Event, User } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { Client, IMessage } from '@stomp/stompjs';
+// @ts-expect-error - SockJS types are not available
+import SockJS from 'sockjs-client/dist/sockjs';
+import GroupEventModal from './my-groups/GroupEventModal';
+import GroupScheduleTab from './my-groups/GroupScheduleTab';
+import { resolveApiUrl, resolveSockJsUrl } from '../config/env';
+import {
+  Search,
+  Users,
+  CheckCheck,
+  Loader2,
+  RefreshCw,
+  Send,
+  Paperclip,
+  Smile,
+  Phone,
+  Video,
+  Check,
+  File as FileIcon,
+  Calendar,
+  Download,
+  UserPlus,
+  Crown,
+  Shield,
+  MessageSquare,
+  FolderOpen,
+  CalendarDays,
+  Wifi,
+  WifiOff,
+  X,
+  Pin,
+  PinOff,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
+
+interface ChatPreview {
+  group: StudyGroup;
+  lastMessage?: {
+    content: string;
+    senderName: string;
+    timestamp: string;
+    isOwn: boolean;
+  };
+  unreadCount: number;
+}
+
+const QUICK_EMOJIS = ['??', '??', '??', '??', '??', '??', '??', '??'];
+
+const MyGroups: React.FC = () => {
+  const { user } = useAuth();
+  const { showError } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // State
+  const [chats, setChats] = useState<ChatPreview[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'members' | 'files' | 'schedule'>('chat');
+  const [groupFiles, setGroupFiles] = useState<FileUpload[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
+  // Calendar state
+  const [events, setEvents] = useState<Event[]>([]);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const wsClientRef = useRef<Client | null>(null);
+  const subscribedGroupsRef = useRef<Set<number>>(new Set());
+  const subscriptionsRef = useRef<Map<number, { unsubscribe: () => void }>>(new Map());
+  const [isConnected, setIsConnected] = useState(false);
+  const messageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  
+  // Pinned messages state
+  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [showPinnedBanner, setShowPinnedBanner] = useState(true);
+  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // WebSocket handler for real-time messages - use ref to avoid recreating subscriptions
+  const handleNewMessageRef = useRef((message: Message) => {
+    // Only update messages list if it's for the currently selected group
+    const currentSelectedId = selectedGroupId;
+    if (message.group?.id === currentSelectedId) {
+      setMessages((prevMessages) => {
+        // Check if message already exists to avoid duplicates
+        const exists = prevMessages.some((m) => m.id === message.id);
+        if (exists) {
+          return prevMessages;
+        }
+        return [...prevMessages, message];
+      });
+    }
+
+    // Always update chat preview for any group message
+    setChats((prevChats) => {
+      return prevChats.map((chat) => {
+        if (chat.group.id === message.group?.id) {
+          return {
+            ...chat,
+            lastMessage: {
+              content: message.content,
+              senderName: message.sender?.fullName || message.sender?.username || 'Unknown',
+              timestamp: message.createdAt,
+              isOwn: message.sender?.id === user?.id
+            }
+          };
+        }
+        return chat;
+      }).sort((a, b) => {
+        // Re-sort chats by last message time after update
+        if (!a.lastMessage && !b.lastMessage) return 0;
+        if (!a.lastMessage) return 1;
+        if (!b.lastMessage) return -1;
+        return new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime();
+      });
+    });
+  });
+
+  // Keep the ref updated with current selectedGroupId and user
+  useEffect(() => {
+    handleNewMessageRef.current = (message: Message) => {
+      const isForCurrentGroup = message.group?.id === selectedGroupId;
+      const isOwnMessage = message.sender?.id === user?.id;
+      
+      // Update messages list if it's for the currently selected group
+      if (isForCurrentGroup) {
+        setMessages((prevMessages) => {
+          const exists = prevMessages.some((m) => m.id === message.id);
+          if (exists) return prevMessages;
+          return [...prevMessages, message];
+        });
+      }
+
+      // Update chat preview for any group message
+      setChats((prevChats) => {
+        return prevChats.map((chat) => {
+          if (chat.group.id === message.group?.id) {
+            return {
+              ...chat,
+              lastMessage: {
+                content: message.content,
+                senderName: message.sender?.fullName || message.sender?.username || 'Unknown',
+                timestamp: message.createdAt,
+                isOwn: isOwnMessage
+              },
+              // Increment unread count if not viewing this chat and not own message
+              unreadCount: (!isForCurrentGroup && !isOwnMessage) 
+                ? chat.unreadCount + 1 
+                : chat.unreadCount
+            };
+          }
+          return chat;
+        }).sort((a, b) => {
+          if (!a.lastMessage && !b.lastMessage) return 0;
+          if (!a.lastMessage) return 1;
+          if (!b.lastMessage) return -1;
+          return new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime();
+        });
+      });
+    };
+  }, [selectedGroupId, user?.id]);
+
+  // Initialize WebSocket connection once on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const wsUrl = resolveSockJsUrl('/ws');
+    const wsUrlWithToken = token ? `${wsUrl}?token=${encodeURIComponent(token)}` : wsUrl;
+    const client = new Client({
+      webSocketFactory: () => new SockJS(wsUrlWithToken),
+      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+      debug: (str) => {
+        console.log('STOMP Debug:', str);
+      },
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      onConnect: () => {
+        console.log('WebSocket connected for My Groups!');
+        setIsConnected(true);
+      },
+      onDisconnect: () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+      },
+      onStompError: (frame) => {
+        console.error('STOMP error:', frame);
+        setIsConnected(false);
+      },
+      onWebSocketError: (event) => {
+        console.error('WebSocket error:', event);
+        setIsConnected(false);
+      },
+    });
+
+    wsClientRef.current = client;
+    client.activate();
+    
+    // Capture ref values at effect start to avoid stale closure warnings
+    const subscribedGroupsSnapshot = subscribedGroupsRef.current;
+    const subscriptionsSnapshot = subscriptionsRef.current;
+
+    return () => {
+      if (wsClientRef.current) {
+        wsClientRef.current.deactivate();
+        wsClientRef.current = null;
+        setIsConnected(false);
+      }
+      subscribedGroupsSnapshot.clear();
+      subscriptionsSnapshot.clear();
+    };
+  }, []); // Only run once on mount
+
+  // Subscribe to new groups as chats are loaded or updated
+  useEffect(() => {
+    if (!wsClientRef.current || !isConnected) return;
+
+    const currentGroupIds = new Set(chats.map(chat => chat.group.id));
+    
+    // Subscribe to new groups
+    chats.forEach((chat) => {
+      if (!subscribedGroupsRef.current.has(chat.group.id)) {
+        const subscription = wsClientRef.current!.subscribe(
+          `/topic/group/${chat.group.id}`,
+          (message: IMessage) => {
+            try {
+              const parsedMessage = JSON.parse(message.body);
+              handleNewMessageRef.current(parsedMessage);
+            } catch (error) {
+              console.error('Error parsing message:', error);
+            }
+          }
+        );
+        subscribedGroupsRef.current.add(chat.group.id);
+        subscriptionsRef.current.set(chat.group.id, subscription);
+        console.log('Subscribed to group', chat.group.id);
+      }
+    });
+
+    // Unsubscribe from groups user is no longer in
+    subscribedGroupsRef.current.forEach((groupId) => {
+      if (!currentGroupIds.has(groupId)) {
+        const subscription = subscriptionsRef.current.get(groupId);
+        if (subscription) {
+          subscription.unsubscribe();
+          subscriptionsRef.current.delete(groupId);
+        }
+        subscribedGroupsRef.current.delete(groupId);
+        console.log('Unsubscribed from group', groupId);
+      }
+    });
+  }, [chats, isConnected]); // Re-run when connection state or chats change
+
+  // Load all user's groups
+  const loadChats = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const myGroups = await groupService.getMyGroups();
+      
+      const chatPreviews: ChatPreview[] = await Promise.all(
+        myGroups.map(async (group) => {
+          try {
+            const preview = await groupService.getChatPreview(group.id);
+            
+            return {
+              group,
+              lastMessage: preview.lastMessage ? {
+                content: preview.lastMessage.content,
+                senderName: preview.lastMessage.sender?.fullName || preview.lastMessage.sender?.username || 'Unknown',
+                timestamp: preview.lastMessage.createdAt,
+                isOwn: preview.lastMessage.sender?.id === user?.id
+              } : undefined,
+              unreadCount: preview.unreadCount || 0
+            };
+          } catch {
+            return { group, unreadCount: 0 };
+          }
+        })
+      );
+
+      chatPreviews.sort((a, b) => {
+        if (!a.lastMessage && !b.lastMessage) return 0;
+        if (!a.lastMessage) return 1;
+        if (!b.lastMessage) return -1;
+        return new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime();
+      });
+
+      setChats(chatPreviews);
+
+      // Auto-select first group or from URL (only on initial load)
+      if (!selectedGroupId) {
+        const groupIdFromUrl = searchParams.get('group');
+        if (groupIdFromUrl) {
+          setSelectedGroupId(parseInt(groupIdFromUrl));
+        } else if (chatPreviews.length > 0) {
+          setSelectedGroupId(chatPreviews[0].group.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chats:', error);
+      setLoadError('We could not load your study groups right now.');
+      setChats([]);
+    } finally {
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Load messages for selected group
+  const loadMessages = useCallback(async (groupId: number) => {
+    try {
+      const msgs = await messageService.getGroupMessages(groupId);
+      setMessages(msgs);
+      setTimeout(() => scrollToBottom(), 100);
+      
+      // Load pinned messages
+      const pinned = await messageService.getPinnedMessages(groupId);
+      setPinnedMessages(pinned);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+      setMessages([]);
+      setPinnedMessages([]);
+      showError('Failed to load messages for this group.');
+    }
+  }, [showError]);
+
+  useEffect(() => {
+    loadChats();
+  }, [loadChats]);
+
+  useEffect(() => {
+    if (selectedGroupId) {
+      loadMessages(selectedGroupId);
+      setSearchParams({ group: selectedGroupId.toString() }, { replace: true });
+      
+      // Clear unread count for selected group
+      setChats((prevChats) => 
+        prevChats.map((chat) => 
+          chat.group.id === selectedGroupId 
+            ? { ...chat, unreadCount: 0 }
+            : chat
+        )
+      );
+    }
+  }, [selectedGroupId, loadMessages, setSearchParams]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Load files when tab changes to files or when group changes
+  useEffect(() => {
+    if (activeTab === 'files' && selectedGroupId) {
+      loadGroupFiles(selectedGroupId);
+    }
+  }, [activeTab, selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (activeTab === 'schedule' && selectedGroupId) {
+      loadGroupEvents(selectedGroupId);
+    }
+  }, [activeTab, selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const loadGroupFiles = async (groupId: number) => {
+    setIsLoadingFiles(true);
+    try {
+      const files = await fileService.getGroupFiles(groupId);
+      setGroupFiles(files);
+    } catch (error) {
+      console.error('Error loading group files:', error);
+      setGroupFiles([]);
+      showError('Failed to load shared files.');
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
+
+  const loadGroupEvents = async (groupId: number) => {
+    try {
+      const eventsData = await calendarService.getGroupEvents(groupId);
+      setEvents(eventsData);
+    } catch (error) {
+      console.error('Error loading group events:', error);
+      setEvents([]);
+      showError('Failed to load group events.');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !selectedGroupId) return;
+    
+    const file = e.target.files[0];
+    try {
+      await fileService.uploadFile(selectedGroupId, file);
+      await loadGroupFiles(selectedGroupId);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      showError('Failed to upload file. Please try again.');
+    }
+  };
+
+  const handleFileDownload = async (fileId: number, filename: string) => {
+    try {
+      const blob = await fileService.downloadFile(fileId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      showError('Failed to download file.');
+    }
+  };
+
+  const handleSendMessage = async (e?: React.FormEvent | React.KeyboardEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    if ((!newMessage.trim() && !attachedFile) || !selectedGroupId || isSending) return;
+
+    setIsSending(true);
+    try {
+      let fileId: number | undefined;
+      
+      // Upload file first if attached
+      if (attachedFile) {
+        const uploadedFile = await fileService.uploadFile(selectedGroupId, attachedFile);
+        fileId = uploadedFile.id;
+      }
+      
+      // Send message with optional file attachment
+      const sentMessage = await messageService.sendMessage(selectedGroupId, {
+        content: newMessage.trim() || (attachedFile ? `Sent ${attachedFile.name}` : ''),
+        messageType: attachedFile ? 'FILE' : 'TEXT',
+        fileId
+      });
+      
+      // Clear input and file attachment
+      setNewMessage('');
+      setAttachedFile(null);
+      setFilePreviewUrl(null);
+      
+      // WebSocket will handle adding the message, but in case of delay or WebSocket issue,
+      // add it locally (handleNewMessageRef will prevent duplicates)
+      if (sentMessage) {
+        handleNewMessageRef.current(sentMessage);
+      }
+      
+      messageInputRef.current?.focus();
+    } catch (error) {
+      console.error('Error sending message:', error);
+      showError('Failed to send message. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAttachedFile(file);
+      
+      // Create preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setFilePreviewUrl(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setFilePreviewUrl(null);
+      }
+    }
+  };
+
+  const handleRemoveAttachment = () => {
+    setAttachedFile(null);
+    setFilePreviewUrl(null);
+    if (chatFileInputRef.current) {
+      chatFileInputRef.current.value = '';
+    }
+  };
+
+  const handleInsertEmoji = (emoji: string) => {
+    setNewMessage((prev) => `${prev}${emoji}`);
+    setShowEmojiPicker(false);
+    messageInputRef.current?.focus();
+  };
+
+  const handleDownloadFile = async (fileId: number, filename: string) => {
+    try {
+      const blob = await fileService.downloadFile(fileId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      showError('Failed to download file.');
+    }
+  };
+
+  const handleTogglePin = async (messageId: number) => {
+    try {
+      await messageService.togglePin(messageId);
+      // Reload pinned messages
+      if (selectedGroupId) {
+        const pinned = await messageService.getPinnedMessages(selectedGroupId);
+        setPinnedMessages(pinned);
+        // Update messages list to reflect pin status
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === messageId ? { ...msg, isPinned: !msg.isPinned } : msg
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling pin:', error);
+      showError('Failed to update pinned messages.');
+    }
+  };
+
+  const scrollToMessage = (messageId: number) => {
+    const messageElement = messageRefs.current.get(messageId);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Highlight the message briefly
+      messageElement.classList.add('bg-yellow-100', 'dark:bg-yellow-900/20');
+      setTimeout(() => {
+        messageElement.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/20');
+      }, 2000);
+    }
+  };
+
+  const getAuthenticatedImageUrl = (fileId: number): string => {
+    const token = localStorage.getItem('token');
+    const fileUrl = resolveApiUrl(`/api/files/view/${fileId}`);
+    return token ? `${fileUrl}?token=${encodeURIComponent(token)}` : fileUrl;
+  };
+
+  const formatMessageTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else if (diffDays < 7) {
+      return date.toLocaleDateString(undefined, { weekday: 'short' });
+    } else {
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+  };
+
+
+  const filteredChats = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return chats;
+    }
+
+    return chats.filter((chat) =>
+      chat.group.name.toLowerCase().includes(query) ||
+      chat.group.course?.name?.toLowerCase().includes(query) ||
+      chat.group.course?.code?.toLowerCase().includes(query)
+    );
+  }, [chats, searchQuery]);
+
+  const totalUnreadChats = useMemo(
+    () => chats.filter((chat) => chat.unreadCount > 0).length,
+    [chats]
+  );
+
+  const selectedChat = chats.find(chat => chat.group.id === selectedGroupId);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 rounded-3xl text-white p-8 shadow-lg overflow-hidden relative">
+        <div className="absolute inset-0 opacity-20 bg-noise" />
+        <div className="relative z-10">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-2 text-indigo-100 mb-2">
+                <MessageSquare className="h-5 w-5" />
+                <span className="text-sm uppercase tracking-[0.2em]">Collaborate</span>
+              </div>
+              <h1 className="text-3xl md:text-4xl font-semibold mb-3">
+                My Group Chats
+              </h1>
+              <p className="text-indigo-100 max-w-2xl leading-relaxed">
+                Stay connected with your study groups. Send messages, share files, and collaborate in real-time with your peers.
+              </p>
+            </div>
+            <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <Users className="h-8 w-8 text-indigo-100" />
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-indigo-100/80">Active</p>
+                  <p className="text-lg font-semibold">Your Groups</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm text-indigo-100/90">
+                <div>
+                  <p className="text-2xl font-semibold leading-none">{chats.length}</p>
+                  <p className="mt-1">Total groups</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold leading-none">{totalUnreadChats}</p>
+                  <p className="mt-1">Unread chats</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="absolute -right-20 -bottom-32 w-96 h-96 bg-gradient-to-br from-indigo-400/40 to-purple-400/40 blur-3xl rounded-full" />
+      </div>
+
+      {/* Chat Interface */}
+      <div className="flex h-[calc(100vh-20rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {/* Groups Sidebar */}
+        <div className="w-96 border-r border-gray-200 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-900 flex-shrink-0">
+          {/* Sidebar Header */}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Conversations</h2>
+            <button
+              onClick={() => loadChats()}
+              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title="Refresh groups"
+            >
+              <RefreshCw className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </button>
+          </div>
+
+        {/* Search */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search groups or course codes"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+
+        {/* Groups List */}
+        <div className="flex-1 overflow-y-auto">
+          {loadError && (
+            <div className="m-4 rounded-2xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/20 p-4">
+              <p className="text-sm font-medium text-red-700 dark:text-red-200">{loadError}</p>
+              <button
+                onClick={() => loadChats()}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-red-200 dark:border-red-900/60 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-red-700 dark:text-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Retry
+              </button>
+            </div>
+          )}
+          {filteredChats.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 text-indigo-500 dark:text-indigo-300 flex items-center justify-center mb-4">
+                <Users className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                {searchQuery ? 'No groups match that search' : 'No study groups yet'}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xs">
+                {searchQuery
+                  ? 'Try a group name, course title, or course code.'
+                  : 'Join or create a study group to start collaborating with classmates here.'}
+              </p>
+            </div>
+          ) : (
+            filteredChats.map((chat) => (
+              <button
+                key={chat.group.id}
+                onClick={() => setSelectedGroupId(chat.group.id)}
+                className={`w-full p-4 flex items-start gap-3 transition-colors ${
+                  selectedGroupId === chat.group.id 
+                    ? 'bg-gray-200 dark:bg-gray-700' 
+                    : chat.unreadCount > 0
+                      ? 'bg-indigo-50 dark:bg-indigo-950/20 hover:bg-indigo-100 dark:hover:bg-indigo-950/30'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                {/* Avatar */}
+                <div className="flex-shrink-0 relative">
+                  <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
+                    {chat.group.name.substring(0, 2).toUpperCase()}
+                  </div>
+                  {chat.unreadCount > 0 && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full border-2 border-white dark:border-gray-900 flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">{chat.unreadCount > 9 ? '9+' : chat.unreadCount}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className={`truncate ${
+                      chat.unreadCount > 0 
+                        ? 'font-bold text-gray-900 dark:text-white' 
+                        : 'font-semibold text-gray-900 dark:text-white'
+                    }`}>
+                      {chat.group.name}
+                    </h3>
+                    {chat.lastMessage && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+                        {formatTime(chat.lastMessage.timestamp)}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <p className={`text-sm truncate ${
+                      chat.unreadCount > 0 
+                        ? 'font-semibold text-gray-900 dark:text-white' 
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}>
+                      {chat.lastMessage ? (
+                        <>
+                          {chat.lastMessage.isOwn && (
+                            <CheckCheck className="w-4 h-4 inline mr-1 text-blue-500" />
+                          )}
+                          {chat.lastMessage.isOwn ? 'You: ' : `${chat.lastMessage.senderName}: `}
+                          {chat.lastMessage.content}
+                        </>
+                      ) : (
+                        <span className="text-gray-400 italic">No messages yet</span>
+                      )}
+                    </p>
+                    {chat.unreadCount > 0 && (
+                      <span className="flex-shrink-0 ml-2 bg-indigo-600 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+                        {chat.unreadCount}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Chat Area */}
+      {selectedGroupId && selectedChat ? (
+        <div className="flex-1 flex flex-col min-w-0 bg-gray-50 dark:bg-gray-900">
+          {/* Chat Header */}
+          <div className="h-18 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 py-4 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center text-white font-semibold shadow-lg">
+                {selectedChat.group.name.substring(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+                  {selectedChat.group.name}
+                  {isConnected ? (
+                    <span className="flex items-center gap-1 text-xs font-normal text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full" title="Connected">
+                      <Wifi className="w-3 h-3" />
+                      Live
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-xs font-normal text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full" title="Disconnected">
+                      <WifiOff className="w-3 h-3" />
+                      Offline
+                    </span>
+                  )}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5" />
+                  {selectedChat.group.members?.length || 0} members
+                  {selectedChat.group.course && (
+                    <>
+                      <span className="mx-1">•</span>
+                      <span className="text-indigo-600 dark:text-indigo-400 font-medium">{selectedChat.group.course.code}</span>
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <button className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors" title="Video call">
+                <Video className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </button>
+              <button className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors" title="Voice call">
+                <Phone className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </button>
+            </div>
+          </div>
+
+          {/* Tabs Navigation */}
+          <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <div className="flex px-6">
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
+                  activeTab === 'chat'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                Chat
+              </button>
+              <button
+                onClick={() => setActiveTab('members')}
+                className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
+                  activeTab === 'members'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Members ({selectedChat.group.members?.length || 0})
+              </button>
+              <button
+                onClick={() => setActiveTab('files')}
+                className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
+                  activeTab === 'files'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                <FolderOpen className="w-4 h-4" />
+                Files
+              </button>
+              <button
+                onClick={() => setActiveTab('schedule')}
+                className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
+                  activeTab === 'schedule'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                <CalendarDays className="w-4 h-4" />
+                Schedule
+              </button>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === 'chat' && (
+            <>
+              {/* Pinned Messages Banner */}
+              {pinnedMessages.length > 0 && showPinnedBanner && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                      <Pin className="w-4 h-4" />
+                      <span className="text-sm font-semibold">Pinned Messages ({pinnedMessages.length})</span>
+                    </div>
+                    <button
+                      onClick={() => setShowPinnedBanner(!showPinnedBanner)}
+                      className="p-1 hover:bg-amber-200 dark:hover:bg-amber-800 rounded transition-colors"
+                    >
+                      {showPinnedBanner ? (
+                        <ChevronUp className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {pinnedMessages.map((msg) => (
+                      <button
+                        key={msg.id}
+                        onClick={() => scrollToMessage(msg.id)}
+                        className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      >
+                        <div className="flex items-start gap-2">
+                          <Pin className="w-3 h-3 text-amber-600 dark:text-amber-400 mt-1 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-gray-900 dark:text-white truncate">
+                              {msg.sender?.fullName || msg.sender?.username}
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                              {msg.content || (msg.attachedFile ? `📎 ${msg.attachedFile.filename}` : 'Event')}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white dark:bg-gray-900">
+                {messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <Users className="w-16 h-16 text-gray-400 mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">
+                      No messages yet. Start the conversation!
+                    </p>
+                  </div>
+                ) : (
+                  messages.map((message, index) => {
+                    const isOwn = message.sender?.id === user?.id;
+                    const showAvatar = index === 0 || messages[index - 1].sender?.id !== message.sender?.id;
+                    
+                    return (
+                      <div
+                        key={message.id}
+                        ref={(el) => {
+                          if (el) messageRefs.current.set(message.id, el);
+                        }}
+                        className={`flex items-end gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} group relative transition-colors`}
+                        onMouseEnter={() => setHoveredMessageId(message.id)}
+                        onMouseLeave={() => setHoveredMessageId(null)}
+                      >
+                        {!isOwn && (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                            {showAvatar ? (message.sender?.fullName || message.sender?.username || '?').substring(0, 2).toUpperCase() : ''}
+                          </div>
+                        )}
+                        <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col gap-1 relative`}>
+                          {/* Pin button */}
+                          {hoveredMessageId === message.id && (
+                            <button
+                              onClick={() => handleTogglePin(message.id)}
+                              className={`absolute -top-6 ${isOwn ? 'right-0' : 'left-0'} p-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-all opacity-0 group-hover:opacity-100 shadow-md`}
+                              title={message.isPinned ? 'Unpin message' : 'Pin message'}
+                            >
+                              {message.isPinned ? (
+                                <PinOff className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                              ) : (
+                                <Pin className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                              )}
+                            </button>
+                          )}
+                          {!isOwn && showAvatar && (
+                            <span className="text-xs text-gray-600 dark:text-gray-400 px-3">
+                              {message.sender?.fullName || message.sender?.username}
+                            </span>
+                          )}
+                          <div
+                            className={`rounded-2xl ${
+                              isOwn
+                                ? 'bg-indigo-600 text-white rounded-br-none'
+                                : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
+                            } ${message.attachedFile ? 'p-2' : 'px-4 py-2'} ${message.isPinned ? 'ring-2 ring-amber-400 dark:ring-amber-600' : ''}`}
+                          >
+                            {/* File/Image Attachment */}
+                            {message.attachedFile && (
+                              <div className="mb-2">
+                                {message.attachedFile.fileType?.startsWith('image/') ? (
+                                  <img
+                                    src={getAuthenticatedImageUrl(message.attachedFile.id)}
+                                    alt={message.attachedFile.filename}
+                                    className="max-w-sm rounded-lg cursor-pointer hover:opacity-90 transition"
+                                    onClick={() => handleDownloadFile(message.attachedFile!.id, message.attachedFile!.filename)}
+                                  />
+                                ) : (
+                                  <button
+                                    onClick={() => handleDownloadFile(message.attachedFile!.id, message.attachedFile!.filename)}
+                                    className={`flex items-center gap-3 p-3 rounded-lg w-full text-left ${
+                                      isOwn 
+                                        ? 'bg-indigo-500 hover:bg-indigo-400' 
+                                        : 'bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500'
+                                    } transition`}
+                                  >
+                                    <div className={`p-2 rounded ${isOwn ? 'bg-indigo-400' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                                      <FileIcon className={`w-6 h-6 ${isOwn ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{message.attachedFile.filename}</p>
+                                      <p className={`text-xs ${isOwn ? 'text-indigo-100' : 'text-gray-500 dark:text-gray-400'}`}>
+                                        {(message.attachedFile.fileSize / 1024).toFixed(1)} KB
+                                      </p>
+                                    </div>
+                                    <Download className={`w-4 h-4 ${isOwn ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`} />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Message Text */}
+                            {message.content && (
+                              message.messageType === 'event' && message.event ? (
+                                <button
+                                  onClick={() => {
+                                    setSelectedEvent(message.event!);
+                                    setShowEventModal(true);
+                                  }}
+                                  className={`break-words ${message.attachedFile ? 'px-2' : ''} w-full text-left hover:underline flex items-center gap-2`}
+                                >
+                                  <Calendar className="w-4 h-4 flex-shrink-0" />
+                                  {message.content}
+                                </button>
+                              ) : (
+                                <p className={`break-words ${message.attachedFile ? 'px-2' : ''}`}>{message.content}</p>
+                              )
+                            )}
+                            
+                            <span className={`text-xs opacity-70 mt-1 block ${message.attachedFile ? 'px-2 pb-1' : ''}`}>
+                              {formatMessageTime(message.createdAt)}
+                              {isOwn && <Check className="w-3 h-3 inline ml-1" />}
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 px-3 invisible">
+                            {formatMessageTime(message.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Message Input */}
+              <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-100 dark:bg-gray-800">
+                {/* File Preview */}
+                {attachedFile && (
+                  <div className="mb-3 p-3 bg-white dark:bg-gray-900 rounded-lg flex items-center gap-3 border border-gray-200 dark:border-gray-700">
+                    {filePreviewUrl ? (
+                      <img 
+                        src={filePreviewUrl} 
+                        alt="Preview" 
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                        <FileIcon className="w-8 h-8 text-gray-500" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {attachedFile.name}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {(attachedFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveAttachment}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+                )}
+
+                <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowEmojiPicker((prev) => !prev)}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                      aria-label="Open emoji picker"
+                    >
+                      <Smile className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+                    </button>
+                    {showEmojiPicker && (
+                      <div className="absolute bottom-14 left-0 z-20 grid grid-cols-4 gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                        {QUICK_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleInsertEmoji(emoji)}
+                            className="rounded-xl p-2 text-xl hover:bg-gray-100 dark:hover:bg-gray-800"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={chatFileInputRef}
+                    type="file"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept="image/*,application/pdf,.doc,.docx,.txt"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => chatFileInputRef.current?.click()}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                  >
+                    <Paperclip className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+                  </button>
+                  <div className="flex-1 relative">
+                    <textarea
+                      ref={messageInputRef}
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage(e);
+                        }
+                      }}
+                      placeholder="Type a message..."
+                      rows={1}
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-gray-900 dark:text-white"
+                      style={{ maxHeight: '120px' }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={(!newMessage.trim() && !attachedFile) || isSending}
+                    className="p-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-full transition-colors disabled:cursor-not-allowed"
+                  >
+                    {isSending ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
+                </form>
+              </div>
+            </>
+          )}
+
+          {/* Members Tab */}
+          {activeTab === 'members' && (
+            <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-gray-900">
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Group Members
+                  </h3>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
+                    <UserPlus className="w-4 h-4" />
+                    Add Member
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {selectedChat.group.members?.map((member: User, index: number) => (
+                    <div
+                      key={member.id || index}
+                      className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-750 transition"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
+                          {(member.fullName || member.username || 'U').substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white">
+                            {member.fullName || member.username}
+                          </h4>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {member.email || `@${member.username}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {member.role === 'ADMIN' && (
+                          <span className="flex items-center gap-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-full text-xs font-medium">
+                            <Crown className="w-3 h-3" />
+                            Admin
+                          </span>
+                        )}
+                        {(member.role as string) === 'MODERATOR' && (
+                          <span className="flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-xs font-medium">
+                            <Shield className="w-3 h-3" />
+                            Moderator
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Files Tab */}
+          {activeTab === 'files' && (
+            <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-gray-900">
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Shared Files
+                  </h3>
+                  <div>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                      Upload File
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+
+                {isLoadingFiles ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+                  </div>
+                ) : groupFiles.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <FolderOpen className="w-16 h-16 text-gray-400 mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">No files shared yet</p>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                    >
+                      Upload first file
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {groupFiles.map((file) => (
+                      <div
+                        key={file.id}
+                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-750 transition group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
+                            <FileIcon className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900 dark:text-white">
+                              {file.originalFilename}
+                            </h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {fileService.formatFileSize(file.fileSize)} • {new Date(file.uploadedAt).toLocaleDateString()}
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                              Uploaded by {file.uploader.fullName || file.uploader.username}
+                            </p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleFileDownload(file.id, file.originalFilename)}
+                          className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition opacity-0 group-hover:opacity-100"
+                        >
+                          <Download className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Schedule Tab */}
+          {activeTab === 'schedule' && (
+            <GroupScheduleTab
+              events={events}
+              onCreateEvent={() => {
+                setSelectedEvent(null);
+                setShowEventModal(true);
+              }}
+              onSelectEvent={(event) => {
+                setSelectedEvent(event);
+                setShowEventModal(true);
+              }}
+            />
+          )}
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <div className="text-center px-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <MessageSquare className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Select a Conversation
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 max-w-md">
+              Choose a group from the sidebar to view messages, share files, and collaborate with your study partners.
+            </p>
+          </div>
+        </div>
+      )}
+      </div>
+
+      {/* Event Modal */}
+      {showEventModal && selectedGroupId && (
+        <GroupEventModal
+          selectedEvent={selectedEvent}
+          groupId={selectedGroupId}
+          userId={user?.id}
+          onClose={() => {
+            setShowEventModal(false);
+            setSelectedEvent(null);
+          }}
+          onEventCreated={(event) => setEvents((prev) => [...prev, event])}
+          onEventDeleted={(eventId) => setEvents((prev) => prev.filter((e) => e.id !== eventId))}
+        />
+      )}
+    </div>
+  );
+};
+
+export default MyGroups;
+
+
+
+
+
+
+
+
+

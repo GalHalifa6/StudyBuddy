@@ -1,0 +1,62 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.iml
+*.swp
+*.swo
+*~
+
+# Build artifacts
+target/
+node_modules/
+dist/
+build/
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (keep env.example)
+.env
+.env.local
+.env.*.local
+!env.example
+
+# Test files
+test-uploads/
+*.test.js
+*.spec.js
+
+# Documentation
+*.md
+!README.md
+
+# Scripts
+*.sh
+*.ps1
+*.bat
+
+# Data (will be mounted as volumes)
+data/
+uploads/
+
+# Frontend build (if building separately)
+frontend/dist/
+frontend/node_modules/
+
+# Mobile app
+studybuddy-mobile/
+
