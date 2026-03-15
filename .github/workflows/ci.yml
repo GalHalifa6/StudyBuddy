@@ -25,6 +25,14 @@ jobs:
       - name: Run backend tests
         run: mvn clean test -e --no-transfer-progress
 
+      - name: Print failed test reports
+        if: failure()
+        run: |
+          find target/surefire-reports -name "*.xml" 2>/dev/null | xargs grep -l "failure\|error" 2>/dev/null | while read f; do
+            echo "========== $f =========="
+            cat "$f"
+          done
+
       - name: Generate test coverage report
         run: mvn jacoco:report --no-transfer-progress
         continue-on-error: true
