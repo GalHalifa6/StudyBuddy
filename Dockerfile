@@ -15,8 +15,8 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Create non-root user for security
-RUN addgroup -S spring && adduser -S spring -G spring
+# Create non-root user and pre-create uploads directory with correct ownership
+RUN addgroup -S spring && adduser -S spring -G spring && mkdir -p /app/uploads && chown -R spring:spring /app
 USER spring:spring
 
 # Copy the built JAR from build stage
