@@ -61,19 +61,25 @@ jobs:
 
       # ── Deploy Backend Container App ──────────────────────────────────────
       - name: Deploy backend to Azure Container Apps
-        uses: azure/container-apps-deploy@v1
+        uses: azure/CLI@v2
         with:
-          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          containerAppName: ${{ secrets.CONTAINER_APP_BACKEND }}
-          imageToDeploy: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          azcliversion: latest
+          inlineScript: |
+            az containerapp update \
+              --name ${{ secrets.CONTAINER_APP_BACKEND }} \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --image ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
 
       # ── Deploy Frontend Container App ─────────────────────────────────────
       - name: Deploy frontend to Azure Container Apps
-        uses: azure/container-apps-deploy@v1
+        uses: azure/CLI@v2
         with:
-          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          containerAppName: ${{ secrets.CONTAINER_APP_FRONTEND }}
-          imageToDeploy: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          azcliversion: latest
+          inlineScript: |
+            az containerapp update \
+              --name ${{ secrets.CONTAINER_APP_FRONTEND }} \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --image ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
 
       # ── Summary ───────────────────────────────────────────────────────────
       - name: Deployment summary
